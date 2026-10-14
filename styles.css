@@ -228,3 +228,13 @@ td.empty { color: var(--muted); text-align: center; padding: 20px; }
   .print-page:last-child { page-break-after: auto; break-after: auto; }
   .print-page svg { width: 420mm; height: 297mm; display: block; }
 }
+
+/* ---------- wire colours ---------- */
+.railrow { grid-template-columns: 28px 1fr 60px auto; }
+.railrow input[type=color] { height: 24px; padding: 0 1px; }
+.chips.colors { gap: 4px; align-items: center; }
+.cchip { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid var(--line); font-size: 10px; font-weight: 700; color: #fff; }
+.cchip.auto { background: var(--panel2); color: var(--text); }
+.cchip.gnye { background: repeating-linear-gradient(45deg, #2e9e3e 0 4px, #e0c000 4px 8px) !important; }
+.cchip.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.colorpick input[type=color] { width: 30px; height: 24px; padding: 0 1px; }

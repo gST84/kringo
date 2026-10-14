@@ -174,7 +174,10 @@ export function analyze(project, lib, opts = {}) {
   }
   for (const page of project.pages) for (const rail of page.rails) {
     const k = 'RAIL:' + (rail.name || rail.id);
-    if (dsu.p.has(k)) netOf(k).rails.add(rail.name || '');
+    if (!dsu.p.has(k)) continue;
+    const n = netOf(k);
+    n.rails.add(rail.name || '');
+    n.railColor ||= rail.color;
   }
   for (const n of linkGroups.keys()) if (dsu.p.has('POT:' + n)) netOf('POT:' + n).pots.add(n);
 

@@ -1,6 +1,6 @@
 // Side panels: pages, symbol library and properties.
 import { h, natCmp, pickFiles } from '../util.js';
-import { newPage, newRail, PAGE_TEMPLATES, RAIL_PRESETS } from '../model.js';
+import { newPage, newRail, PAGE_TEMPLATES, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { refText } from '../schematic/analyze.js';
 import { autoTag, needsTag, numberContact, nextTerminal } from '../schematic/tags.js';
@@ -35,9 +35,31 @@ function rebuild(container, build) {
   const focused = document.activeElement;
   const fk = container.contains(focused) ? focused?.dataset?.key : null;
   const scroll = container.scrollTop;
-  container.replaceChildren(...[build()].flat());
+  container.replaceChildren(...[build()].flat().filter(Boolean));
   container.scrollTop = scroll;
   if (fk) container.querySelector(`[data-key="${CSS.escape(fk)}"]`)?.focus();
+}
+
+/**
+ * Wire colour picker: IEC colour chips, a free colour picker and "automatic" (no own colour:
+ * the wire takes the colour of its supply rail).
+ */
+function wireColorPicker(value, pick, autoColor) {
+  const cur = String(value || '').toUpperCase();
+  const free = h('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(value || '') ? value : wireColor(value) || '#1a1a1a', title: 'Vrije kleur kiezen' });
+  free.addEventListener('change', () => pick(free.value));
+  return h('div', { class: 'colorpick' },
+    h('div', { class: 'chips colors' },
+      h('button', {
+        class: 'cchip auto' + (!value ? ' active' : ''), title: 'Automatisch: kleur van de voedingslijn',
+        style: autoColor ? { background: autoColor } : null, onclick: () => pick(''),
+      }, 'A'),
+      Object.entries(WIRE_COLORS).map(([code, [name, hex]]) => h('button', {
+        class: 'cchip' + (cur === code ? ' active' : '') + (code === 'GNYE' ? ' gnye' : ''),
+        title: `${name} (${code})`, style: { background: hex }, onclick: () => pick(code),
+      })),
+      free),
+    h('small', { class: 'hint' }, value ? `Kleur: ${WIRE_COLORS[cur]?.[0] || value}${WIRE_COLORS[cur] ? ` (${cur})` : ''}` : 'Automatisch' + (autoColor ? ' – kleur van de voedingslijn' : ' – zwart')));
 }
 
 // ---------- pages ----------
@@ -270,7 +292,7 @@ function pageProps(app) {
       field('Titel', inp(pg.title, (v) => set(() => { pg.title = v; }), { key: 'ptitle' }))),
     section('Voedingslijnen',
       ...pg.rails.map((r) => h('div', { class: 'railrow' },
-        h('span', { class: 'swatch', style: { background: r.color } }),
+        inp(r.color, (v) => set(() => { r.color = v; }), { type: 'color', key: 'rc' + r.id }),
         inp(r.name, (v) => set(() => { r.name = v; if (RAIL_PRESETS[v]) r.color = RAIL_PRESETS[v]; }), { key: 'rn' + r.id }),
         inp(r.y, (v) => set(() => { r.y = v; }), { type: 'number', key: 'ry' + r.id }),
         h('button', { class: 'icon danger', title: 'Verwijderen', onclick: () => set(() => { pg.rails = pg.rails.filter((x) => x !== r); }) }, '✕'))),
@@ -283,14 +305,20 @@ function pageProps(app) {
             pg.rails.push(newRail(n, y));
           }),
         }, '+ ' + n))),
-      h('p', { class: 'hint' }, 'Y in mm (raster 5). Een lijn selecteren en verslepen kan ook op het blad.')),
+      h('p', { class: 'hint' }, 'Y in mm (raster 5). Een lijn selecteren en verslepen kan ook op het blad.'),
+      chk(app.project.settings.colorWires !== false, (v) => set((p) => { p.settings.colorWires = v; }), 'Draden krijgen de kleur van hun voedingslijn')),
     section('Sneltoetsen', h('p', { class: 'hint keys' },
       'V selecteren · W draad · T tekst · B kader · R draaien · M spiegelen · Del verwijderen · Ctrl+C / V / D · Ctrl+Z / Y · F passend · spatie+slepen of middelste knop: pannen · Alt: zonder raster')),
   ];
 }
 
 function multiProps(app, editor, keys) {
-  return [section(`${keys.length} elementen geselecteerd`,
+  const wires = app.page.wires.filter((w) => app.sel.has('w:' + w.id));
+  const colorSec = wires.length ? section(`Kleur van ${wires.length} draad/draden`,
+    wireColorPicker(wires.every((w) => w.color === wires[0].color) ? wires[0].color : '', (v) => app.mutate(() => {
+      for (const w of wires) { if (v) w.color = v; else delete w.color; }
+    }))) : null;
+  return [colorSec, section(`${keys.length} elementen geselecteerd`,
     h('div', { class: 'btnrow' },
       h('button', { onclick: () => editor.rotate() }, '⟳ Draaien'),
       h('button', { onclick: () => editor.mirror() }, '⇋ Spiegelen'),
@@ -397,8 +425,12 @@ function wireProps(app, w) {
   return [section('Draad',
     field('Draadnummer', inp(w.label || '', (v) => set(() => { w.label = v; }), { key: 'wlabel', placeholder: net?.label || '' }),
       'Leeg = automatisch. Geldt voor de hele verbinding (potentiaal).'),
-    field('Kleur', inp(w.color || '', (v) => set(() => { w.color = v; }), { key: 'wcolor', placeholder: 'bv. BK, BU, GNYE', list: 'wirecolors' })),
-    h('datalist', { id: 'wirecolors' }, ['BK', 'BN', 'RD', 'OG', 'YE', 'GN', 'BU', 'VT', 'GY', 'WH', 'GNYE', 'DBU'].map((x) => h('option', { value: x }))),
+    field('Kleur', wireColorPicker(w.color, (v) => set(() => { if (v) w.color = v; else delete w.color; }),
+      app.project.settings.colorWires !== false ? net?.railColor : null)),
+    h('div', { class: 'btnrow' }, h('button', {
+      title: 'Zelfde kleur voor alle draden van deze verbinding (potentiaal), op alle pagina\'s',
+      onclick: () => set(() => { for (const x of net?.wires || []) { if (w.color) x.wire.color = w.color; else delete x.wire.color; } }),
+    }, 'Kleur op hele verbinding toepassen')),
     field('Doorsnede (mm²)', inp(w.section || '', (v) => set(() => { w.section = v; }), { key: 'wsec', list: 'sections' })),
     h('datalist', { id: 'sections' }, ['0.5', '0.75', '1', '1.5', '2.5', '4', '6', '10', '16'].map((x) => h('option', { value: x }))),
     h('div', { class: 'reflist' }, h('b', null, 'Verbonden: '), pins.length ? pins.join(', ') : '—'),
@@ -438,5 +470,5 @@ function railProps(app, r) {
       field('Y', inp(r.y, (v) => set(() => { r.y = v; }), { type: 'number', key: 'ry' })),
       field('X van', inp(r.x0, (v) => set(() => { r.x0 = v; }), { type: 'number', key: 'rx0' })),
       field('X tot', inp(r.x1, (v) => set(() => { r.x1 = v; }), { type: 'number', key: 'rx1' }))),
-    h('p', { class: 'hint' }, 'Lijnen met dezelfde naam zijn op alle pagina\'s hetzelfde potentiaal; het draadnummer wordt de naam.'))];
+    h('p', { class: 'hint' }, 'Lijnen met dezelfde naam zijn op alle pagina\'s hetzelfde potentiaal; het draadnummer wordt de naam. Draden zonder eigen kleur nemen de kleur van de lijn over.'))];
 }

@@ -1,6 +1,6 @@
 // SVG markup for symbols and complete schematic pages (screen and print).
 import { esc, r2 } from '../util.js';
-import { FRAME, SHEET, pageGrid } from '../model.js';
+import { FRAME, SHEET, pageGrid, wireColor } from '../model.js';
 import { bbox, geometry, placeAnchor, svgTransform, worldBox, xf } from '../symbols/geom.js';
 import { refText } from './analyze.js';
 
@@ -169,8 +169,12 @@ function wireLabelPos(points) {
 function wireSvg(w, an, opts) {
   const sel = opts.selection?.has('w:' + w.id);
   const pts = w.points.map((p) => p.join(',')).join(' ');
-  let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}"><polyline class="wl" points="${pts}"/>`;
-  const label = an.wireNet.get(w.id)?.label;
+  const net = an.wireNet.get(w.id);
+  const own = wireColor(w.color);
+  const color = own || (opts.project.settings.colorWires !== false ? net?.railColor : null);
+  let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}"><polyline class="wl" points="${pts}"${color ? ` style="stroke:${esc(color)}"` : ''}/>`;
+  if (String(w.color).toUpperCase() === 'GNYE') out += `<polyline class="wl gnye" points="${pts}" style="stroke:#e0c000" stroke-dasharray="2 2"/>`;
+  const label = net?.label;
   if (label && opts.project.settings.showWireNumbers !== false) {
     const pos = wireLabelPos(w.points);
     if (pos) {
@@ -288,7 +292,7 @@ export const SVG_STYLE = `
 .ink .fi,.frame .fi{fill:#000}.ink .fw{fill:#fff}.ink circle.fi{stroke:none}
 text{font-family:Arial,Helvetica,sans-serif;dominant-baseline:central;fill:#000;stroke:none}
 .tb-b{font-weight:bold}.tb-l{fill:#555}.tag{font-weight:bold}.xref,.mirror{fill:#333}.wno{fill:#333}
-.rail .rl{stroke-width:.5}.rail-l{font-weight:bold}.wire .wl{stroke-width:.3}
+.rail .rl{stroke-width:.5}.wire .gnye{stroke-width:.3}.rail-l{font-weight:bold}.wire .wl{stroke-width:.3}
 `;
 
 /** Complete standalone SVG for one page (export / print). */

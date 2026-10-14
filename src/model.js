@@ -18,6 +18,23 @@ export const RAIL_PRESETS = {
   L: '#8b4513', '+24V': '#d02020', '0V': '#1e5bd8', '24V': '#d02020', M: '#1e5bd8',
 };
 
+/** IEC 60757 wire colour codes → display colour. */
+export const WIRE_COLORS = {
+  BK: ['Zwart', '#1a1a1a'], BN: ['Bruin', '#8b4513'], RD: ['Rood', '#d32020'], OG: ['Oranje', '#f08000'],
+  YE: ['Geel', '#e0b800'], GN: ['Groen', '#2e9e3e'], BU: ['Blauw', '#1e5bd8'], DBU: ['Donkerblauw', '#0b2a8a'],
+  VT: ['Violet', '#8a2be2'], GY: ['Grijs', '#808080'], WH: ['Wit', '#c8c8c8'], PK: ['Roze', '#ff69b4'],
+  TQ: ['Turkoois', '#20b2aa'], GNYE: ['Groen-geel', '#2e9e3e'],
+};
+
+/** Display colour for a wire colour value (IEC code, #hex or CSS name); null for none. */
+export function wireColor(v) {
+  if (!v) return null;
+  const code = String(v).trim().toUpperCase();
+  if (WIRE_COLORS[code]) return WIRE_COLORS[code][1];
+  if (/^#[0-9a-f]{3,8}$/i.test(v) || /^[a-z]+$/i.test(v)) return v;
+  return null;
+}
+
 export const PAGE_TEMPLATES = {
   empty: { label: 'Leeg', rails: [] },
   control: { label: 'Stuurstroom 230 V (L / N)', rails: [['L', 25], ['N', 245]] },
@@ -59,6 +76,7 @@ export function newProject(name = 'Nieuw project') {
       columns: 10,
       rows: 6,
       showWireNumbers: true,
+      colorWires: true, // wires take the colour of their supply rail
     },
     pages: [newPage('Voorblad'), newPage('Stuurstroom', 'control')],
     symbols: {}, // embedded copies of non-builtin symbol definitions
