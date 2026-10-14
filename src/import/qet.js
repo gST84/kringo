@@ -1,13 +1,13 @@
 // QElectroTech (.qet) project import.
 //
-// Every element definition of the embedded collection becomes an ElecAD symbol (stored in the
+// Every element definition of the embedded collection becomes a Kringo symbol (stored in the
 // project), every folio a page. QET works in pixels: symbols are stored at BASE mm/px and each
 // component gets a scale so the folio fits the A3 drawing area.
 //  - element pos = hotspot; definition coordinates are relative to it; orientation n×90° clockwise
 //  - conductors run from terminal1 along their segments; without segments they are routed here
 //  - terminals are referenced by definition terminal uuid (element1/terminal1) or, in older
 //    files, by the instance terminal id alone
-//  - master/slave links (coil ↔ contacts) become ElecAD links; folio reports become
+//  - master/slave links (coil ↔ contacts) become Kringo links; folio reports become
 //    interruption points with a shared name
 import { FRAME, newProject } from '../model.js';
 import { uid } from '../util.js';
@@ -78,7 +78,7 @@ const arcPath = (x, y, w, h, start, span) => {
   return `M ${ax} ${ay} A ${rx} ${ry} 0 ${Math.abs(span) > 180 ? 1 : 0} ${span > 0 ? 0 : 1} ${bx} ${by}`;
 };
 
-/** Converts a QET element definition into an ElecAD symbol definition (coordinates × BASE). */
+/** Converts a QET element definition into a Kringo symbol definition (coordinates × BASE). */
 function convertDefinition(defEl, path, folder) {
   const B = BASE;
   const S = (v) => v * B;
@@ -97,7 +97,7 @@ function convertDefinition(defEl, path, folder) {
         break;
       case 'circle': {
         const d = num(p, 'diameter');
-        graphics.push({ t: 'circle', cx: S(num(p, 'x') + d / 2), cy: S(num(p, 'y') + d / 2), r: S(d / 2), ...st });
+        graphics.push({ t: 'circle', cx: S(num(p, 'x') + d / 2), cy: S(num(p, 'y') + d / 2), r: S(Math.abs(d) / 2), ...st });
         break;
       }
       case 'ellipse': {

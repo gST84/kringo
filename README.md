@@ -1,10 +1,10 @@
-# ElecAD
+# Kringo
 
 CAD-programma in de browser voor elektrische schema's. Geen installatie en geen build-stap: plain JavaScript (ES-modules) + SVG.
 
 ## Starten
 
-**Online, zonder installatie:** <https://gst84.github.io/elecad/> (Chrome of Edge, ook op Windows).
+**Online, zonder installatie:** <https://gst84.github.io/kringo/> (Chrome of Edge, ook op Windows).
 
 Lokaal draaien:
 
@@ -38,8 +38,8 @@ Omdat het een statische site is, kan de map ook op elke webserver of GitHub Page
 - **Onderbrekingspunten**: zelfde naam = zelfde potentiaal, met verwijzing naar de andere plaatsen.
 - **Lijsten**: toestellen, klemmen (boven/onder), draden (van → naar, kleur, doorsnede), PLC-adressen – CSV-export en afdrukken. Klik op een regel om naar het symbool te springen.
 - **Symbooleditor**: zelf symbolen tekenen (lijn, polylijn, rechthoek, cirkel, boog, tekst met `{tag}` / `{desc}` …, pinnen, tagpositie), opslaan in eigen mappen.
-- **Symbolen importeren / exporteren**: losse `.elsym`-bestanden, een bibliotheek-`.json`, een hele map importeren, of (Chrome / Edge) een **map op schijf koppelen**: symbolen in die map en submappen verschijnen in de bibliotheek, nieuwe symbolen worden er als `.elsym` in bewaard.
-- **Projecten** worden automatisch in de browser bewaard (IndexedDB) en kunnen als `.elecad`-bestand opgeslagen en geopend worden. Eigen symbolen die in een project gebruikt worden, reizen mee in het bestand.
+- **Symbolen importeren / exporteren**: losse `.ksym`-bestanden, een bibliotheek-`.json`, een hele map importeren, of (Chrome / Edge) een **map op schijf koppelen**: symbolen in die map en submappen verschijnen in de bibliotheek, nieuwe symbolen worden er als `.ksym` in bewaard.
+- **Projecten** worden automatisch in de browser bewaard (IndexedDB) en kunnen als `.kringo`-bestand opgeslagen en geopend worden. Eigen symbolen die in een project gebruikt worden, reizen mee in het bestand.
 - **QElectroTech importeren**: "Open bestand" opent ook `.qet`-projecten. Folio's worden pagina's (met hun eigen kolom/rij-indeling), elementen worden projectsymbolen (map *QElectroTech*), draden, draadnummers, teksten, spoel/contact-koppelingen en folioverwijzingen worden overgenomen.
 - **Afdrukken / PDF** (A3 liggend, alle of één pagina) en SVG-export per pagina.
 - Ongedaan maken / opnieuw, kopiëren / plakken / dupliceren, pagina's dupliceren en herschikken.
@@ -50,9 +50,11 @@ Omdat het een statische site is, kan de map ook op elke webserver of GitHub Page
 
 ## Bestandsformaten
 
-- Project: `*.elecad` – JSON `{ "format": "elecad-project", "version": 1, … }`
-- Symbool: `*.elsym` – JSON `{ "format": "elecad-symbol", "version": 1, "symbol": { … } }`
-- Bibliotheek: JSON `{ "format": "elecad-library", "version": 1, "symbols": [ … ] }`
+Bestanden van de vroegere naam ElecAD (`.elecad`, `.elsym`) blijven openen.
+
+- Project: `*.kringo` – JSON `{ "format": "kringo-project", "version": 1, … }`
+- Symbool: `*.ksym` – JSON `{ "format": "kringo-symbol", "version": 1, "symbol": { … } }`
+- Bibliotheek: JSON `{ "format": "kringo-library", "version": 1, "symbols": [ … ] }`
 
 Coördinaten zijn millimeters; pinnen van symbolen liggen op een raster van 5 mm.
 

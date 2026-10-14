@@ -1,11 +1,13 @@
 // Symbol library: built-in symbols, user symbols (IndexedDB) and an optional linked folder
-// on disk (File System Access API, Chrome / Edge). Symbol files: *.elsym (JSON).
+// on disk (File System Access API, Chrome / Edge). Symbol files: *.ksym (JSON; *.elsym from earlier versions).
 import { BUILTIN } from './builtin.js';
 import { idb, kvGet, kvSet } from '../storage.js';
 import { uid, safeName, download, clone } from '../util.js';
 
-export const SYMBOL_FORMAT = 'elecad-symbol';
-export const LIBRARY_FORMAT = 'elecad-library';
+export const SYMBOL_FORMAT = 'kringo-symbol';
+export const LIBRARY_FORMAT = 'kringo-library';
+const isSymbolFile = (f) => f === SYMBOL_FORMAT || f === 'elecad-symbol';
+const isLibraryFile = (f) => f === LIBRARY_FORMAT || f === 'elecad-library';
 export const USER_ROOT = 'Mijn symbolen';
 
 export class Library {
@@ -97,13 +99,13 @@ export class Library {
 
   // ---------- import / export ----------
 
-  /** Parses .elsym / library files and stores the symbols as user (or folder) symbols. */
+  /** Parses .ksym / .elsym / library files and stores the symbols as user (or folder) symbols. */
   async importFiles(files) {
     let n = 0;
     for (const file of files) {
       let data;
       try { data = JSON.parse(await file.text()); } catch { continue; }
-      const defs = data.format === LIBRARY_FORMAT ? data.symbols : data.format === SYMBOL_FORMAT ? [data.symbol] : [];
+      const defs = isLibraryFile(data.format) ? data.symbols : isSymbolFile(data.format) ? [data.symbol] : [];
       const rel = (file.webkitRelativePath || '').split('/').slice(0, -1).join('/');
       for (const s of defs || []) {
         if (!s?.graphics) continue;
@@ -122,13 +124,13 @@ export class Library {
 
   exportLibrary(defs = [...this.user.values(), ...this.folder.values()]) {
     const symbols = defs.map((d) => { const c = clone(d); delete c.source; delete c._file; return c; });
-    download('elecad-symbolen.json', JSON.stringify({ format: LIBRARY_FORMAT, version: 1, symbols }, null, 1));
+    download('kringo-symbolen.json', JSON.stringify({ format: LIBRARY_FORMAT, version: 1, symbols }, null, 1));
   }
 
   exportSymbol(def) {
     const c = clone(def);
     delete c.source; delete c._file; delete c.build;
-    download(safeName(def.name) + '.elsym', JSON.stringify({ format: SYMBOL_FORMAT, version: 1, symbol: c }, null, 1));
+    download(safeName(def.name) + '.ksym', JSON.stringify({ format: SYMBOL_FORMAT, version: 1, symbol: c }, null, 1));
   }
 
   // ---------- linked folder ----------
@@ -136,7 +138,7 @@ export class Library {
   get folderSupported() { return 'showDirectoryPicker' in window; }
 
   async linkFolder() {
-    const handle = await window.showDirectoryPicker({ id: 'elecad-symbols', mode: 'readwrite' });
+    const handle = await window.showDirectoryPicker({ id: 'kringo-symbols', mode: 'readwrite' });
     this.dir = handle;
     await kvSet('symbolDir', handle);
     await this.readFolder();
@@ -161,10 +163,10 @@ export class Library {
     const walk = async (dir, rel) => {
       for await (const entry of dir.values()) {
         if (entry.kind === 'directory') await walk(entry, rel ? rel + '/' + entry.name : entry.name);
-        else if (/\.(elsym|json)$/i.test(entry.name)) {
+        else if (/\.(ksym|elsym|json)$/i.test(entry.name)) {
           try {
             const data = JSON.parse(await (await entry.getFile()).text());
-            const list = data.format === SYMBOL_FORMAT ? [data.symbol] : data.format === LIBRARY_FORMAT ? data.symbols : [];
+            const list = isSymbolFile(data.format) ? [data.symbol] : isLibraryFile(data.format) ? data.symbols : [];
             for (const s of list) {
               if (!s?.graphics) continue;
               const id = s.id || 'folder/' + (rel ? rel + '/' : '') + entry.name;
@@ -200,7 +202,7 @@ export class Library {
     else if (rel[0] === USER_ROOT) rel = rel.slice(1);
     const path = existingFile && existingFile.split('/').slice(0, -1).join('/') === rel.join('/')
       ? existingFile
-      : [...rel, safeName(def.name) + '.elsym'].join('/');
+      : [...rel, safeName(def.name) + '.ksym'].join('/');
     if (existingFile && existingFile !== path) {
       try { const old = await this.fileDir(existingFile, false); await old.dir.removeEntry(old.name); } catch { /* moved */ }
     }

@@ -19,7 +19,7 @@ export function shapeSvg(g, extra = '') {
   switch (g.t) {
     case 'line': return `<line x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}"${a}/>`;
     case 'rect': return `<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}"${a}/>`;
-    case 'circle': return `<circle cx="${g.cx}" cy="${g.cy}" r="${g.r}"${a}/>`;
+    case 'circle': return `<circle cx="${g.cx}" cy="${g.cy}" r="${Math.abs(g.r)}"${a}/>`;
     case 'path': return `<path d="${esc(g.d)}"${a}/>`;
     default: return '';
   }

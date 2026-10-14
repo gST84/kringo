@@ -1,6 +1,6 @@
 // IndexedDB persistence: projects, user symbols and small key/value settings.
 
-const DB_NAME = 'elecad';
+const DB_NAME = 'elecad'; // historic name, kept so existing projects stay available
 const DB_VERSION = 1;
 let dbp;
 

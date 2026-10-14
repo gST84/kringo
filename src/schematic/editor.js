@@ -150,7 +150,7 @@ export class SchematicEditor {
     svg.addEventListener('dragover', (e) => { e.preventDefault(); this.mouse = this.snapPt(this.toWorld(e), e); });
     svg.addEventListener('drop', (e) => {
       e.preventDefault();
-      const sym = e.dataTransfer.getData('text/x-elecad-symbol');
+      const sym = e.dataTransfer.getData('text/x-kringo-symbol');
       if (sym) this.placeSymbol(sym, this.snapPt(this.toWorld(e), e), 0, false);
     });
     window.addEventListener('keydown', (e) => this.onKey(e));

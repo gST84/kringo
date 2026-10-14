@@ -1,7 +1,9 @@
 // Project data model. All coordinates are millimetres on an A3 landscape sheet.
 import { uid } from './util.js';
 
-export const FORMAT = 'elecad-project';
+export const FORMAT = 'kringo-project';
+/** Formats written by earlier versions (still readable). */
+export const LEGACY_FORMATS = ['elecad-project'];
 export const VERSION = 1;
 
 export const SHEET = { w: 420, h: 297 };
@@ -87,6 +89,7 @@ export function newProject(name = 'Nieuw project') {
 
 /** Fills in fields added in later versions so older files keep loading. */
 export function normalizeProject(p) {
+  p.format = FORMAT;
   const d = newProject(p.name);
   p.meta = { ...d.meta, ...(p.meta || {}) };
   p.settings = { ...d.settings, ...(p.settings || {}) };

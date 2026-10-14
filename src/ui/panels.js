@@ -170,7 +170,7 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
       copy.folder = lib.dir && lib.dirState === 'linked' ? lib.dir.name : USER_ROOT;
       openSymbolEditor(copy);
     }]);
-    items.push(['Exporteren (.elsym)', () => lib.exportSymbol(def)]);
+    items.push(['Exporteren (.ksym)', () => lib.exportSymbol(def)]);
     if (lib.isEditable(def)) items.push(['Verwijderen', async () => {
       if (await confirmDlg('Symbool verwijderen', `"${def.name}" verwijderen uit de bibliotheek?`, 'Verwijderen', true)) await lib.remove(def);
     }]);
@@ -195,7 +195,7 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
             draggable: 'true',
             onclick: () => { editor.setTool('place', { sym: d.id }); renderTree(); },
             oncontextmenu: (e) => { e.preventDefault(); itemMenu(d, e); },
-            ondragstart: (e) => e.dataTransfer.setData('text/x-elecad-symbol', d.id),
+            ondragstart: (e) => e.dataTransfer.setData('text/x-kringo-symbol', d.id),
           });
           item.innerHTML = symbolPreviewSvg(d, 34);
           item.append(h('span', null, d.name), h('button', { class: 'more', title: 'Meer', onclick: (e) => itemMenu(d, e) }, '⋯'));
@@ -227,9 +227,9 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
     h('div', { class: 'panel-tools' },
       h('button', { onclick: () => openSymbolEditor(null), title: 'Nieuw symbool tekenen' }, '＋ Symbool'),
       h('button', {
-        title: 'Symbolen importeren (.elsym / bibliotheek .json)',
+        title: 'Symbolen importeren (.ksym / bibliotheek .json)',
         onclick: async () => {
-          const files = await pickFiles({ accept: '.elsym,.json', multiple: true });
+          const files = await pickFiles({ accept: '.ksym,.elsym,.json', multiple: true });
           if (files.length) toast(`${await lib.importFiles(files)} symbool/symbolen geïmporteerd`);
         },
       }, 'Import'),
@@ -237,7 +237,7 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
         title: 'Een map met symbolen importeren (submappen worden mappen in de bibliotheek)',
         onclick: async () => {
           const files = await pickFiles({ directory: true });
-          if (files.length) toast(`${await lib.importFiles(files.filter((f) => /\.(elsym|json)$/i.test(f.name)))} symbool/symbolen geïmporteerd`);
+          if (files.length) toast(`${await lib.importFiles(files.filter((f) => /\.(ksym|elsym|json)$/i.test(f.name)))} symbool/symbolen geïmporteerd`);
         },
       }, 'Map…'),
       h('button', { title: 'Eigen symbolen exporteren als bibliotheek', onclick: () => lib.exportLibrary() }, 'Export')),

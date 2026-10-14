@@ -17,7 +17,7 @@ import { h } from './util.js';
 const lib = new Library();
 await lib.init();
 const app = new App(lib);
-window.elecad = app; // handy for debugging in the console
+window.kringo = app; // handy for debugging in the console
 
 // ---------- layout ----------
 const $ = (s) => document.querySelector(s);
@@ -33,7 +33,7 @@ const undoBtn = btn('↶', 'Ongedaan maken (Ctrl+Z)', () => app.undo());
 const redoBtn = btn('↷', 'Opnieuw (Ctrl+Y)', () => app.redo());
 
 $('#top').append(
-  h('div', { class: 'brand' }, h('span', { class: 'logo' }, '⚡'), 'ElecAD'),
+  h('div', { class: 'brand' }, h('span', { class: 'logo' }, '⚡'), 'Kringo'),
   nameEl,
   h('div', { class: 'menu' },
     btn('Nieuw', 'Nieuw project', async () => {
@@ -46,8 +46,8 @@ $('#top').append(
       localStorage.setItem('elecad.last', p.id);
     }),
     btn('Openen', 'Project openen (uit de browser of een bestand)', async () => { await app.save(); openDialog(app); }),
-    btn('Bewaar bestand', 'Project opslaan als .elecad-bestand', () => exportProjectFile(app)),
-    btn('Open bestand', '.elecad-bestand of QElectroTech-project (.qet) openen', async () => { await app.save(); importProjectFile(app); }),
+    btn('Bewaar bestand', 'Project opslaan als .kringo-bestand', () => exportProjectFile(app)),
+    btn('Open bestand', '.kringo-bestand of QElectroTech-project (.qet) openen', async () => { await app.save(); importProjectFile(app); }),
     h('span', { class: 'sep' }),
     btn('Gegevens', 'Projectgegevens, bedrijf, logo', () => projectDialog(app)),
     btn('Instellingen', 'Nummering en bladindeling', () => settingsDialog(app)),
@@ -140,7 +140,7 @@ app.on('change', () => {
   undoBtn.disabled = !app.undoStack.length;
   redoBtn.disabled = !app.redoStack.length;
   nameEl.textContent = app.project.name;
-  document.title = `${app.project.name} – ElecAD`;
+  document.title = `${app.project.name} – Kringo`;
 });
 app.on('selection', () => editor.render());
 app.on('page', () => editor.render());

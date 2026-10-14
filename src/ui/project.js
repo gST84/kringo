@@ -1,6 +1,6 @@
 // Project dialogs: properties, settings, open / new, file import / export, printing.
 import { h, download, pickFiles, readDataURL, safeName, shrinkImage } from '../util.js';
-import { FORMAT, newProject, SHEET } from '../model.js';
+import { FORMAT, LEGACY_FORMATS, newProject, SHEET } from '../model.js';
 import { deleteProject, listProjects, loadProject } from '../storage.js';
 import { standalonePageSvg } from '../schematic/render.js';
 import { renumberDevices, renumberTerminals } from '../schematic/tags.js';
@@ -168,7 +168,7 @@ export async function openDialog(app) {
 }
 
 export async function importProjectFile(app) {
-  const [f] = await pickFiles({ accept: '.elecad,.json,.qet' });
+  const [f] = await pickFiles({ accept: '.kringo,.elecad,.json,.qet' });
   if (!f) return;
   try {
     if (/\.qet$/i.test(f.name)) {
@@ -183,7 +183,8 @@ export async function importProjectFile(app) {
       return;
     }
     const p = JSON.parse(await f.text());
-    if (p.format !== FORMAT || !Array.isArray(p.pages)) throw new Error('Geen ElecAD-projectbestand.');
+    if ((p.format !== FORMAT && !LEGACY_FORMATS.includes(p.format)) || !Array.isArray(p.pages)) throw new Error('Geen Kringo-projectbestand.');
+    p.format = FORMAT;
     const existing = await loadProject(p.id);
     if (existing && !(await confirmDlg('Project bestaat al', `"${existing.name}" staat al in deze browser. Overschrijven met het bestand? (Annuleren = als kopie openen)`, 'Overschrijven'))) {
       p.id = 'prj' + Math.random().toString(36).slice(2, 10);
@@ -202,10 +203,10 @@ export async function exportProjectFile(app) {
   const p = app.project;
   p.symbols = app.lib.embedFor(p);
   const data = JSON.stringify(p);
-  const name = safeName(p.name) + '.elecad';
+  const name = safeName(p.name) + '.kringo';
   if (window.showSaveFilePicker) {
     try {
-      const fh = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'ElecAD project', accept: { 'application/json': ['.elecad'] } }] });
+      const fh = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'Kringo-project', accept: { 'application/json': ['.kringo'] } }] });
       const w = await fh.createWritable();
       await w.write(data);
       await w.close();

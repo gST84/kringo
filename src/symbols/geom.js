@@ -31,7 +31,7 @@ export function bbox(geom) {
   for (const g of geom.graphics || []) {
     if (g.t === 'line') { add(g.x1, g.y1); add(g.x2, g.y2); }
     else if (g.t === 'rect') { add(g.x, g.y); add(g.x + g.w, g.y + g.h); }
-    else if (g.t === 'circle') { add(g.cx - g.r, g.cy - g.r); add(g.cx + g.r, g.cy + g.r); }
+    else if (g.t === 'circle') { const r = Math.abs(g.r); add(g.cx - r, g.cy - r); add(g.cx + r, g.cy + r); }
     else if (g.t === 'path') for (const [x, y] of pathPoints(g.d)) add(x, y);
     else if (g.t === 'text') {
       const w = (String(g.text).length * g.size * 0.55) || 1;
