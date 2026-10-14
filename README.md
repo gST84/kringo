@@ -4,6 +4,10 @@ CAD-programma in de browser voor elektrische schema's. Geen installatie en geen 
 
 ## Starten
 
+**Online, zonder installatie:** <https://gst84.github.io/elecad/> (Chrome of Edge, ook op Windows).
+
+Lokaal draaien:
+
 ES-modules werken niet via `file://`, dus er is een kleine lokale webserver nodig (Python 3 zit standaard op macOS):
 
 ```bash
