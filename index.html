@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ElecAD</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>⚡</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header id="top"></header>
+    <main>
+      <aside id="left">
+        <div id="left-tabs" class="tabs"></div>
+        <div id="library" class="panel"></div>
+        <div id="pages" class="panel" hidden></div>
+      </aside>
+      <section id="center">
+        <div id="toolbar"></div>
+        <div id="canvas"></div>
+        <div id="status"></div>
+      </section>
+      <aside id="right"><div id="props" class="panel"></div></aside>
+    </main>
+  </div>
+  <div id="print-root"></div>
+  <noscript>ElecAD heeft JavaScript nodig.</noscript>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
