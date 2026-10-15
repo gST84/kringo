@@ -3,7 +3,7 @@ import { h } from './util.js';
 import { modal } from './ui/dialogs.js';
 
 export const isStandalone = () =>
-  matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: window-controls-overlay)').matches || navigator.standalone === true;
+  matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
 const isIos = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
