@@ -5,8 +5,9 @@ import { SchematicEditor } from './schematic/editor.js';
 import { libraryPanel, pagesPanel, propertiesPanel } from './ui/panels.js';
 import { listsDialog } from './ui/lists.js';
 import { openSymbolEditor } from './ui/symbolEditor.js';
+import { setupPwa } from './pwa.js';
 import {
-  createProject, exportProjectFile, importProjectFile, openDialog, printDialog, projectDialog, renumberDialog, settingsDialog,
+  createProject, exportProjectFile, importProjectFile, openProjectFile, openDialog, printDialog, projectDialog, renumberDialog, settingsDialog,
 } from './ui/project.js';
 import { modal, prompt, toast } from './ui/dialogs.js';
 import { listProjects, loadProject } from './storage.js';
@@ -33,7 +34,7 @@ const undoBtn = btn('↶', 'Ongedaan maken (Ctrl+Z)', () => app.undo());
 const redoBtn = btn('↷', 'Opnieuw (Ctrl+Y)', () => app.redo());
 
 $('#top').append(
-  h('div', { class: 'brand' }, h('span', { class: 'logo' }, '⚡'), 'Kringo'),
+  h('div', { class: 'brand' }, h('img', { class: 'logo', src: 'icons/icon.svg', alt: '' }), 'Kringo'),
   nameEl,
   h('div', { class: 'menu' },
     btn('Nieuw', 'Nieuw project', async () => {
@@ -56,6 +57,7 @@ $('#top').append(
     btn('Afdrukken', 'Afdrukken of PDF', () => printDialog(app)),
     h('span', { class: 'sep' }),
     undoBtn, redoBtn, saveEl),
+  setupPwa({ onFile: async (f) => { await app.save(); openProjectFile(app, f); } }),
   h('div', { class: 'modes' },
     h('button', { class: 'active', title: 'Stuurkasten / industriële schema\'s' }, 'Stuurkasten'),
     h('button', { title: 'Gebouwen (AREI) – in ontwikkeling', onclick: buildingInfo }, 'Gebouwen')));

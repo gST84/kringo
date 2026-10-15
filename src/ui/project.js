@@ -169,7 +169,11 @@ export async function openDialog(app) {
 
 export async function importProjectFile(app) {
   const [f] = await pickFiles({ accept: '.kringo,.elecad,.json,.qet' });
-  if (!f) return;
+  if (f) await openProjectFile(app, f);
+}
+
+/** Opens a .kringo / .elecad project or imports a QElectroTech .qet file. */
+export async function openProjectFile(app, f) {
   try {
     if (/\.qet$/i.test(f.name)) {
       const { project, report } = importQet(await f.text(), f.name);

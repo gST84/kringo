@@ -6,6 +6,12 @@ CAD-programma in de browser voor elektrische schema's. Geen installatie en geen 
 
 **Online, zonder installatie:** <https://gst84.github.io/kringo/> (Chrome of Edge, ook op Windows).
 
+**Als app installeren** (werkt daarna ook offline):
+
+- Windows / Mac: Chrome of Edge → knop *Installeren* in de bovenbalk (of het installatie-icoon in de adresbalk). `.kringo`- en `.qet`-bestanden openen dan met een dubbelklik in Kringo.
+- iPad / iPhone: Safari → deelknop → *Zet op beginscherm*. Belangrijk op iPad: alleen zo blijven projecten in de browser bewaard.
+- Android: Chrome → *App installeren*.
+
 Lokaal draaien:
 
 ES-modules werken niet via `file://`, dus er is een kleine lokale webserver nodig (Python 3 zit standaard op macOS):
@@ -62,6 +68,7 @@ Coördinaten zijn millimeters; pinnen van symbolen liggen op een raster van 5 mm
 
 ```
 index.html, styles.css, serve.py, start.command
+manifest.webmanifest, sw.js, icons/   installeerbare app (PWA), offline cache
 src/
   main.js                 opbouw UI en events
   app.js                  toestand, undo/redo, autosave
