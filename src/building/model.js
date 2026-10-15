@@ -8,13 +8,13 @@ export function newFloor(name = 'Gelijkvloers') {
 export function newBoard(name = 'Hoofdverdeelbord') {
   return {
     id: uid('bd'), name,
-    main: { In: 40, poles: 2, rcd: 300 }, // main switch / general residual current device (mA, 0 = none)
+    main: { In: 40, poles: 2, rcd: 300, cable: 'XVB 3G10' }, // main switch / general residual current device (mA, 0 = none)
     rcds: [{ id: uid('rc'), name: 'Differentieel 30 mA', sens: 30, In: 40, type: 'A' }],
   };
 }
 
 export function newCircuit(name, boardId) {
-  return { id: uid('k'), name, desc: '', board: boardId, rcd: '', In: 16, poles: 2, curve: 'C', cable: 'XVB', cores: '3G', section: 2.5 };
+  return { id: uid('k'), name, desc: '', board: boardId, rcd: '', In: 20, poles: 2, curve: 'C', kA: 3, cable: 'XVB', cores: '3G', section: 2.5 };
 }
 
 export function newBuilding() {

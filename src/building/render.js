@@ -42,7 +42,7 @@ function openingSvg(o, w, sw, sel) {
       const H = P(h * hw, side * t);
       const E = [H[0] + n[0] * side * len, H[1] + n[1] * side * len];
       const J = P(h * hw - h * len, side * t);
-      const sweep = (h * side > 0) ? 0 : 1;
+      const sweep = (h * side > 0) ? 1 : 0;
       s += `<line x1="${r2(H[0])}" y1="${r2(H[1])}" x2="${r2(E[0])}" y2="${r2(E[1])}" style="stroke-width:${sw * 1.5}"/>`;
       s += `<path d="M ${r2(E[0])} ${r2(E[1])} A ${len} ${len} 0 0 ${sweep} ${r2(J[0])} ${r2(J[1])}" style="stroke-width:${sw * 0.7}" stroke-dasharray="${sw * 4} ${sw * 3}"/>`;
     }

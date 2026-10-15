@@ -286,6 +286,9 @@ export async function circuitsDialog(app) {
         field('Verdeelbord', inp(bd.name, (v) => { bd.name = v; render(); })),
         field('Hoofdschakelaar (A)', inp(bd.main.In, (v) => { bd.main.In = v; render(); }, { type: 'number' })),
         field('Algemene diff. (mA, 0 = geen)', inp(bd.main.rcd, (v) => { bd.main.rcd = v || 0; render(); }, { type: 'number' }))),
+      h('div', { class: 'grid3' },
+        field('Polen', sel(bd.main.poles || 2, [[2, '2P'], [4, '4P']], (v) => { bd.main.poles = +v; })),
+        field('Voedingskabel', inp(bd.main.cable, (v) => { bd.main.cable = v; }, { placeholder: 'bv. XVB 4x10' }))),
       h('table', { class: 'list rcds' },
         h('thead', null, h('tr', null, h('th', null, 'Differentieel'), h('th', null, 'mA'), h('th', null, 'A'), h('th', null, 'Type'), h('th', null, ''))),
         h('tbody', null, bd.rcds.map((r) => h('tr', null,
@@ -301,8 +304,8 @@ export async function circuitsDialog(app) {
     const rcdOpts = (c) => [['', '— (rechtstreeks)'], ...(draft.boards.find((bd) => bd.id === c.board)?.rcds || []).map((r) => [r.id, `${r.name} (${r.sens} mA)`])];
     const count = (c) => circuitSymbols(temp(), c.id).length;
     const table = h('table', { class: 'list circ' },
-      h('thead', null, h('tr', null, ['Kring', 'Omschrijving', 'Bord', 'Differentieel', 'Curve', 'A', 'Polen', 'Kabel', 'Aders', 'mm²', 'Punten', ''].map((x) => h('th', null, x)))),
-      h('tbody', null, [...draft.circuits].sort((a, c) => natCmp(a.name, c.name)).map((c) => {
+      h('thead', null, h('tr', null, ['Kring', 'Omschrijving', 'Bord', 'Differentieel', 'Curve', 'A', 'Polen', 'kA', 'Kabel', 'Aders', 'mm²', 'Punten', ''].map((x) => h('th', null, x)))),
+      h('tbody', null, draft.circuits.map((c, ci) => {
         const warns = byCircuit.get(c.id) || [];
         return [
           h('tr', { class: warns.some((w) => w.level === 'error') ? 'err' : '' },
@@ -313,15 +316,19 @@ export async function circuitsDialog(app) {
             h('td', null, sel(c.curve, [['B', 'B'], ['C', 'C'], ['D', 'D']], (v) => { c.curve = v; })),
             h('td', null, sel(c.In, [6, 10, 16, 20, 25, 32, 40, 50, 63].map((x) => [x, x]), (v) => { c.In = +v; render(); })),
             h('td', null, sel(c.poles, [[1, '1P'], [2, '2P'], [3, '3P'], [4, '4P']], (v) => { c.poles = +v; })),
+            h('td', null, sel(c.kA || 3, [[3, '3'], [4.5, '4,5'], [6, '6'], [10, '10']], (v) => { c.kA = +v; })),
             h('td', null, inp(c.cable, (v) => { c.cable = v; }, { list: 'cables' })),
             h('td', null, sel(c.cores, [['3G', '3G'], ['5G', '5G'], ['2x', '2x'], ['4G', '4G']], (v) => { c.cores = v; })),
             h('td', null, sel(c.section, Object.keys(MAX_IN).map(Number).sort((x, y) => x - y).map((x) => [x, String(x).replace('.', ',')]), (v) => { c.section = +v; render(); })),
             h('td', { class: 'num' }, count(c)),
-            h('td', null, h('button', {
-              class: 'icon danger', title: 'Kring verwijderen',
-              onclick: () => { draft.circuits = draft.circuits.filter((x) => x !== c); render(); },
-            }, '✕'))),
-          warns.length ? h('tr', { class: 'warnrow' }, h('td', { colspan: 12 }, warns.map((w) => h('div', { class: 'chk ' + w.level }, (w.level === 'error' ? '⚠ ' : 'ℹ ') + w.text)))) : null,
+            h('td', { class: 'nowrap' },
+              h('button', { class: 'icon', title: 'Naar links in het eendraadschema', disabled: ci === 0, onclick: () => { draft.circuits.splice(ci - 1, 0, draft.circuits.splice(ci, 1)[0]); render(); } }, '↑'),
+              h('button', { class: 'icon', title: 'Naar rechts in het eendraadschema', disabled: ci === draft.circuits.length - 1, onclick: () => { draft.circuits.splice(ci + 1, 0, draft.circuits.splice(ci, 1)[0]); render(); } }, '↓'),
+              h('button', {
+                class: 'icon danger', title: 'Kring verwijderen',
+                onclick: () => { draft.circuits = draft.circuits.filter((x) => x !== c); render(); },
+              }, '✕'))),
+          warns.length ? h('tr', { class: 'warnrow' }, h('td', { colspan: 13 }, warns.map((w) => h('div', { class: 'chk ' + w.level }, (w.level === 'error' ? '⚠ ' : 'ℹ ') + w.text)))) : null,
         ];
       }).flat().filter(Boolean)));
     const general = checks.filter((c) => !c.circuit);

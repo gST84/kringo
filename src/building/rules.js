@@ -3,7 +3,7 @@ import { circuitSymbols } from './model.js';
 
 /** Maximum breaker rating per copper section (mm²) for household circuits. */
 export const MAX_IN = { 1.5: 16, 2.5: 20, 4: 25, 6: 32, 10: 40, 16: 63 };
-const DEDICATED = new Set(['washer', 'dryer', 'dishwasher', 'hob', 'oven', 'boiler', 'heatpump', 'ev']);
+const DEDICATED = new Set(['washer', 'dryer', 'dishwasher', 'hob', 'oven', 'boiler', 'heatpump', 'ev', 'hood', 'cooker']);
 
 export function checkCircuits(building, lib) {
   const out = [];

@@ -172,7 +172,8 @@ function wireSvg(w, an, opts) {
   const net = an.wireNet.get(w.id);
   const own = wireColor(w.color);
   const color = own || (opts.project.settings.colorWires !== false ? net?.railColor : null);
-  let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}"><polyline class="wl" points="${pts}"${color ? ` style="stroke:${esc(color)}"` : ''}/>`;
+  const st = (color ? `stroke:${color};` : '') + (w.w ? `stroke-width:${w.w};` : '');
+  let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}"><polyline class="wl" points="${pts}"${st ? ` style="${esc(st)}"` : ''}/>`;
   if (String(w.color).toUpperCase() === 'GNYE') out += `<polyline class="wl gnye" points="${pts}" style="stroke:#e0c000" stroke-dasharray="2 2"/>`;
   const label = net?.label;
   if (label && opts.project.settings.showWireNumbers !== false) {
@@ -280,7 +281,7 @@ export function pageSvg(project, page, pageIdx, an, opts = {}) {
     }
     s += '</g>';
   }
-  for (const [x, y] of an.junctions.get(page.id) || []) s += `<circle cx="${x}" cy="${y}" r="0.75" class="fi"/>`;
+  if (!page.noDots) for (const [x, y] of an.junctions.get(page.id) || []) s += `<circle cx="${x}" cy="${y}" r="0.75" class="fi"/>`;
   s += '</g>';
   return s;
 }

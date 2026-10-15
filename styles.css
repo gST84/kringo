@@ -290,3 +290,4 @@ table.list.circ tbody tr:hover { background: none; cursor: default; }
 .circuits table select { min-width: 54px; }
 .circuits table.circ td:nth-child(2) input { min-width: 140px; }
 #toolbar select { max-width: 190px; }
+.nowrap { white-space: nowrap; }
