@@ -53,8 +53,6 @@ input[type=color] { width: 100%; height: 28px; border: 1px solid var(--line); bo
 .savestate { color: var(--muted); font-size: 12px; margin-left: 6px; }
 .savestate.dirty { color: #c77d00; }
 .savestate.error { color: var(--danger); }
-.modes { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.modes button { border: none; border-radius: 0; }
 
 main { flex: 1; display: grid; grid-template-columns: 250px minmax(0, 1fr) 280px; grid-template-rows: minmax(0, 1fr); min-height: 0; }
 aside { background: var(--panel); min-height: 0; display: flex; flex-direction: column; }
@@ -241,14 +239,21 @@ td.empty { color: var(--muted); text-align: center; padding: 20px; }
 .cchip.active { outline: 2px solid var(--accent); outline-offset: 1px; }
 .colorpick input[type=color] { width: 30px; height: 24px; padding: 0 1px; }
 
-/* ---------- modes ---------- */
-body[data-mode=schematic] .only-building, body[data-mode=building] .only-schematic { display: none !important; }
-body[data-mode=building] #left-tabs, body[data-mode=building] #library, body[data-mode=building] #pages { display: none !important; }
+/* ---------- project kinds and views ---------- */
+body[data-kind=schematic] .kind-building, body[data-kind=building] .kind-schematic { display: none !important; }
+body[data-kind=building] #left-tabs, body[data-kind=building] #library, body[data-kind=building] #pages { display: none !important; }
+body[data-mode=schematic] .view-plan, body[data-mode=building] .view-sheet { display: none !important; }
 body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:not(.plancanvas) { display: none; }
-.modes button.active { background: var(--accent); color: #fff; }
 .tgroup { display: contents; }
 #building-left { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 #building-left .tabs.inner { padding-top: 6px; }
+.kindbadge { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 2px 8px; white-space: nowrap; }
+.kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.kind { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px; text-align: left; white-space: normal; border-radius: 8px; }
+.kind small { color: var(--muted); }
+.kind .kicon { font-size: 22px; }
+.kind.active { background: var(--accent-soft); border-color: var(--accent); }
+.pagelist h4 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
 
 /* ---------- plan ---------- */
 .plancanvas[data-tool=wall], .plancanvas[data-tool=opening], .plancanvas[data-tool=stair], .plancanvas[data-tool=text], .plancanvas[data-tool=place], .plancanvas[data-tool=link] { cursor: crosshair; }
@@ -291,3 +296,13 @@ table.list.circ tbody tr:hover { background: none; cursor: default; }
 .circuits table.circ td:nth-child(2) input { min-width: 140px; }
 #toolbar select { max-width: 190px; }
 .nowrap { white-space: nowrap; }
+.ink rect.tbox { stroke-width: .2; fill: none; }
+.dialwrap { display: flex; justify-content: center; margin: 4px 0 8px; }
+svg.dial { width: 120px; height: 120px; }
+svg.dial .ring { fill: none; stroke: var(--line); stroke-width: 1.5; }
+svg.dial .hand { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+svg.dial .hub { fill: var(--accent); }
+svg.dial .dot { fill: var(--panel2); stroke: var(--muted); stroke-width: 1; cursor: pointer; }
+svg.dial .dot:hover { fill: var(--accent-soft); stroke: var(--accent); }
+svg.dial .dot.on { fill: var(--accent); stroke: var(--accent); }
+svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, sans-serif; dominant-baseline: central; }

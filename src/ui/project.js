@@ -123,8 +123,8 @@ export function companyDefaults() {
   try { return JSON.parse(localStorage.getItem('elecad.company') || 'null') || {}; } catch { return {}; }
 }
 
-export function createProject(name) {
-  const p = newProject(name);
+export function createProject(name, kind = 'schematic') {
+  const p = newProject(name, kind);
   const d = companyDefaults();
   Object.assign(p.meta, Object.fromEntries(Object.entries(d).filter(([, v]) => v)));
   return p;
@@ -230,11 +230,9 @@ export function printProject(app, pages = null, floors = null) {
   const an = app.analysis();
   const root = document.getElementById('print-root');
   const p = app.project;
-  if (floors) root.innerHTML = floors.map((i) => `<div class="print-page">${standalonePlanSvg(p, i, app.lib)}</div>`).join('');
-  else {
-    const idx = pages || p.pages.map((_, i) => i);
-    root.innerHTML = idx.map((i) => `<div class="print-page">${standalonePageSvg(p, p.pages[i], i, an)}</div>`).join('');
-  }
+  const idx = pages || (floors ? [] : p.pages.map((_, i) => i));
+  root.innerHTML = (floors || []).map((i) => `<div class="print-page">${standalonePlanSvg(p, i, app.lib)}</div>`).join('')
+    + idx.map((i) => `<div class="print-page">${standalonePageSvg(p, p.pages[i], i, an)}</div>`).join('');
   const done = () => { root.innerHTML = ''; window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   setTimeout(() => window.print(), 50);
@@ -247,7 +245,7 @@ export function exportPageSvg(app) {
 }
 
 export async function printDialog(app) {
-  if (app.mode === 'building') return printPlansDialog(app);
+  if (app.project.kind === 'building') return printPlansDialog(app);
   const all = h('input', { type: 'radio', name: 'pr', checked: true });
   const cur = h('input', { type: 'radio', name: 'pr' });
   const ok = await modal({
@@ -264,16 +262,25 @@ export async function printDialog(app) {
 
 async function printPlansDialog(app) {
   const b = app.project.building;
-  const all = h('input', { type: 'radio', name: 'pp', checked: true });
-  const cur = h('input', { type: 'radio', name: 'pp' });
+  const sheets = app.project.pages.length;
+  const opts = [
+    ['all', `Alles: plattegronden (${b.floors.length}) + eendraadschema (${sheets})`],
+    ['plans', `Alle plattegronden (${b.floors.length})`],
+    ['floor', `Huidige plattegrond (${app.floor.name})`],
+    ...(sheets ? [['sheets', `Eendraadschema (${sheets} blad${sheets > 1 ? 'en' : ''})`]] : []),
+  ];
+  const radios = opts.map(([v, l], i) => [v, h('input', { type: 'radio', name: 'pp', value: v, checked: i === 0 }), l]);
   const ok = await modal({
-    title: 'Plattegronden afdrukken / PDF',
+    title: 'Afdrukken / PDF',
     body: h('div', { class: 'form' },
-      h('label', { class: 'check' }, all, `Alle verdiepingen (${b.floors.length})`),
-      h('label', { class: 'check' }, cur, `Huidige verdieping (${app.floor.name})`),
-      h('p', { class: 'hint' }, `A3 liggend, schaal 1:${b.scale}. Kies "Opslaan als PDF" in het afdrukvenster; marges op "Geen".`)),
-    buttons: [{ label: 'Annuleren', value: false }, { label: 'SVG van verdieping', value: 'svg' }, { label: 'Afdrukken', value: 'print', primary: true }],
+      ...radios.map(([, r, l]) => h('label', { class: 'check' }, r, l)),
+      h('p', { class: 'hint' }, `A3 liggend, plattegronden op schaal 1:${b.scale}. Kies "Opslaan als PDF" in het afdrukvenster; marges op "Geen".`)),
+    buttons: [{ label: 'Annuleren', value: false }, { label: 'SVG van plattegrond', value: 'svg' }, { label: 'Afdrukken', value: 'print', primary: true }],
   });
-  if (ok === 'svg') download(`${safeName(app.project.name)} - ${safeName(app.floor.name)}.svg`, standalonePlanSvg(app.project, app.floorIdx, app.lib), 'image/svg+xml');
-  else if (ok === 'print') printProject(app, null, cur.checked ? [app.floorIdx] : b.floors.map((_, i) => i));
+  if (ok === 'svg') { download(`${safeName(app.project.name)} - ${safeName(app.floor.name)}.svg`, standalonePlanSvg(app.project, app.floorIdx, app.lib), 'image/svg+xml'); return; }
+  if (ok !== 'print') return;
+  const pick = radios.find(([, r]) => r.checked)[0];
+  const floors = pick === 'all' || pick === 'plans' ? b.floors.map((_, i) => i) : pick === 'floor' ? [app.floorIdx] : [];
+  const pages = pick === 'all' || pick === 'sheets' ? app.project.pages.map((_, i) => i) : [];
+  printProject(app, pages, floors);
 }

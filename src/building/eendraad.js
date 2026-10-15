@@ -1,175 +1,271 @@
-// Single-line diagram (eendraadschema) per distribution board, in the usual Belgian layout and
-// generated as ordinary schematic pages (editable afterwards):
-//  - busbar at the bottom, supply bottom left: kWh meter → supply cable → general residual
-//    current device → busbar, earth electrode on the left end of the busbar
-//  - every circuit rises from the busbar: letter left of the breaker, breaking capacity and rating
-//    written vertically, cable vertically along the circuit line
-//  - devices branch off to the right, numbered 1, 2, 3 … on the left; a circuit with a single
-//    device carries the symbol on top of the line; the circuit description stands vertically on top
-//  - circuits behind a 30 mA residual current device rise from their own busbar above the device
+// Single-line diagram (eendraadschema) per distribution board in the usual Belgian layout,
+// generated as schematic sheets of the building project (editable afterwards):
+//  - main busbar at the bottom; supply bottom left: (kWh meter) → supply cable → general residual
+//    current device → busbar; earth electrode with measuring clamp on the left end
+//  - every 30 mA residual current device rises from the main busbar and feeds its own busbar,
+//    from which its circuits rise
+//  - circuit: letter bottom left, breaker with breaking capacity (framed, e.g. 3000) and rating
+//    written vertically, cable along the line ("VOB Eca 3G2,5²")
+//  - numbered branches to the right: switches in a row on the line followed by the light points
+//    they control (×n), socket boxes, appliances; a circuit with a single appliance carries it on top
 import { newPage } from '../model.js';
 import { uid } from '../util.js';
 import { circuitSymbols } from './model.js';
 
-const BUS_Y = 228; // main busbar
-const SUB_DY = 24; // residual current device height + gap to its busbar
+const MAIN_Y = 222; // main busbar
+const SUB_DY = 40; // main busbar → busbar of a residual current device
 const MCB_H = 12;
-const ROW = 11; // mm between devices
-const TOP_MIN = 40; // highest device position
-const UNIT = 4.5; // width of one socket in a multiple socket box
-const X_START = 62, X_END = 405;
+const CABLE = 36; // breaker top → first branch
+const ROW = 10; // mm between branches
+const TOP_MIN = 38;
+const SW = 6.5; // spacing of switches on a branch
+const X_START = 40, X_END = 408;
 
 const fmtSection = (s) => String(s ?? '').replace('.', ',');
-export const cableText = (c) => `${c.cable || ''} ${c.cores || ''}${fmtSection(c.section)}`.trim();
-const breakerText = (c) => `${c.poles || 2}P - ${c.curve || 'C'} ${c.In}A`;
+export const cableText = (c) => [c.cable, c.fire, `${c.cores || ''}${fmtSection(c.section)}²`].filter(Boolean).join(' ');
+const icn = (kA) => String(Math.round((kA || 3) * 1000));
 
-/** Width needed by a circuit: branch + the widest symbol (multiple sockets are wider). */
-function circuitWidth(devs, lib, rows) {
-  if (devs.length <= 1) return 24;
-  let units = 1;
-  for (const { s } of devs) units = Math.max(units, lib.get(s.sym)?.units || 1.4);
-  const cols = Math.ceil(devs.length / rows);
-  return Math.max(24, 12 + units * UNIT + 4) * cols;
+/** Groups the devices of a circuit into numbered branches. */
+export function buildBranches(building, lib, circuit) {
+  const items = circuitSymbols(building, circuit.id);
+  const used = new Set();
+  const linksOf = new Map();
+  for (const f of building.floors) for (const l of f.links) {
+    for (const [a, c] of [[l.a, l.b], [l.b, l.a]]) { if (!linksOf.has(a)) linksOf.set(a, []); linksOf.get(a).push(c); }
+  }
+  const symById = new Map();
+  for (const f of building.floors) for (const s of f.symbols) symById.set(s.id, s);
+  const kindOf = (s) => lib.get(s.sym)?.kind;
+  const isControl = (s) => ['switch', 'push', 'dom-in'].includes(kindOf(s));
+  const branches = [];
+  for (const { s } of items) {
+    if (used.has(s.id)) continue;
+    const def = lib.get(s.sym);
+    const kind = def?.kind;
+    used.add(s.id);
+    if (isControl(s)) {
+      // the lights this switch controls, and the other switches controlling the same lights (2-way / cross)
+      const lights = (linksOf.get(s.id) || []).map((id) => symById.get(id)).filter((o) => o && kindOf(o) === 'light');
+      const switches = new Set([s]);
+      for (const lt of lights) for (const id of linksOf.get(lt.id) || []) {
+        const o = symById.get(id);
+        if (o && isControl(o)) switches.add(o);
+      }
+      const order = (o) => lib.get(o.sym)?.order ?? 0;
+      const twoWay = [...switches].filter((o) => order(o) === 1);
+      const middle = [...switches].filter((o) => order(o) !== 1);
+      const chain = twoWay.length >= 2 ? [twoWay[0], ...middle, ...twoWay.slice(1)] : [...twoWay, ...middle];
+      for (const o of chain) used.add(o.id);
+      const groups = new Map();
+      for (const lt of lights) {
+        if (used.has(lt.id)) continue;
+        used.add(lt.id);
+        groups.set(lt.sym, (groups.get(lt.sym) || 0) + 1);
+      }
+      branches.push({ type: 'chain', switches: chain.map((o) => o.sym), lights: [...groups].map(([sym, count]) => ({ sym, count })) });
+    } else if (kind === 'light') {
+      branches.push({ type: 'chain', switches: [], lights: [{ sym: s.sym, count: 1 }] });
+    } else if (kind === 'socket' || (kind === 'appliance' && !def.box)) {
+      branches.push({ type: 'sockets', sym: s.sym, qty: Math.max(1, parseInt(s.props?.qty, 10) || 1), units: def.units || 1 });
+    } else if (def?.box) {
+      branches.push({ type: 'box', sym: s.sym });
+    } else {
+      branches.push({ type: 'single', sym: s.sym });
+    }
+  }
+  return branches;
 }
 
+const socketLen = (units) => 5 + (units - 1) * 4.5;
+function branchLength(br) {
+  if (br.type === 'chain') return 4 + br.switches.length * SW + br.lights.length * 8 + 4;
+  if (br.type === 'sockets') return 4 + br.qty * (socketLen(br.units) + 1.5);
+  return 4 + 8;
+}
+const circuitWidth = (branches) => Math.max(21, ...branches.map((br) => branchLength(br) + 9));
+
 function builder(project, lib, board, title) {
+  const b = project.building;
+  const marks = b.cableMarks !== false;
   const pages = [];
-  let page, x, busFrom;
-  const comp = (sym, px, py, rot = 0, texts = []) => {
+  let page, x;
+  const comp = (sym, px, py, rot = 0) => {
     const def = lib.get(sym);
-    const c = { id: uid('c'), sym, x: px, y: py, rot, mirror: false, props: { ...(def?.props || {}) }, autoTag: false, tag: '', texts, gen: true };
+    const c = { id: uid('c'), sym, x: px, y: py, rot, mirror: false, props: { ...(def?.props || {}) }, autoTag: false, tag: '', gen: true };
     page.comps.push(c);
     return c;
   };
   const wire = (...points) => page.wires.push({ id: uid('w'), points });
+  const bus = (x0, x1, y) => page.wires.push({ id: uid('w'), points: [[x0, y], [x1, y]], w: 0.9 });
   const text = (px, py, t, size = 2.5, extra = {}) => page.texts.push({ id: uid('t'), x: px, y: py, text: t, size, anchor: 'start', ...extra });
-  const vtext = (px, py, t, size = 2.3, extra = {}) => text(px, py, t, size, { rot: -90, ...extra }); // reads upward from (px, py)
+  const vtext = (px, py, t, size = 2.2, extra = {}) => text(px, py, t, size, { rot: -90, ...extra });
 
   const newSheet = (first) => {
     page = newPage(`${title}${pages.length ? ` (${pages.length + 1})` : ''}`);
     page.gen = 'eendraad';
-    page.noDots = true; // Belgian single-line diagrams draw branches without junction dots
     page.board = board.id;
+    page.noDots = true;
     pages.push(page);
     text(20, 22, `Eendraadschema – ${board.name}${pages.length > 1 ? ' (vervolg)' : ''}`, 4, { bold: true });
     x = X_START;
-    busFrom = 22;
+    page.busFrom = 18;
     if (first) {
       const m = board.main || {};
-      // earth electrode with measuring clamp on the left end of the busbar
-      comp('arei/earth', 22, BUS_Y);
-      // supply: kWh meter → cable → main switch / general residual current device → busbar
-      const sy = BUS_Y + 15;
-      comp('arei/kwh', 50, sy, 90);
-      wire([50, sy], [68, sy]);
-      text(53, sy + 3.5, m.cable || 'XVB 3G10', 2.2);
-      comp('arei/mcb-v', 68, sy, 90);
-      text(70, sy + 3.5, m.rcd > 0 ? `Δ${m.rcd}mA` : 'Hoofdschakelaar', 2.2);
-      text(70, sy + 6.5, `${m.poles || 2}P - ${m.In || 40}A`, 2.2);
-      wire([80, sy], [86, sy], [86, BUS_Y]);
+      comp('arei/earth', 22, MAIN_Y);
+      const sy = MAIN_Y + 15;
+      let sx = 34;
+      if (m.meter !== false) { comp('arei/kwh', sx + 20, sy, 90); sx += 20; }
+      wire([sx, sy], [sx + 26, sy]);
+      text(sx + 1, sy + 4, m.cable || 'XVB Cca 4x10²', 2.2);
+      text(sx + 12, sy - 2.2, '○', 2.4, { anchor: 'middle' });
+      const rx = sx + 26;
+      comp('arei/mcb-v', rx, sy, 90);
+      const cx = rx + 6;
+      text(cx, sy + 4, m.rcd > 0 ? `Type ${m.type || 'A'} - Δ${m.rcd}mA` : 'Hoofdschakelaar', 2.2, { anchor: 'middle' });
+      text(cx, sy + 7.6, icn(m.kA), 2.2, { anchor: 'middle', box: true });
+      text(cx, sy + 11.2, `${m.poles || 2}P - ${m.In || 40}A`, 2.2, { anchor: 'middle' });
+      wire([rx + 12, sy], [rx + 22, sy], [rx + 22, MAIN_Y]);
+      x = Math.max(X_START, rx + 8);
     } else {
-      text(16, BUS_Y - 2, '← vervolg', 2.2);
-      busFrom = 15;
+      text(15, MAIN_Y - 2, '← vervolg', 2.2);
     }
   };
-  const closeBus = () => { if (page) page.wires.push({ id: uid('w'), points: [[busFrom, BUS_Y], [Math.max(x - 6, busFrom + 10), BUS_Y]], w: 0.9 }); };
+  const closePage = () => { if (page) bus(page.busFrom, Math.max(x - 4, page.busFrom + 10), MAIN_Y); };
 
-  /** One circuit rising from `baseY` at the current x. */
-  const circuit = (c, baseY) => {
-    const devs = circuitSymbols(project.building, c.id);
-    const top0 = baseY - MCB_H - 30; // first device
-    const rows = Math.max(1, Math.floor((top0 - TOP_MIN) / ROW) + 1);
-    const w = circuitWidth(devs, lib, rows);
-    comp('arei/mcb-v', x, baseY);
-    text(x - 3.5, baseY - 4, c.name, 4, { bold: true, anchor: 'end' });
-    vtext(x + 2.6, baseY - 1, `${c.kA || 3}kA`, 2.1);
-    vtext(x + 5.4, baseY - 1, breakerText(c), 2.1);
-    const mcbTop = baseY - MCB_H;
-    const label = c.desc || [...new Set(devs.map(({ s, floor }) => s.props?.room || floor.name))].join(', ');
-    if (!devs.length) {
-      wire([x, mcbTop], [x, mcbTop - 6]);
-      vtext(x + 1, mcbTop - 8, label || 'Reserve', 2.4, { bold: true });
+  /** Breaker texts: vertical columns right of the line (framed breaking capacity, rating …). */
+  const breakerTexts = (bx, by, lines) => lines.forEach((t, i) => vtext(bx + 2.6 + i * 3, by - 1, t.text, 2.1, t.box ? { box: true } : {}));
+
+  const drawBranch = (br, lx, y) => {
+    const px = lx + 4;
+    if (br.type === 'chain') {
+      const placed = [];
+      let cx = px + 1.1;
+      for (const sym of br.switches) { placed.push([sym, cx, 0, 1]); cx += SW; }
+      let end = lx;
+      cx -= 1.1;
+      for (const l of br.lights) {
+        const isCross = l.sym === 'arei/light';
+        const c = cx + (isCross ? 2.5 : 3.6);
+        placed.push([l.sym, c, isCross ? 0 : 90, l.count]);
+        end = c;
+        cx = c + 5;
+      }
+      if (!br.lights.length) end = cx;
+      wire([lx, y], [end, y]);
+      for (const [sym, c, rot, count] of placed) {
+        comp(sym, c, y, rot);
+        if (count > 1) text(c + 1.2, y - 4.8, `x${count}`, 2.2);
+      }
+    } else if (br.type === 'sockets') {
+      const pinY = lib.get(br.sym)?.pins?.[0]?.y ?? 2.5;
+      const len = socketLen(br.units);
+      const starts = [];
+      for (let k = 0, bx = px; k < br.qty; k++, bx += len + 1.5) starts.push(bx);
+      wire([lx, y], [starts[starts.length - 1], y]);
+      for (const s of starts) comp(br.sym, s + pinY, y, 90);
+    } else if (br.type === 'box') {
+      wire([lx, y], [px, y]);
+      comp(br.sym, px + 3.5, y);
+    } else {
+      const pinY = lib.get(br.sym)?.pins?.[0]?.y ?? 2.5;
+      wire([lx, y], [px, y]);
+      comp(br.sym, px + pinY, y, 90);
+    }
+  };
+
+  const circuit = (c, base) => {
+    const branches = buildBranches(b, lib, c);
+    const w = circuitWidth(branches);
+    comp('arei/mcb-v', x, base);
+    text(x - 2.2, base - 2.5, c.name, 3.8, { bold: true, anchor: 'end' });
+    breakerTexts(x, base, [{ text: icn(c.kA), box: true }, { text: `${c.poles || 2}P - ${c.curve || 'C'} ${c.In}A` }]);
+    const top = base - MCB_H;
+    const first = top - CABLE;
+    const label = c.desc || '';
+    if (!branches.length) {
+      wire([x, top], [x, top - 8]);
+      vtext(x + 1, top - 10, label || 'Reserve', 2.3, { bold: true });
       return w;
     }
-    vtext(x + 2.6, mcbTop - 3, cableText(c), 2.1);
-    if (devs.length === 1) {
-      // single device on top of the circuit line
-      const { s } = devs[0];
-      const def = lib.get(s.sym);
-      const pinY = def?.pins?.[0]?.y ?? 2.5;
-      wire([x, mcbTop], [x, top0]);
-      comp(s.sym, x, top0 - pinY, 0);
-      text(x - 4, top0 - pinY - 1, String(s.n ?? 1), 2.5, { anchor: 'end' });
-      vtext(x + 1, top0 - pinY - 8, label, 2.4, { bold: true });
-      return w;
+    vtext(x + 2.6, top - 3, cableText(c), 2.1);
+    if (marks) {
+      text(x - 1.2, top - 4, 'E', 2.2, { anchor: 'end' });
+      text(x - 1.2, top - 17, '○', 2.2, { anchor: 'end' });
+      text(x - 1.2, top - 26, 'E', 2.2, { anchor: 'end' });
     }
-    const colW = w / Math.ceil(devs.length / rows);
-    let topY = top0;
-    devs.forEach(({ s }, j) => {
-      const col = Math.floor(j / rows), row = j % rows;
-      const lx = x + col * colW;
-      const y = top0 - row * ROW;
-      topY = Math.min(topY, y);
-      const def = lib.get(s.sym);
-      const pinY = def?.pins?.[0]?.y ?? 2.5;
-      wire([lx, y], [lx + 6, y]);
-      comp(s.sym, lx + 6 + pinY, y, 90);
-      text(lx - 1.5, y, String(s.n ?? j + 1), 2.5, { anchor: 'end' });
-    });
-    const cols = Math.ceil(devs.length / rows);
-    for (let col = 0; col < cols; col++) {
-      const lx = x + col * colW;
-      const last = Math.min(devs.length - col * rows, rows) - 1;
-      if (col === 0) wire([x, mcbTop], [x, top0 - last * ROW]);
+    // a single appliance (or a single socket) sits on top of the line
+    const one = branches.length === 1 ? branches[0] : null;
+    if (one && (one.type === 'box' || (one.type === 'sockets' && one.qty === 1))) {
+      wire([x, top], [x, first]);
+      if (one.type === 'box') comp(one.sym, x, first - 3.5);
       else {
-        // continue in the next column: over the top and down again
-        const prevTop = top0 - (rows - 1) * ROW;
-        wire([x + (col - 1) * colW, prevTop], [x + (col - 1) * colW, prevTop - 4], [lx, prevTop - 4], [lx, top0 - last * ROW]);
+        comp(one.sym, x, first - (lib.get(one.sym)?.pins?.[0]?.y ?? 2.5));
+        text(x - 3.5, first - 2, '1', 2.4, { anchor: 'end' });
+      }
+      if (label) vtext(x + 1, first - 12, label, 2.3, { bold: true });
+      return w;
+    }
+    const rows = Math.max(1, Math.floor((first - TOP_MIN) / ROW) + 1);
+    const cols = Math.ceil(branches.length / rows);
+    let topY = first;
+    branches.forEach((br, j) => {
+      const col = Math.floor(j / rows), row = j % rows;
+      const lx = x + col * w;
+      const y = first - row * ROW;
+      topY = Math.min(topY, y);
+      text(lx - 1.2, y, String(j + 1), 2.4, { anchor: 'end' });
+      drawBranch(br, lx, y);
+    });
+    for (let col = 0; col < cols; col++) {
+      const lx = x + col * w;
+      const n = Math.min(branches.length - col * rows, rows);
+      if (col === 0) wire([x, top], [x, first - (n - 1) * ROW]);
+      else {
+        const prevTop = first - (rows - 1) * ROW;
+        wire([x + (col - 1) * w, prevTop], [x + (col - 1) * w, prevTop - 4], [lx, prevTop - 4], [lx, first - (n - 1) * ROW]);
       }
     }
-    vtext(x + 1, Math.min(topY, top0 - (rows - 1) * ROW * (cols > 1 ? 1 : 0)) - 6, label, 2.4, { bold: true });
-    return w;
+    if (label) vtext(x + 1, topY - 7, label, 2.3, { bold: true });
+    return w * cols;
   };
 
   return {
     pages,
     start() { newSheet(true); },
     group(rcd, circuits) {
-      const base = rcd ? BUS_Y - SUB_DY : BUS_Y;
-      let rx = null, subFrom = 0, lastX = 0;
-      const openRcd = () => {
+      const widths = circuits.map((c) => circuitWidth(buildBranches(b, lib, c)));
+      const base = rcd ? MAIN_Y - SUB_DY : MAIN_Y;
+      let subFrom = 0, lastX = 0;
+      const open = () => {
         if (!rcd) return;
-        // residual current device rising from the main busbar, feeding its own busbar
-        rx = x;
-        comp('arei/mcb-v', rx, BUS_Y);
-        vtext(rx + 2.6, BUS_Y - 1, `Δ${rcd.sens || 30}mA`, 2.1);
-        vtext(rx + 5.4, BUS_Y - 1, `${rcd.In || 40}A type ${rcd.type || 'A'}`, 2.1);
-        wire([rx, BUS_Y - MCB_H], [rx, base]);
-        x += 12;
-        subFrom = rx;
+        subFrom = x - 6;
+        const rx = x + 7;
+        comp('arei/mcb-v', rx, MAIN_Y);
+        breakerTexts(rx, MAIN_Y, [
+          { text: `Type ${rcd.type || 'A'} - Δ${rcd.sens || 30}mA` }, { text: icn(rcd.kA), box: true }, { text: `${rcd.poles || 2}P - ${rcd.In || 40}A` },
+        ]);
+        wire([rx, MAIN_Y - MCB_H], [rx, base]);
       };
-      const closeRcd = () => { if (rcd && rx !== null) page.wires.push({ id: uid('w'), points: [[subFrom, base], [Math.max(lastX, subFrom + 8), base]], w: 0.7 }); x += rcd ? 6 : 0; };
-      openRcd();
-      for (const c of circuits) {
-        const devs = circuitSymbols(project.building, c.id);
-        const rows = Math.max(1, Math.floor((base - MCB_H - 30 - TOP_MIN) / ROW) + 1);
-        const w = circuitWidth(devs, lib, rows);
-        if (x + w - 20 > X_END && x > X_START + (rcd ? 12 : 0)) {
-          closeRcd();
-          closeBus();
+      const close = () => { if (rcd) bus(subFrom, lastX + 6, base); };
+      open();
+      circuits.forEach((c, i) => {
+        if (x + widths[i] > X_END && x > X_START + 20) {
+          close();
+          closePage();
           newSheet(false);
-          openRcd();
+          open();
         }
         lastX = x;
         x += circuit(c, base);
-      }
-      closeRcd();
+      });
+      close();
+      x += rcd ? 12 : 4;
     },
-    finish() { closeBus(); return pages; },
+    finish() { closePage(); for (const p of pages) delete p.busFrom; return pages; },
   };
 }
 
-/** (Re)generates the single-line pages of every board. Returns the index of the first generated page. */
+/** (Re)generates the single-line sheets of every board. Returns the index of the first generated sheet. */
 export function generateEendraad(project, lib) {
   const b = project.building;
   let firstIdx = -1;

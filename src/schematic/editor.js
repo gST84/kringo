@@ -93,6 +93,7 @@ export class SchematicEditor {
 
   render() {
     const app = this.app;
+    if (!app.page) { this.layer.innerHTML = ''; return; }
     const an = app.analysis();
     this.layer.innerHTML = pageSvg(app.project, app.page, app.pageIdx, an, { selection: app.sel, grid: this.showGrid });
     this.renderOverlay();

@@ -30,10 +30,12 @@ const plan = new PlanEditor(app, center);
 app.editor = editor;
 app.plan = plan;
 document.body.dataset.mode = 'schematic';
+document.body.dataset.kind = 'schematic';
 
 const btn = (label, title, onclick, cls = '') => h('button', { title, onclick, class: cls }, label);
 
 const saveEl = h('span', { class: 'savestate' });
+const kindEl = h('span', { class: 'kindbadge', title: 'Soort project' });
 const nameEl = h('button', { class: 'projname', title: 'Projectgegevens', onclick: () => projectDialog(app) });
 const undoBtn = btn('↶', 'Ongedaan maken (Ctrl+Z)', () => app.undo());
 const redoBtn = btn('↷', 'Opnieuw (Ctrl+Y)', () => app.redo());
@@ -43,10 +45,10 @@ $('#top').append(
   nameEl,
   h('div', { class: 'menu' },
     btn('Nieuw', 'Nieuw project', async () => {
-      const name = await prompt('Nieuw project', 'Nieuw project', { label: 'Projectnaam' });
-      if (name === null) return;
+      const r = await newProjectDialog();
+      if (!r) return;
       await app.save();
-      const p = createProject(name || 'Nieuw project');
+      const p = createProject(r.name || 'Nieuw project', r.kind);
       app.setProject(p);
       await app.save();
       localStorage.setItem('elecad.last', p.id);
@@ -56,18 +58,34 @@ $('#top').append(
     btn('Open bestand', '.kringo-bestand of QElectroTech-project (.qet) openen', async () => { await app.save(); importProjectFile(app); }),
     h('span', { class: 'sep' }),
     btn('Gegevens', 'Projectgegevens, bedrijf, logo', () => projectDialog(app)),
-    btn('Instellingen', 'Nummering en bladindeling', () => settingsDialog(app), 'only-schematic'),
-    btn('Hernummeren', 'Toestellen / klemmen hernummeren', () => renumberDialog(app), 'only-schematic'),
-    btn('Lijsten', 'Toestellen-, klemmen-, draad- en PLC-lijst', () => listsDialog(app)),
-    btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app), 'only-building'),
-    btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app), 'only-building'),
+    btn('Instellingen', 'Nummering en bladindeling', () => settingsDialog(app), 'kind-schematic'),
+    btn('Hernummeren', 'Toestellen / klemmen hernummeren', () => renumberDialog(app), 'kind-schematic'),
+    btn('Lijsten', 'Toestellen-, klemmen-, draad- en PLC-lijst', () => listsDialog(app), 'kind-schematic'),
+    btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app), 'kind-building'),
+    btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app), 'kind-building'),
     btn('Afdrukken', 'Afdrukken of PDF', () => printDialog(app)),
     h('span', { class: 'sep' }),
     undoBtn, redoBtn, saveEl),
   setupPwa({ onFile: async (f) => { await app.save(); openProjectFile(app, f); } }),
-  h('div', { class: 'modes' },
-    h('button', { 'data-mode': 'schematic', title: 'Stuurkasten / schema\'s (ook het eendraadschema)', onclick: () => app.setMode('schematic') }, 'Stuurkasten'),
-    h('button', { 'data-mode': 'building', title: 'Gebouwen: plattegrond, AREI-symbolen, kringen', onclick: () => app.setMode('building') }, 'Gebouwen')));
+  kindEl);
+
+async function newProjectDialog() {
+  const name = h('input', { type: 'text', value: 'Nieuw project' });
+  let kind = 'building';
+  const cards = h('div', { class: 'kinds' });
+  const renderCards = () => cards.replaceChildren(
+    ...[['building', '🏠', 'Gebouw', 'Woning / gebouw volgens AREI: plattegronden, stopcontacten, verlichting, kringen en het eendraadschema.'],
+      ['schematic', '🗄', 'Stuurkast', 'Industriële schema\'s: stuurstroom, vermogen, PLC, klemmen, kruisverwijzingen en lijsten.']]
+      .map(([k, icon, title, text]) => h('button', { class: 'kind' + (kind === k ? ' active' : ''), onclick: () => { kind = k; renderCards(); } },
+        h('span', { class: 'kicon' }, icon), h('b', null, title), h('small', null, text))));
+  renderCards();
+  const ok = await modal({
+    title: 'Nieuw project',
+    body: h('div', { class: 'form' }, h('label', { class: 'field' }, h('span', null, 'Projectnaam'), name), h('span', { class: 'hint' }, 'Soort project (kan nadien niet gewijzigd worden):'), cards),
+    buttons: [{ label: 'Annuleren', value: false }, { label: 'Aanmaken', value: true, primary: true }],
+  });
+  return ok ? { name: name.value.trim(), kind } : null;
+}
 
 // tools bar
 const tools = [
@@ -78,7 +96,7 @@ const toolBtns = new Map();
 const gridSel = h('select', { title: 'Raster', onchange: (e) => { editor.grid = +e.target.value; } },
   [5, 2.5, 1].map((g) => h('option', { value: g, selected: g === 5 }, `raster ${g}`)));
 const pageLbl = h('span', { class: 'pagelbl' });
-const schemTools = h('span', { class: 'tgroup only-schematic' });
+const schemTools = h('span', { class: 'tgroup view-sheet' });
 $('#toolbar').append(schemTools);
 schemTools.append(
   ...tools.map(([k, icon, title]) => {
@@ -119,7 +137,7 @@ const fillCircuits = () => {
     .map(([v, l]) => h('option', { value: v, selected: v === plan.activeCircuit }, l)));
 };
 const floorLbl = h('span', { class: 'pagelbl' });
-$('#toolbar').append(h('span', { class: 'tgroup only-building' },
+$('#toolbar').append(h('span', { class: 'tgroup view-plan' },
   ...planTools.map(([k, icon, title, o]) => {
     const b = btn(icon, title, () => plan.setTool(o ? 'opening' : k, o), 'tool');
     planBtns.set(k, b);
@@ -161,9 +179,9 @@ const PLAN_HINTS = {
 };
 
 // panels
-const buildingLeft = h('div', { id: 'building-left', class: 'only-building' });
+const buildingLeft = h('div', { id: 'building-left', class: 'kind-building' });
 $('#left').append(buildingLeft);
-buildingLeftPanel(app, buildingLeft, { plan });
+buildingLeftPanel(app, buildingLeft, { plan, editor });
 const leftTabs = $('#left-tabs');
 const pagesEl = $('#pages');
 const libEl = $('#library');
@@ -185,7 +203,9 @@ propertiesPanel(app, $('#props'), { editor, building: () => buildingProps(app, p
 app.on('change', () => {
   if (app.mode === 'building') plan.render(); else editor.render();
   floorLbl.textContent = `${app.floor.name} (${app.floorIdx + 1}/${app.project.building.floors.length})`;
-  pageLbl.textContent = `${app.pageIdx + 1} / ${app.project.pages.length}  ${app.page.title}`;
+  pageLbl.textContent = app.page ? `${app.pageIdx + 1} / ${app.project.pages.length}  ${app.page.title}` : '';
+  kindEl.textContent = app.project.kind === 'building' ? '🏠 Gebouw' : '🗄 Stuurkast';
+  document.body.dataset.kind = app.project.kind;
   undoBtn.disabled = !app.undoStack.length;
   redoBtn.disabled = !app.redoStack.length;
   nameEl.textContent = app.project.name;
@@ -194,7 +214,7 @@ app.on('change', () => {
 app.on('selection', () => { if (app.mode === 'building') plan.render(); else editor.render(); });
 app.on('mode', (m) => {
   document.body.dataset.mode = m;
-  for (const b of document.querySelectorAll('.modes button')) b.classList.toggle('active', b.dataset.mode === m);
+  document.body.dataset.kind = app.project.kind;
   hintEl.textContent = m === 'building' ? PLAN_HINTS[plan.tool] : HINTS[editor.tool];
   requestAnimationFrame(() => { (m === 'building' ? plan : editor).applyView(); });
   fillCircuits();

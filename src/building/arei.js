@@ -13,6 +13,10 @@ const INK = { fill: 'ink' };
 const WHITE = { fill: 'white' };
 
 const lampX = (r = 2.5) => [C(0, 0, r, WHITE), L(-r * 0.707, -r * 0.707, r * 0.707, r * 0.707), L(-r * 0.707, r * 0.707, r * 0.707, -r * 0.707)];
+/** Belgian ceiling light point: a plain cross. */
+const cross = (r = 2.5) => [L(-r, -r, r, r), L(-r, r, r, -r)];
+/** Appliance box (single-line diagrams and plans): 7 × 7 mm square, pin at the bottom edge. */
+const box = (...inner) => [R(-3.5, -3.5, 7, 7, WHITE), ...inner];
 /**
  * Socket outlet with earth (Belgian plans / single-line diagrams): the line runs from the wall
  * (pin), crosses a short earth bar and ends in an arc that opens away from the wall. Multiple
@@ -28,8 +32,9 @@ const socketBase = (n = 1) => {
   return g;
 };
 const socketTop = (n = 1) => -(n - 1) * SOCKET_STEP - 1.6;
-const flag = (x, y) => L(x, y, x + 0.9, y + 0.9);
-const switchBase = () => [C(0, 0, 0.9, INK), L(0, 0, 2.6, -2.6)];
+// Switches: open circle on the line with a lever (and flag) per direction.
+const lever = (sx, sy) => [L(0.55 * sx, 0.95 * sy, 1.5 * sx, 3.3 * sy), L(1.5 * sx, 3.3 * sy, 2.8 * sx, 3.0 * sy)];
+const switchBase = () => [C(0, 0, 1.1, WHITE), ...lever(1, -1)];
 
 const F = (sub) => 'AREI/' + sub;
 const def = (id, name, folder, kind, graphics, o = {}) => ({
@@ -44,8 +49,8 @@ const socketDef = (id, name, n, label) =>
 
 export const AREI = [
   // Verlichting
-  def('light', 'Lichtpunt', 'Verlichting', 'light', lampX(), { pinY: 2.5 }),
-  def('light-wall', 'Wandlichtpunt', 'Verlichting', 'light', [...lampX(), L(0, 2.5, 0, 3.5), L(-2.5, 3.5, 2.5, 3.5)], { pinY: 3.5, wall: true }),
+  def('light', 'Lichtpunt', 'Verlichting', 'light', cross(), { pinY: 2.5 }),
+  def('light-wall', 'Wandlichtpunt', 'Verlichting', 'light', [...lampX(2), P('M -2.3 2.3 A 3.25 3.25 0 0 0 2.3 2.3')], { pinY: 3.25, wall: true }),
   def('spot', 'Inbouwspot', 'Verlichting', 'light', [...lampX(1.8), C(0, 0, 0.5, INK)], { pinY: 1.8 }),
   def('tl', 'TL / LED-armatuur', 'Verlichting', 'light', [L(-5, 0, 5, 0, { w: 0.6 }), L(-5, -1.2, -5, 1.2), L(5, -1.2, 5, 1.2)], { pinY: 1.2 }),
   def('light-out', 'Buitenverlichting', 'Verlichting', 'light', [...lampX(), C(0, 0, 3.3)], { pinY: 3.3, wall: true }),
@@ -60,15 +65,16 @@ export const AREI = [
   def('socket-3p', 'Krachtstopcontact 3F', 'Stopcontacten', 'socket', [...socketBase(1), T(0, socketTop(1), '3F', 1.3)], { wall: true, prefix: 'X', extra: { units: 1 } }),
 
   // Toestellen (vaste aansluiting of eigen stopcontact)
-  socketDef('washer', 'Wasmachine', 1, 'WM'),
-  socketDef('dryer', 'Droogkast', 1, 'DK'),
-  socketDef('dishwasher', 'Vaatwasser', 1, 'VW'),
+  def('washer', 'Wasmachine', 'Toestellen', 'appliance', box(C(0, 0, 2.5), C(0, 0, 1.5)), { wall: true, pinY: 3.5, extra: { box: true } }),
+  def('dryer', 'Droogkast', 'Toestellen', 'appliance', box(C(0, 0, 2.3), C(0, 0, 0.8, INK)), { wall: true, pinY: 3.5, extra: { box: true } }),
+  def('dishwasher', 'Vaatwasser', 'Toestellen', 'appliance',
+    box(...[-1.5, 0, 1.5].map((y) => P(`M -2.4 ${y} q 0.6 -0.9 1.2 0 t 1.2 0 t 1.2 0 t 1.2 0`))), { wall: true, pinY: 3.5, extra: { box: true } }),
   def('hob', 'Kookplaat', 'Toestellen', 'appliance',
-    [R(-3.5, -6, 7, 7), C(-1.6, -4.1, 0.65, INK), C(1.6, -4.1, 0.65, INK), C(-1.6, -1.9, 0.65, INK), C(1.6, -1.9, 0.65, INK), L(0, 1, 0, 2.5)], { wall: true, prefix: 'E' }),
+    box(C(-1.5, -1.5, 0.7, INK), C(1.5, -1.5, 0.7, INK), C(-1.5, 1.5, 0.7, INK), C(1.5, 1.5, 0.7, INK)), { wall: true, pinY: 3.5, extra: { box: true } }),
   socketDef('hood', 'Dampkap', 1, 'DA'),
   socketDef('cooker', 'Kooktoestel / fornuis', 1, 'KO'),
-  socketDef('oven', 'Oven', 1, 'OV'),
-  socketDef('microwave', 'Microgolfoven', 1, 'MG'),
+  def('oven', 'Oven', 'Toestellen', 'appliance', box(L(-1.4, -3.5, -1.4, 3.5), C(1, 0, 0.8, INK)), { wall: true, pinY: 3.5, extra: { box: true } }),
+  def('microwave', 'Microgolfoven', 'Toestellen', 'appliance', box(C(-1.1, -1.2, 1), C(1.1, -1.2, 1), C(0, 1.6, 0.7, INK)), { wall: true, pinY: 3.5, extra: { box: true } }),
   socketDef('fridge', 'Koelkast', 1, 'KK'),
   socketDef('boiler', 'Boiler', 1, 'BO'),
   socketDef('heatpump', 'Warmtepomp', 1, 'WP'),
@@ -77,14 +83,11 @@ export const AREI = [
   def('ev', 'Laadpaal', 'Energie', 'other', [R(-2.5, -3.5, 5, 6), T(0, -0.5, 'EV', 1.8)], { pinY: 2.5, wall: true }),
 
   // Schakelaars en bediening
-  def('switch', 'Schakelaar enkelpolig', 'Schakelaars', 'switch', [...switchBase(), flag(2.6, -2.6)], { wall: true, pinY: 0.9, prefix: 'S' }),
-  def('switch2', 'Schakelaar tweepolig', 'Schakelaars', 'switch', [...switchBase(), flag(2.6, -2.6), flag(1.8, -1.8)], { wall: true, pinY: 0.9, prefix: 'S' }),
-  def('switch-2way', 'Wisselschakelaar (hotel)', 'Schakelaars', 'switch',
-    [...switchBase(), flag(2.6, -2.6), L(0, 0, -2.6, 2.6), L(-2.6, 2.6, -3.5, 1.7)], { wall: true, pinY: 0.9, prefix: 'S' }),
-  def('switch-cross', 'Kruisschakelaar', 'Schakelaars', 'switch',
-    [...switchBase(), flag(2.6, -2.6), L(0, 0, -2.6, 2.6), L(-2.6, 2.6, -3.5, 1.7), L(0, 0, -2.6, -2.6), L(-2.6, -2.6, -1.7, -3.5), L(0, 0, 2.6, 2.6), L(2.6, 2.6, 3.5, 1.7)],
-    { wall: true, pinY: 0.9, prefix: 'S' }),
-  def('dimmer', 'Dimmer', 'Schakelaars', 'switch', [...switchBase(), flag(2.6, -2.6), P('M -3 1 L -0.6 -2.2 M -0.6 -2.2 L -1.8 -1.9 M -0.6 -2.2 L -0.8 -1')], { wall: true, pinY: 0.9, prefix: 'S' }),
+  def('switch', 'Schakelaar enkelpolig', 'Schakelaars', 'switch', switchBase(), { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
+  def('switch2', 'Schakelaar tweepolig', 'Schakelaars', 'switch', [...switchBase(), L(1.05, 2.1 * -1, 2.2, -2.0)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
+  def('switch-2way', 'Wisselschakelaar (hotel)', 'Schakelaars', 'switch', [...switchBase(), ...lever(-1, 1)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 1 } }),
+  def('switch-cross', 'Kruisschakelaar', 'Schakelaars', 'switch', [...switchBase(), ...lever(-1, 1), ...lever(-1, -1), ...lever(1, 1)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 2 } }),
+  def('dimmer', 'Dimmer', 'Schakelaars', 'switch', [...switchBase(), P('M -2.8 1.6 L -0.9 -1.4 M -0.9 -1.4 L -2 -1.1 M -0.9 -1.4 L -1.1 -0.3')], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
   def('push', 'Drukknop', 'Schakelaars', 'push', [C(0, 0, 2), C(0, 0, 0.8, INK)], { wall: true, pinY: 2, prefix: 'S' }),
   def('motion', 'Bewegingsmelder', 'Schakelaars', 'switch', [P('M -2.5 1 A 2.5 2.5 0 0 1 2.5 1 Z'), P('M -1.6 -2.6 A 3.5 3.5 0 0 1 1.6 -2.6')], { wall: true, pinY: 1, prefix: 'B' }),
   def('thermostat', 'Thermostaat', 'Schakelaars', 'other', [C(0, 0, 2.2), T(0, 0, 'θ', 2.2)], { wall: true, pinY: 2.2, prefix: 'B' }),
@@ -119,13 +122,13 @@ const line2 = (id, name, kind, graphics, prefix = 'Q') => ({
 const pole = [L(0, 0, 0, 6), L(-1.3, 4.7, 1.3, 7.3), L(-1.3, 7.3, 1.3, 4.7), L(0, 14, 0, 20), L(0, 14, -4.5, 7)];
 AREI.push({
   id: 'arei/earth', name: 'Aardelektrode met meetklem', folder: F('Eendraad'), kind: 'earth', role: 'graphic', arei: true, pinText: false,
-  graphics: [L(0, 0, 0, 5), L(-2.5, 5, 2.5, 5), L(-2.5, 7, 2.5, 7), L(0, 7, 0, 12), L(-4, 12, 4, 12), L(-2.5, 13.5, 2.5, 13.5), L(-1, 15, 1, 15)],
+  graphics: [L(0, 0, 0, 5), L(-2.5, 5, 2.5, 5), L(-2.5, 7, 2.5, 7), L(0, 7, 0, 10), L(-2.5, 10, 2.5, 10), L(-2.5, 12, 2.5, 12), L(0, 12, 0, 16), L(-3, 16, 3, 16), L(-2, 17.3, 2, 17.3), L(-1, 18.6, 1, 18.6)],
   pins: [{ id: '1', x: 0, y: 0, name: '' }],
 });
 // Breaker for the Belgian single-line layout: busbar below (pin 1 at 0,0), circuit above (pin 2 at 0,-12).
 AREI.push({
   id: 'arei/mcb-v', name: 'Automaat (eendraad, verticaal)', folder: F('Eendraad'), kind: 'breaker', role: 'device', prefix: 'Q', arei: true, pinText: false,
-  graphics: [L(0, 0, 0, -3), C(0, -3, 0.55, INK), L(0, -3, -2.8, -8.6), L(0, -9, 0, -12)],
+  graphics: [L(0, 0, 0, -5), L(-0.4, -6, -1.9, -10.6, { w: 0.75 }), L(0, -9.6, 0, -12)],
   pins: [{ id: '1', x: 0, y: 0, name: '' }, { id: '2', x: 0, y: -12, name: '' }], tagAt: { x: -4, y: -6, anchor: 'end' },
 });
 AREI.push(

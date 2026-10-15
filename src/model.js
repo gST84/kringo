@@ -62,12 +62,14 @@ export function newPage(title = 'Nieuwe pagina', template = 'empty') {
   };
 }
 
-export function newProject(name = 'Nieuw project') {
+/** kind: 'schematic' (control cabinets) or 'building' (house installation, AREI). */
+export function newProject(name = 'Nieuw project', kind = 'schematic') {
   const today = new Date().toISOString().slice(0, 10);
   return {
     format: FORMAT,
     version: VERSION,
     id: uid('prj'),
+    kind,
     name,
     meta: {
       description: '', customer: '', company: '', address: '', drawer: '',
@@ -78,10 +80,10 @@ export function newProject(name = 'Nieuw project') {
       wireFormat: '{n}',
       columns: 10,
       rows: 6,
-      showWireNumbers: true,
+      showWireNumbers: kind !== 'building',
       colorWires: true, // wires take the colour of their supply rail
     },
-    pages: [newPage('Voorblad'), newPage('Stuurstroom', 'control')],
+    pages: kind === 'building' ? [] : [newPage('Voorblad'), newPage('Stuurstroom', 'control')],
     symbols: {}, // embedded copies of non-builtin symbol definitions
     building: newBuilding(),
     created: Date.now(),
@@ -101,7 +103,12 @@ export function normalizeProject(p) {
     pg.rails ||= []; pg.comps ||= []; pg.wires ||= []; pg.texts ||= []; pg.boxes ||= [];
     for (const c of pg.comps) c.props ||= {};
   }
-  if (!p.pages.length) p.pages.push(newPage('Pagina 1'));
+  if (!p.kind) {
+    // projects from before the split: a building project when floors contain drawing
+    const hasPlan = (p.building?.floors || []).some((f) => f.walls?.length || f.symbols?.length);
+    p.kind = hasPlan && !p.pages.some((pg) => !pg.gen && pg.comps.length) ? 'building' : 'schematic';
+  }
+  if (!p.pages.length && p.kind !== 'building') p.pages.push(newPage('Pagina 1'));
   p.building = normalizeBuilding(p.building);
   return p;
 }

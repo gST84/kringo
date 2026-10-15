@@ -145,7 +145,7 @@ function compSvg(info, an, opts) {
     }
   }
   if (!opts.print) {
-    for (const p of info.pins) if (an.openPins.has(`${c.id}:${p.id}`)) out += `<circle cx="${p.x}" cy="${p.y}" r="0.6" class="openpin"/>`;
+    if (!opts.page?.gen) for (const p of info.pins) if (an.openPins.has(`${c.id}:${p.id}`)) out += `<circle cx="${p.x}" cy="${p.y}" r="0.6" class="openpin"/>`;
     const wb = worldBox(c, geom);
     out += `<rect class="hit" x="${wb.x0 - 1}" y="${wb.y0 - 1}" width="${wb.x1 - wb.x0 + 2}" height="${wb.y1 - wb.y0 + 2}"/>`;
   }
@@ -176,7 +176,7 @@ function wireSvg(w, an, opts) {
   let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}"><polyline class="wl" points="${pts}"${st ? ` style="${esc(st)}"` : ''}/>`;
   if (String(w.color).toUpperCase() === 'GNYE') out += `<polyline class="wl gnye" points="${pts}" style="stroke:#e0c000" stroke-dasharray="2 2"/>`;
   const label = net?.label;
-  if (label && opts.project.settings.showWireNumbers !== false) {
+  if (label && opts.project.settings.showWireNumbers !== false && !opts.page?.gen) {
     const pos = wireLabelPos(w.points);
     if (pos) {
       out += pos.vertical
@@ -243,7 +243,7 @@ export function frameSvg(project, page, pageIdx, total = project.pages.length) {
 // ---------- page ----------
 
 export function pageSvg(project, page, pageIdx, an, opts = {}) {
-  const o = { ...opts, project };
+  const o = { ...opts, project, page };
   let s = `<rect class="sheet" x="0" y="0" width="${SHEET.w}" height="${SHEET.h}"/>`;
   if (opts.grid) s += `<rect class="gridfill" x="${FRAME.area.x0}" y="${FRAME.area.y0}" width="${FRAME.area.x1 - FRAME.area.x0}" height="${FRAME.area.y1 - FRAME.area.y0}"/>`;
   s += frameSvg(project, page, pageIdx);
@@ -274,6 +274,12 @@ export function pageSvg(project, page, pageIdx, an, opts = {}) {
     const ls = String(t.text).split('\n');
     const extra = (t.base ? ` style="dominant-baseline:${t.base}"` : '') + (t.rot ? ` transform="rotate(${t.rot} ${t.x} ${t.y})"` : '');
     ls.forEach((l, i) => (s += textSvg(t.x, t.y + i * t.size * 1.25, l, t.size, t.anchor || 'start', 'tx' + (t.bold ? ' tb-b' : ''), extra)));
+    if (t.box) {
+      // framed value (e.g. breaking capacity "3000")
+      const w = Math.max(...ls.map((l) => l.length)) * t.size * 0.58 + 1;
+      const x0 = t.anchor === 'middle' ? t.x - w / 2 : t.anchor === 'end' ? t.x - w : t.x - 0.5;
+      s += `<rect class="tbox" x="${r2(x0)}" y="${r2(t.y - t.size * 0.65)}" width="${r2(w)}" height="${r2(t.size * 1.3)}"${t.rot ? ` transform="rotate(${t.rot} ${t.x} ${t.y})"` : ''}/>`;
+    }
     if (!opts.print) {
       const w = Math.max(...ls.map((l) => l.length)) * t.size * 0.55 + 1;
       const x = t.anchor === 'middle' ? t.x - w / 2 : t.anchor === 'end' ? t.x - w : t.x;
@@ -293,7 +299,7 @@ export const SVG_STYLE = `
 .ink .fi,.frame .fi{fill:#000}.ink .fw{fill:#fff}.ink circle.fi{stroke:none}
 text{font-family:Arial,Helvetica,sans-serif;dominant-baseline:central;fill:#000;stroke:none}
 .tb-b{font-weight:bold}.tb-l{fill:#555}.tag{font-weight:bold}.xref,.mirror{fill:#333}.wno{fill:#333}
-.rail .rl{stroke-width:.5}.wire .gnye{stroke-width:.3}.rail-l{font-weight:bold}.wire .wl{stroke-width:.3}
+.rail .rl{stroke-width:.5}.wire .gnye{stroke-width:.3}.ink rect.tbox{stroke-width:.2}.rail-l{font-weight:bold}.wire .wl{stroke-width:.3}
 `;
 
 /** Complete standalone SVG for one page (export / print). */

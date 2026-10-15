@@ -24,24 +24,25 @@ of `python3 serve.py` en open daarna <http://localhost:8765>. Gebruik bij voorke
 
 Omdat het een statische site is, kan de map ook op elke webserver of GitHub Pages gezet worden.
 
-## Modi
+## Soorten projecten
 
-| Modus | Status |
-|---|---|
-| **Stuurkasten** – industriële schema's | eerste versie (dit) |
-| **Gebouwen** – plattegrond + AREI-symbolen + kringen + eendraadschema | eerste versie |
+Bij **Nieuw** kies je de soort; die ligt daarna vast:
 
-## Gebouwen
+- **Gebouw** – plattegronden, AREI-symbolen, kringen en het eendraadschema (bladen in hetzelfde project).
+- **Stuurkast** – industriële schema's.
+
+## Gebouw
 
 - **Plattegrond per verdieping** op schaal (1:50, 1:20, 1:75, 1:100) op A3: muren (buiten / binnen, dikte; klik punten of typ een lengte in cm + Enter), deuren, dubbele deuren, ramen, schuiframen (op een muur klikken, verslepen langs de muur), trappen en ruimtenamen.
 - **AREI-symbolen**: lichtpunten, stopcontacten (enkel tot viervoudig, buiten, 3F), toestellen (wasmachine, droogkast, vaatwasser, kookplaat, oven, warmtepomp …), schakelaars (enkel-, tweepolig, wissel, kruis, dimmer, drukknop, bewegingsmelder), domotica (ingangen, uitgangen, dimmers, rolluiken), verdeelbord, meter, zonnepanelen, omvormer, thuisbatterij, laadpaal, rookmelder, data, TV … Wandsymbolen draaien vanzelf tegen de dichtstbijzijnde muur.
 - **Kringen en verdeelborden**: elk symbool krijgt een kring en volgnummer (A1, A2 …). Per kring: bord, differentieel, curve, automaat, polen, kabel en doorsnede. Kies een *actieve kring* in de werkbalk om snel te plaatsen.
 - **AREI-controle**: max. 8 stopcontacten per kring, min. 2,5 mm² en max. 20 A voor stopcontacten, automaat ↔ doorsnede, toestellen op een aparte kring, symbolen zonder kring …
 - **Koppelen**: schakelaar → lichtpunten, domotica-ingang → uitgang, zonnepanelen → omvormer (gekleurde stippellijnen op het plan).
-- **Eendraadschema** per verdeelbord genereren als gewone schemapagina's (kWh-meter, hoofdschakelaar / algemene differentieel, differentiëlen 30 mA, automaten, kringen met hun toestellen en kabel). Achteraf aan te passen, of zelf te tekenen met de map *AREI* in de symbolenbibliotheek.
+- **Eendraadschema** per verdeelbord in de Belgische opbouw: hoofdrail onderaan met voeding (kWh-meter, kabel, algemene differentieel) en aarding met meetklem; elke differentieel 30 mA op de hoofdrail met een eigen rail; per kring de automaat (kader "3000", "2P - C 20A"), kabel ("VOB Eca 3G2,5²") en genummerde aftakkingen: schakelaars op de lijn gevolgd door de gekoppelde lichtpunten (×n), stopcontactdozen, toestellen. Wordt gegenereerd als bladen in het gebouwproject (onder *Bladen*), achteraf aan te passen of zelf te tekenen met de map *AREI/Eendraad*.
+- Symbolen draaien in stappen van 15° met de draaiknop in het eigenschappenpaneel.
 - Plattegronden afdrukken / PDF of als SVG.
 
-## Stuurkasten
+## Stuurkast
 
 - **Pagina's** op A3 liggend met kader, kolommen (1–10) en rijen (A–F), titelblok met bedrijf, logo, project, tekenaar, datum, revisie, paginatitel en bladnummer.
 - **Voedingslijnen** boven en onder (L1 L2 L3 N PE, L/N, +24V/0V …). Lijnen met dezelfde naam zijn op alle pagina's hetzelfde potentiaal.

@@ -28,14 +28,14 @@ export const circuitOptions = (b, withNone = true) => [
 
 // ---------- left panel: AREI symbols + floors ----------
 
-export function buildingLeftPanel(app, el, { plan }) {
+export function buildingLeftPanel(app, el, { plan, editor }) {
   let tab = 'symbols';
   let filter = '';
   const open = new Set(['AREI', 'AREI/Verlichting', 'AREI/Stopcontacten', 'AREI/Schakelaars']);
   const render = () => {
     const tabs = h('div', { class: 'tabs inner' },
       h('button', { class: tab === 'symbols' ? 'active' : '', onclick: () => { tab = 'symbols'; render(); } }, 'Symbolen'),
-      h('button', { class: tab === 'floors' ? 'active' : '', onclick: () => { tab = 'floors'; render(); } }, 'Verdiepingen'));
+      h('button', { class: tab === 'floors' ? 'active' : '', onclick: () => { tab = 'floors'; render(); } }, 'Bladen'));
     el.replaceChildren(tabs, tab === 'symbols' ? symbolsTab() : floorsTab());
   };
 
@@ -50,15 +50,16 @@ export function buildingLeftPanel(app, el, { plan }) {
     if (!root) return [h('p', { class: 'hint' }, 'Geen symbolen gevonden.')];
     const out = [];
     for (const f of [...root.folders.values()]) {
-      if (f.name === 'Eendraad') continue;
+      if (f.name === 'Eendraad' && app.mode === 'building') continue;
       const isOpen = filter || open.has(f.path);
       out.push(h('div', { class: 'folder' + (isOpen ? ' open' : ''), onclick: () => { open.has(f.path) ? open.delete(f.path) : open.add(f.path); render(); } },
         h('span', { class: 'caret' }, isOpen ? '▾' : '▸'), ' ', f.name));
       if (!isOpen) continue;
       out.push(h('div', { class: 'symgrid' }, f.symbols.map((d) => {
         const item = h('div', {
-          class: 'sym' + (plan.placing?.sym === d.id ? ' active' : ''), title: `${d.name}\nKlik: plaatsen · sleep naar plan`, draggable: 'true',
-          onclick: () => { plan.setTool('place', { sym: d.id }); render(); },
+          class: 'sym' + ((app.mode === 'building' ? plan.placing?.sym : editor.placing?.sym) === d.id ? ' active' : ''),
+          title: `${d.name}\nKlik: plaatsen · sleep naar het blad`, draggable: 'true',
+          onclick: () => { (app.mode === 'building' ? plan : editor).setTool('place', { sym: d.id }); render(); },
           ondragstart: (e) => e.dataTransfer.setData('text/x-kringo-symbol', d.id),
         });
         item.innerHTML = symbolPreviewSvg(d, 34);
@@ -101,14 +102,20 @@ export function buildingLeftPanel(app, el, { plan }) {
             app.emit('change');
           },
         }, '🗑')),
-      h('ol', { class: 'pagelist' }, b.floors.map((f, i) => h('li', {
-        class: i === app.floorIdx ? 'active' : '', onclick: () => app.setFloor(i),
+      h('ol', { class: 'pagelist' }, h('h4', null, 'Plattegronden'), b.floors.map((f, i) => h('li', {
+        class: app.mode === 'building' && i === app.floorIdx ? 'active' : '', onclick: () => { app.setMode('building'); app.setFloor(i); },
         ondblclick: async () => { const n = await prompt('Naam verdieping', f.name); if (n !== null) app.mutate(() => { f.name = n; }); },
       }, h('span', { class: 'no' }, i + 1), h('span', { class: 'ttl' }, f.name),
-      h('small', { class: 'hint' }, ` ${f.symbols.length} symb.`)))),
+      h('small', { class: 'hint' }, ` ${f.symbols.length} symb.`))),
+      h('h4', null, 'Eendraadschema'),
+      app.project.pages.length ? app.project.pages.map((pg, i) => h('li', {
+        class: app.mode === 'schematic' && i === app.pageIdx ? 'active' : '', onclick: () => { app.setMode('schematic'); app.setPage(i); },
+        ondblclick: async () => { const n = await prompt('Titel van het blad', pg.title); if (n !== null) app.mutate(() => { pg.title = n; }); },
+      }, h('span', { class: 'no' }, i + 1), h('span', { class: 'ttl' }, pg.title))) : h('li', { class: 'hint', onclick: () => generateDialog(app) }, 'Nog niet gegenereerd – klik om te genereren')),
       h('p', { class: 'hint' }, 'Dubbelklik om te hernoemen.'));
   };
-  app.on('change', () => { if (app.mode === 'building' && tab === 'floors') render(); });
+  app.on('change', () => { if (tab === 'floors') render(); });
+  app.on('mode', render);
   app.on('planTool', render);
   app.on('project', render);
   render();
@@ -201,6 +208,7 @@ function symbolProps(app, plan, s) {
   const extra = [];
   const kind = def?.kind;
   if (kind === 'light' || kind === 'appliance' || kind === 'other') extra.push(field('Vermogen (W)', inp(s.props.power, setProp('power'), { type: 'number', key: 'pw' })));
+  if (kind === 'socket' || kind === 'appliance') extra.push(field('Aantal dozen op dit punt', inp(s.props.qty || 1, setProp('qty'), { type: 'number', key: 'qty' }), 'In het eendraadschema herhaald op dezelfde aftakking.'));
   if (kind === 'pv') extra.push(field('Piekvermogen (Wp)', inp(s.props.wp, setProp('wp'), { type: 'number', key: 'wp' })), field('Aantal panelen', inp(s.props.count, setProp('count'), { type: 'number', key: 'pc' })));
   if (kind === 'inverter') extra.push(field('Vermogen (kW)', inp(s.props.kw, setProp('kw'), { type: 'number', key: 'kw' })));
   if (kind === 'battery') extra.push(field('Capaciteit (kWh)', inp(s.props.kwh, setProp('kwh'), { type: 'number', key: 'kwh' })));
@@ -241,10 +249,35 @@ function symbolProps(app, plan, s) {
         onclick: () => { plan.setTool('link'); plan.linkFrom = s.id; plan.render(); },
         title: 'Klik daarna op de symbolen die je wil koppelen (bv. lichtpunten bij een schakelaar). Esc = stoppen.',
       }, '🔗 Koppelen…')),
-    section('Plaatsing', h('div', { class: 'btnrow' },
-      h('button', { onclick: () => plan.rotate() }, '⟳ Draaien (R)'),
-      h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen'))),
+    section('Plaatsing',
+      rotationDial(s.rot || 0, (deg) => set(() => { s.rot = deg; })),
+      h('div', { class: 'btnrow' },
+        h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'),
+        h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen'))),
   ];
+}
+
+/** Rotation dial: 24 dots every 15°, 0° at the top, clockwise. Click a dot to rotate the symbol. */
+function rotationDial(rot, pick) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '-50 -50 100 100');
+  svg.classList.add('dial');
+  const cur = ((Math.round(rot / 15) * 15) % 360 + 360) % 360;
+  const pt = (deg, r) => [Math.sin((deg * Math.PI) / 180) * r, -Math.cos((deg * Math.PI) / 180) * r];
+  const [px, py] = pt(cur, 30);
+  let s = `<circle cx="0" cy="0" r="38" class="ring"/><line x1="0" y1="0" x2="${px}" y2="${py}" class="hand"/><circle cx="0" cy="0" r="3" class="hub"/>`;
+  for (let deg = 0; deg < 360; deg += 15) {
+    const [x, y] = pt(deg, 38);
+    s += `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${deg % 90 === 0 ? 4.2 : 3}" class="dot${deg === cur ? ' on' : ''}" data-deg="${deg}"><title>${deg}°</title></circle>`;
+  }
+  s += `<text x="0" y="16" text-anchor="middle" class="deg">${cur}°</text>`;
+  svg.innerHTML = s;
+  svg.addEventListener('click', (e) => {
+    const d = e.target.closest?.('[data-deg]')?.dataset.deg;
+    if (d !== undefined) pick(+d);
+  });
+  return h('div', { class: 'dialwrap', title: 'Klik op een bolletje om het symbool te draaien (per 15°)' }, svg);
 }
 
 function floorProps(app, plan) {
@@ -288,14 +321,19 @@ export async function circuitsDialog(app) {
         field('Algemene diff. (mA, 0 = geen)', inp(bd.main.rcd, (v) => { bd.main.rcd = v || 0; render(); }, { type: 'number' }))),
       h('div', { class: 'grid3' },
         field('Polen', sel(bd.main.poles || 2, [[2, '2P'], [4, '4P']], (v) => { bd.main.poles = +v; })),
-        field('Voedingskabel', inp(bd.main.cable, (v) => { bd.main.cable = v; }, { placeholder: 'bv. XVB 4x10' }))),
+        field('Type / kA', h('div', { class: 'grid2' },
+          sel(bd.main.type || 'A', [['AC', 'AC'], ['A', 'A'], ['F', 'F'], ['B', 'B']], (v) => { bd.main.type = v; }),
+          sel(bd.main.kA || 3, [[3, '3000'], [4.5, '4500'], [6, '6000'], [10, '10000']], (v) => { bd.main.kA = +v; }))),
+        field('Voedingskabel', inp(bd.main.cable, (v) => { bd.main.cable = v; }, { placeholder: 'bv. XVB Cca 4x10²' }))),
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: bd.main.meter !== false, onchange: (e) => { bd.main.meter = e.target.checked; } }), 'kWh-meter tekenen'),
       h('table', { class: 'list rcds' },
-        h('thead', null, h('tr', null, h('th', null, 'Differentieel'), h('th', null, 'mA'), h('th', null, 'A'), h('th', null, 'Type'), h('th', null, ''))),
+        h('thead', null, h('tr', null, h('th', null, 'Differentieel'), h('th', null, 'mA'), h('th', null, 'A'), h('th', null, 'Type'), h('th', null, 'Polen'), h('th', null, ''))),
         h('tbody', null, bd.rcds.map((r) => h('tr', null,
           h('td', null, inp(r.name, (v) => { r.name = v; })),
           h('td', null, inp(r.sens, (v) => { r.sens = v; }, { type: 'number' })),
           h('td', null, inp(r.In, (v) => { r.In = v; }, { type: 'number' })),
           h('td', null, sel(r.type, [['AC', 'AC'], ['A', 'A'], ['F', 'F'], ['B', 'B']], (v) => { r.type = v; })),
+          h('td', null, sel(r.poles || 2, [[2, '2P'], [4, '4P']], (v) => { r.poles = +v; })),
           h('td', null, h('button', { class: 'icon danger', onclick: () => { bd.rcds = bd.rcds.filter((x) => x !== r); for (const c of draft.circuits) if (c.rcd === r.id) c.rcd = ''; render(); } }, '✕')))))),
       h('div', { class: 'btnrow' },
         h('button', { onclick: () => { bd.rcds.push({ id: uid('rc'), name: `Differentieel ${bd.rcds.length + 1}`, sens: 30, In: 40, type: 'A' }); render(); } }, '＋ Differentieel'),
@@ -304,7 +342,7 @@ export async function circuitsDialog(app) {
     const rcdOpts = (c) => [['', '— (rechtstreeks)'], ...(draft.boards.find((bd) => bd.id === c.board)?.rcds || []).map((r) => [r.id, `${r.name} (${r.sens} mA)`])];
     const count = (c) => circuitSymbols(temp(), c.id).length;
     const table = h('table', { class: 'list circ' },
-      h('thead', null, h('tr', null, ['Kring', 'Omschrijving', 'Bord', 'Differentieel', 'Curve', 'A', 'Polen', 'kA', 'Kabel', 'Aders', 'mm²', 'Punten', ''].map((x) => h('th', null, x)))),
+      h('thead', null, h('tr', null, ['Kring', 'Omschrijving', 'Bord', 'Differentieel', 'Curve', 'A', 'Polen', 'kA', 'Kabel', 'Brandkl.', 'Aders', 'mm²', 'Punten', ''].map((x) => h('th', null, x)))),
       h('tbody', null, draft.circuits.map((c, ci) => {
         const warns = byCircuit.get(c.id) || [];
         return [
@@ -318,6 +356,7 @@ export async function circuitsDialog(app) {
             h('td', null, sel(c.poles, [[1, '1P'], [2, '2P'], [3, '3P'], [4, '4P']], (v) => { c.poles = +v; })),
             h('td', null, sel(c.kA || 3, [[3, '3'], [4.5, '4,5'], [6, '6'], [10, '10']], (v) => { c.kA = +v; })),
             h('td', null, inp(c.cable, (v) => { c.cable = v; }, { list: 'cables' })),
+            h('td', null, sel(c.fire || '', [['', '—'], ['Eca', 'Eca'], ['Dca', 'Dca'], ['Cca', 'Cca'], ['B2ca', 'B2ca']], (v) => { c.fire = v; })),
             h('td', null, sel(c.cores, [['3G', '3G'], ['5G', '5G'], ['2x', '2x'], ['4G', '4G']], (v) => { c.cores = v; })),
             h('td', null, sel(c.section, Object.keys(MAX_IN).map(Number).sort((x, y) => x - y).map((x) => [x, String(x).replace('.', ',')]), (v) => { c.section = +v; render(); })),
             h('td', { class: 'num' }, count(c)),
@@ -328,7 +367,7 @@ export async function circuitsDialog(app) {
                 class: 'icon danger', title: 'Kring verwijderen',
                 onclick: () => { draft.circuits = draft.circuits.filter((x) => x !== c); render(); },
               }, '✕'))),
-          warns.length ? h('tr', { class: 'warnrow' }, h('td', { colspan: 13 }, warns.map((w) => h('div', { class: 'chk ' + w.level }, (w.level === 'error' ? '⚠ ' : 'ℹ ') + w.text)))) : null,
+          warns.length ? h('tr', { class: 'warnrow' }, h('td', { colspan: 14 }, warns.map((w) => h('div', { class: 'chk ' + w.level }, (w.level === 'error' ? '⚠ ' : 'ℹ ') + w.text)))) : null,
         ];
       }).flat().filter(Boolean)));
     const general = checks.filter((c) => !c.circuit);
@@ -366,7 +405,7 @@ export async function generateDialog(app) {
   const ok = await modal({
     title: 'Eendraadschema genereren',
     body: h('div', null,
-      h('p', null, `Per verdeelbord wordt een eendraadschema gemaakt als schemapagina('s) in de modus Stuurkasten: voeding, kWh-meter, hoofdschakelaar, differentiëlen, automaten en per kring de toestellen in volgorde (${b.circuits.length} kringen).`),
+      h('p', null, `Per verdeelbord wordt een eendraadschema gemaakt (bladen onder "Bladen"): voeding, differentiëlen met hun rail, automaten en per kring de aftakkingen – schakelaars met hun lichtpunten (×n), stopcontactdozen en toestellen (${b.circuits.length} kringen). Nadien kan je de bladen nog aanpassen.`),
       has ? h('p', { class: 'warn' }, 'Eerder gegenereerde eendraadschema-pagina\'s worden vervangen (handmatige wijzigingen daarop gaan verloren).') : null,
       checks.length ? h('div', null, h('p', { class: 'warn' }, `⚠ ${checks.length} AREI-fout(en):`), checks.slice(0, 8).map((c) => h('div', { class: 'chk error' }, `${c.name ? 'Kring ' + c.name + ': ' : ''}${c.text}`))) : null),
     buttons: [{ label: 'Annuleren', value: false }, { label: 'Genereren', value: true, primary: true }],
@@ -377,6 +416,7 @@ export async function generateDialog(app) {
   app.setMode('schematic');
   app.pageIdx = -1;
   app.setPage(first);
+  app.emit('change');
   toast('Eendraadschema gegenereerd');
 }
 
