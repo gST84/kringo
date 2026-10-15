@@ -80,6 +80,7 @@ const socketLen = (units) => 5 + (units - 1) * 4.5;
 function branchLength(br) {
   if (br.type === 'chain') return 4 + br.switches.length * SW + br.lights.length * 8 + 4;
   if (br.type === 'sockets') return 4 + br.qty * (socketLen(br.units) + 1.5);
+  if (br.type === 'box') return 4 + 2 * 7;
   return 4 + 8;
 }
 const circuitWidth = (branches) => Math.max(21, ...branches.map((br) => branchLength(br) + 9));
@@ -165,7 +166,7 @@ function builder(project, lib, board, title) {
       for (const s of starts) comp(br.sym, s + pinY, y, 90);
     } else if (br.type === 'box') {
       wire([lx, y], [px, y]);
-      comp(br.sym, px + 3.5, y);
+      comp(br.sym, px + (lib.get(br.sym)?.half || 3.5), y);
     } else {
       const pinY = lib.get(br.sym)?.pins?.[0]?.y ?? 2.5;
       wire([lx, y], [px, y]);
@@ -176,9 +177,12 @@ function builder(project, lib, board, title) {
   const circuit = (c, base) => {
     const branches = buildBranches(b, lib, c);
     const w = circuitWidth(branches);
-    comp('arei/mcb-v', x, base);
+    const fuse = c.curve === 'gG';
+    comp(fuse ? 'arei/fuse-v' : 'arei/mcb-v', x, base);
     text(x - 2.2, base - 2.5, c.name, 3.8, { bold: true, anchor: 'end' });
-    breakerTexts(x, base, [{ text: icn(c.kA), box: true }, { text: `${c.poles || 2}P - ${c.curve || 'C'} ${c.In}A` }]);
+    breakerTexts(x, base, fuse
+      ? [{ text: `${c.poles || 2}P - ${c.In}A gG` }]
+      : [{ text: icn(c.kA), box: true }, { text: `${c.poles || 2}P - ${c.curve || 'C'} ${c.In}A` }]);
     const top = base - MCB_H;
     const first = top - CABLE;
     const label = c.desc || '';
@@ -197,7 +201,7 @@ function builder(project, lib, board, title) {
     const one = branches.length === 1 ? branches[0] : null;
     if (one && (one.type === 'box' || (one.type === 'sockets' && one.qty === 1))) {
       wire([x, top], [x, first]);
-      if (one.type === 'box') comp(one.sym, x, first - 3.5);
+      if (one.type === 'box') comp(one.sym, x, first - (lib.get(one.sym)?.pins?.[0]?.y ?? 3.5));
       else {
         comp(one.sym, x, first - (lib.get(one.sym)?.pins?.[0]?.y ?? 2.5));
         text(x - 3.5, first - 2, '1', 2.4, { anchor: 'end' });

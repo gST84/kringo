@@ -351,7 +351,7 @@ export async function circuitsDialog(app) {
             h('td', null, inp(c.desc, (v) => { c.desc = v; })),
             h('td', null, sel(c.board, boardOpts, (v) => { c.board = v; c.rcd = ''; render(); })),
             h('td', null, sel(c.rcd, rcdOpts(c), (v) => { c.rcd = v; render(); })),
-            h('td', null, sel(c.curve, [['B', 'B'], ['C', 'C'], ['D', 'D']], (v) => { c.curve = v; })),
+            h('td', null, sel(c.curve, [['B', 'B'], ['C', 'C'], ['D', 'D'], ['gG', 'gG (smeltzekering)']], (v) => { c.curve = v; })),
             h('td', null, sel(c.In, [6, 10, 16, 20, 25, 32, 40, 50, 63].map((x) => [x, x]), (v) => { c.In = +v; render(); })),
             h('td', null, sel(c.poles, [[1, '1P'], [2, '2P'], [3, '3P'], [4, '4P']], (v) => { c.poles = +v; })),
             h('td', null, sel(c.kA || 3, [[3, '3'], [4.5, '4,5'], [6, '6'], [10, '10']], (v) => { c.kA = +v; })),

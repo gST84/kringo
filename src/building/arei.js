@@ -17,24 +17,44 @@ const lampX = (r = 2.5) => [C(0, 0, r, WHITE), L(-r * 0.707, -r * 0.707, r * 0.7
 const cross = (r = 2.5) => [L(-r, -r, r, r), L(-r, r, r, -r)];
 /** Appliance box (single-line diagrams and plans): 7 × 7 mm square, pin at the bottom edge. */
 const box = (...inner) => [R(-3.5, -3.5, 7, 7, WHITE), ...inner];
+/** Vertical hatching inside a rectangle / circle (electric heating, boiler). */
+const hatchRect = (x, y, w, h, step = 0.6) => {
+  const g = [];
+  for (let xx = x + step; xx < x + w - 0.01; xx += step) g.push(L(+xx.toFixed(2), y, +xx.toFixed(2), y + h, { w: 0.15 }));
+  return g;
+};
+const hatchCircle = (r, step = 0.6) => {
+  const g = [];
+  for (let xx = -r + step; xx < r - 0.01; xx += step) {
+    const hh = Math.sqrt(r * r - xx * xx);
+    g.push(L(+xx.toFixed(2), +(-hh).toFixed(2), +xx.toFixed(2), +hh.toFixed(2), { w: 0.15 }));
+  }
+  return g;
+};
 /**
- * Socket outlet with earth (Belgian plans / single-line diagrams): the line runs from the wall
- * (pin), crosses a short earth bar and ends in an arc that opens away from the wall. Multiple
- * sockets in one box repeat bar + arc along the line.
+ * Socket outlet (Belgian symbols): the line from the wall ends in an arc that opens away from it;
+ * with earth a short bar crosses the line against the arc; child protection adds short ends to the
+ * arc. Multiple sockets in one box repeat the unit along the line.
  */
 const SOCKET_STEP = 4.5;
-const socketBase = (n = 1) => {
+const socketBase = (n = 1, { earth = true, child = false } = {}) => {
   const g = [L(0, 2.5, 0, -(n - 1) * SOCKET_STEP)];
   for (let k = 0; k < n; k++) {
     const oy = -k * SOCKET_STEP;
-    g.push(L(-2.2, oy + 1.1, 2.2, oy + 1.1), P(`M -2.5 ${oy - 2.5} A 2.5 2.5 0 0 0 2.5 ${oy - 2.5}`));
+    g.push(P(`M -2.5 ${oy - 2.5} A 2.5 2.5 0 0 0 2.5 ${oy - 2.5}`));
+    if (earth) g.push(L(-1.7, oy + 0.45, 1.7, oy + 0.45, { w: 0.5 }));
+    if (child) g.push(L(-2.5, oy - 2.5, -3.4, oy - 3.3), L(2.5, oy - 2.5, 3.4, oy - 3.3));
   }
   return g;
 };
 const socketTop = (n = 1) => -(n - 1) * SOCKET_STEP - 1.6;
-// Switches: open circle on the line with a lever (and flag) per direction.
-const lever = (sx, sy) => [L(0.55 * sx, 0.95 * sy, 1.5 * sx, 3.3 * sy), L(1.5 * sx, 3.3 * sy, 2.8 * sx, 3.0 * sy)];
-const switchBase = () => [C(0, 0, 1.1, WHITE), ...lever(1, -1)];
+// Switches: open circle with a lever per direction; one flag = single pole, two flags = double pole.
+const lever = (sx, sy, poles = 1) => {
+  const g = [L(0.55 * sx, 0.95 * sy, 1.6 * sx, 3.4 * sy), L(1.6 * sx, 3.4 * sy, 2.8 * sx, 3.4 * sy)];
+  if (poles === 2) g.push(L(1.35 * sx, 2.85 * sy, 2.55 * sx, 2.85 * sy));
+  return g;
+};
+const switchBase = (poles = 1) => [C(0, 0, 1.1, WHITE), ...lever(1, -1, poles)];
 
 const F = (sub) => 'AREI/' + sub;
 const def = (id, name, folder, kind, graphics, o = {}) => ({
@@ -43,9 +63,12 @@ const def = (id, name, folder, kind, graphics, o = {}) => ({
   wall: !!o.wall, pinText: false, ...o.extra,
 });
 
-const socketDef = (id, name, n, label) =>
+const socketDef = (id, name, n, label, opts) =>
   def(id, name, label ? 'Toestellen' : 'Stopcontacten', label ? 'appliance' : 'socket',
-    [...socketBase(n), ...(label ? [T(0, socketTop(n), label, 1.4)] : [])], { wall: true, prefix: 'X', extra: { units: n } });
+    [...socketBase(n, opts), ...(label ? [T(0, socketTop(n), label, 1.4)] : [])], { wall: true, prefix: 'X', extra: { units: n } });
+/** half: half width, vhalf: half height (the pin sits on the bottom edge). */
+const boxDef = (id, name, graphics, half = 3.5, vhalf = half) =>
+  def(id, name, 'Toestellen', 'appliance', graphics, { wall: true, pinY: vhalf, extra: { box: true, half } });
 
 export const AREI = [
   // Verlichting
@@ -57,36 +80,42 @@ export const AREI = [
   def('emergency', 'Noodverlichting', 'Verlichting', 'light', [...lampX(), L(-3.4, 3.2, 3.4, 3.2, { w: 0.5 })], { pinY: 3.2 }),
 
   // Stopcontacten
+  socketDef('socket-plain', 'Stopcontact zonder aarding', 1, '', { earth: false }),
   socketDef('socket', 'Stopcontact met aarding', 1),
+  socketDef('socket-child', 'Stopcontact met aarding en kinderbescherming', 1, '', { child: true }),
+  socketDef('socket2-child', 'Dubbel stopcontact met kinderbescherming', 2, '', { child: true }),
   socketDef('socket2', 'Dubbel stopcontact', 2),
   socketDef('socket3', 'Drievoudig stopcontact', 3),
   socketDef('socket4', 'Viervoudig stopcontact', 4),
   def('socket-ext', 'Stopcontact buiten (IP44)', 'Stopcontacten', 'socket', [...socketBase(1), T(0, socketTop(1), 'IP', 1.3)], { wall: true, prefix: 'X', extra: { units: 1 } }),
   def('socket-3p', 'Krachtstopcontact 3F', 'Stopcontacten', 'socket', [...socketBase(1), T(0, socketTop(1), '3F', 1.3)], { wall: true, prefix: 'X', extra: { units: 1 } }),
 
-  // Toestellen (vaste aansluiting of eigen stopcontact)
-  def('washer', 'Wasmachine', 'Toestellen', 'appliance', box(C(0, 0, 2.5), C(0, 0, 1.5)), { wall: true, pinY: 3.5, extra: { box: true } }),
-  def('dryer', 'Droogkast', 'Toestellen', 'appliance', box(C(0, 0, 2.3), C(0, 0, 0.8, INK)), { wall: true, pinY: 3.5, extra: { box: true } }),
-  def('dishwasher', 'Vaatwasser', 'Toestellen', 'appliance',
-    box(...[-1.5, 0, 1.5].map((y) => P(`M -2.4 ${y} q 0.6 -0.9 1.2 0 t 1.2 0 t 1.2 0 t 1.2 0`))), { wall: true, pinY: 3.5, extra: { box: true } }),
-  def('hob', 'Kookplaat', 'Toestellen', 'appliance',
-    box(C(-1.5, -1.5, 0.7, INK), C(1.5, -1.5, 0.7, INK), C(-1.5, 1.5, 0.7, INK), C(1.5, 1.5, 0.7, INK)), { wall: true, pinY: 3.5, extra: { box: true } }),
+  // Toestellen (symbolen volgens de AREI-legende)
+  boxDef('dryer', 'Droogkast', box(C(-0.9, -1.4, 0.9), C(0.9, -1.4, 0.9), C(0, 1.4, 0.6, INK))),
+  boxDef('freezer', 'Diepvriezer', box(T(0, 0.6, '***', 3.6))),
+  boxDef('fridge', 'Koelkast', box(T(0, 0.9, '*', 5))),
+  boxDef('hob', 'Kookplaten', box(C(1.6, -1.6, 0.6, INK), C(-1.6, 1.6, 0.6, INK), C(1.6, 1.6, 0.6, INK))),
+  boxDef('microwave', 'Microgolfoven', box(...[-1.8, 0, 1.8].map((y) => P(`M -1.8 ${y} q 0.9 -1 1.8 0 t 1.8 0`)))),
+  boxDef('oven', 'Oven', box(L(-3.5, -1.5, 3.5, -1.5), C(0, 1.1, 0.6, INK))),
+  boxDef('dishwasher', 'Vaatwasmachine', box(L(-3.5, -3.5, 3.5, 3.5), L(-3.5, 3.5, 3.5, -3.5), C(0, 0, 1.4, WHITE))),
+  boxDef('washer', 'Wasmachine', box(C(0, 0, 2.3), C(0, 0, 0.6, INK))),
+  boxDef('fan', 'Ventilator', box(C(-0.9, 0, 0.9), C(0.9, 0, 0.9))),
+  boxDef('heater', 'Elektrische verwarming', [R(-5, -2.5, 10, 5, WHITE), ...hatchRect(-5, -2.5, 10, 5)], 5, 2.5),
+  boxDef('heater-acc', 'Elektrische verwarming met accumulatie', [R(-5.5, -3, 11, 6, WHITE), R(-4, -1.8, 8, 3.6), ...hatchRect(-4, -1.8, 8, 3.6)], 5.5, 3),
+  boxDef('heater-fan', 'Verwarming met accumulatie en ventilator', [R(-7, -2.5, 14, 5, WHITE), R(-6.2, -1.7, 7, 3.4), ...hatchRect(-6.2, -1.7, 7, 3.4), C(2.6, 0, 0.9), C(4.4, 0, 0.9)], 7, 2.5),
+  boxDef('boiler', 'Boiler', [C(0, 0, 3, WHITE), ...hatchCircle(3)], 3),
+  boxDef('boiler-acc', 'Boiler met accumulatie', [C(0, 0, 3.4, WHITE), C(0, 0, 2.6), ...hatchCircle(2.6)], 3.4),
   socketDef('hood', 'Dampkap', 1, 'DA'),
   socketDef('cooker', 'Kooktoestel / fornuis', 1, 'KO'),
-  def('oven', 'Oven', 'Toestellen', 'appliance', box(L(-1.4, -3.5, -1.4, 3.5), C(1, 0, 0.8, INK)), { wall: true, pinY: 3.5, extra: { box: true } }),
-  def('microwave', 'Microgolfoven', 'Toestellen', 'appliance', box(C(-1.1, -1.2, 1), C(1.1, -1.2, 1), C(0, 1.6, 0.7, INK)), { wall: true, pinY: 3.5, extra: { box: true } }),
-  socketDef('fridge', 'Koelkast', 1, 'KK'),
-  socketDef('boiler', 'Boiler', 1, 'BO'),
   socketDef('heatpump', 'Warmtepomp', 1, 'WP'),
-  def('heater', 'Elektrische verwarming', 'Toestellen', 'other', [R(-4, -2, 8, 4), P('M -3 1 L -2 -1 L -1 1 L 0 -1 L 1 1 L 2 -1 L 3 1')], { pinY: 2, wall: true }),
-  def('fan', 'Ventilator', 'Toestellen', 'other', [C(0, 0, 2.5), P('M 0 0 L -2 -1 L -2 1 Z M 0 0 L 2 -1 L 2 1 Z', INK)], { pinY: 2.5 }),
   def('ev', 'Laadpaal', 'Energie', 'other', [R(-2.5, -3.5, 5, 6), T(0, -0.5, 'EV', 1.8)], { pinY: 2.5, wall: true }),
 
   // Schakelaars en bediening
-  def('switch', 'Schakelaar enkelpolig', 'Schakelaars', 'switch', switchBase(), { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
-  def('switch2', 'Schakelaar tweepolig', 'Schakelaars', 'switch', [...switchBase(), L(1.05, 2.1 * -1, 2.2, -2.0)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
-  def('switch-2way', 'Wisselschakelaar (hotel)', 'Schakelaars', 'switch', [...switchBase(), ...lever(-1, 1)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 1 } }),
-  def('switch-cross', 'Kruisschakelaar', 'Schakelaars', 'switch', [...switchBase(), ...lever(-1, 1), ...lever(-1, -1), ...lever(1, 1)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 2 } }),
+  def('switch', 'Enkelpolige schakelaar', 'Schakelaars', 'switch', switchBase(), { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
+  def('switch2', 'Dubbelpolige schakelaar', 'Schakelaars', 'switch', switchBase(2), { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
+  def('switch-2way', 'Enkelpolige wisselschakelaar', 'Schakelaars', 'switch', [...switchBase(), ...lever(-1, 1)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 1 } }),
+  def('switch2-2way', 'Dubbelpolige wisselschakelaar', 'Schakelaars', 'switch', [...switchBase(2), ...lever(-1, 1, 2)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 1 } }),
+  def('switch-cross', 'Enkelpolige kruisschakelaar', 'Schakelaars', 'switch', [...switchBase(), ...lever(-1, 1), ...lever(-1, -1), ...lever(1, 1)], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 2 } }),
   def('dimmer', 'Dimmer', 'Schakelaars', 'switch', [...switchBase(), P('M -2.8 1.6 L -0.9 -1.4 M -0.9 -1.4 L -2 -1.1 M -0.9 -1.4 L -1.1 -0.3')], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
   def('push', 'Drukknop', 'Schakelaars', 'push', [C(0, 0, 2), C(0, 0, 0.8, INK)], { wall: true, pinY: 2, prefix: 'S' }),
   def('motion', 'Bewegingsmelder', 'Schakelaars', 'switch', [P('M -2.5 1 A 2.5 2.5 0 0 1 2.5 1 Z'), P('M -1.6 -2.6 A 3.5 3.5 0 0 1 1.6 -2.6')], { wall: true, pinY: 1, prefix: 'B' }),
@@ -128,7 +157,12 @@ AREI.push({
 // Breaker for the Belgian single-line layout: busbar below (pin 1 at 0,0), circuit above (pin 2 at 0,-12).
 AREI.push({
   id: 'arei/mcb-v', name: 'Automaat (eendraad, verticaal)', folder: F('Eendraad'), kind: 'breaker', role: 'device', prefix: 'Q', arei: true, pinText: false,
-  graphics: [L(0, 0, 0, -5), L(-0.4, -6, -1.9, -10.6, { w: 0.75 }), L(0, -9.6, 0, -12)],
+  graphics: [L(0, 0, 0, -4), L(0, -4, -2, -10.5), L(-1.55, -9, -2.05, -10.6, { w: 0.9 }), L(0, -9.6, 0, -12)],
+  pins: [{ id: '1', x: 0, y: 0, name: '' }, { id: '2', x: 0, y: -12, name: '' }], tagAt: { x: -4, y: -6, anchor: 'end' },
+});
+AREI.push({
+  id: 'arei/fuse-v', name: 'Smeltzekering (eendraad, verticaal)', folder: F('Eendraad'), kind: 'fuse', role: 'device', prefix: 'F', arei: true, pinText: false,
+  graphics: [L(0, 0, 0, -2.5), R(-0.75, -9.5, 1.5, 7), L(0, -9.5, 0, -12)],
   pins: [{ id: '1', x: 0, y: 0, name: '' }, { id: '2', x: 0, y: -12, name: '' }], tagAt: { x: -4, y: -6, anchor: 'end' },
 });
 AREI.push(
