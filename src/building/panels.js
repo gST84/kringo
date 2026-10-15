@@ -2,6 +2,7 @@
 import { clone, h, natCmp } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
+import { toggleFolder } from '../ui/panels.js';
 import { circuitSymbols, newBoard, newCircuit, newFloor, nextCircuitName, nextNumber, wallFrame } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, cableText } from './eendraad.js';
@@ -31,7 +32,7 @@ export const circuitOptions = (b, withNone = true) => [
 export function buildingLeftPanel(app, el, { plan, editor }) {
   let tab = 'symbols';
   let filter = '';
-  const open = new Set(['AREI', 'AREI/Verlichting', 'AREI/Stopcontacten', 'AREI/Schakelaars']);
+  const open = new Set(['AREI', 'AREI/Verlichting']);
   const render = () => {
     const tabs = h('div', { class: 'tabs inner' },
       h('button', { class: tab === 'symbols' ? 'active' : '', onclick: () => { tab = 'symbols'; render(); } }, 'Symbolen'),
@@ -52,7 +53,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
     for (const f of [...root.folders.values()]) {
       if (f.name === 'Eendraad' && app.mode === 'building') continue;
       const isOpen = filter || open.has(f.path);
-      out.push(h('div', { class: 'folder' + (isOpen ? ' open' : ''), onclick: () => { open.has(f.path) ? open.delete(f.path) : open.add(f.path); render(); } },
+      out.push(h('div', { class: 'folder' + (isOpen ? ' open' : ''), onclick: () => { toggleFolder(open, f.path); render(); } },
         h('span', { class: 'caret' }, isOpen ? '▾' : '▸'), ' ', f.name));
       if (!isOpen) continue;
       out.push(h('div', { class: 'symgrid' }, f.symbols.map((d) => {

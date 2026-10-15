@@ -62,6 +62,16 @@ function wireColorPicker(value, pick, autoColor) {
     h('small', { class: 'hint' }, value ? `Kleur: ${WIRE_COLORS[cur]?.[0] || value}${WIRE_COLORS[cur] ? ` (${cur})` : ''}` : 'Automatisch' + (autoColor ? ' – kleur van de voedingslijn' : ' – zwart')));
 }
 
+/** Accordion: opening a folder closes every other folder except its parents. */
+export function toggleFolder(open, path) {
+  if (open.has(path)) {
+    for (const q of [...open]) if (q === path || q.startsWith(path + '/')) open.delete(q);
+    return;
+  }
+  for (const q of [...open]) if (!path.startsWith(q + '/')) open.delete(q);
+  open.add(path);
+}
+
 // ---------- pages ----------
 
 export function pagesPanel(app, el) {
@@ -151,7 +161,7 @@ function duplicatePage(app) {
 
 export function libraryPanel(app, el, { editor, openSymbolEditor }) {
   const lib = app.lib;
-  const open = new Set(['Standaard', USER_ROOT]);
+  const open = new Set(['Standaard']);
   let filter = '';
   const search = h('input', { type: 'search', placeholder: 'Zoek symbool…', class: 'search' });
   search.addEventListener('input', () => { filter = search.value; renderTree(); });
@@ -183,7 +193,7 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
       const isOpen = filter || open.has(f.path);
       out.push(h('div', {
         class: 'folder' + (isOpen ? ' open' : ''), style: { paddingLeft: depth * 12 + 4 + 'px' },
-        onclick: () => { open.has(f.path) ? open.delete(f.path) : open.add(f.path); renderTree(); },
+        onclick: () => { toggleFolder(open, f.path); renderTree(); },
       }, h('span', { class: 'caret' }, isOpen ? '▾' : '▸'), ' ', f.name));
       if (isOpen) out.push(...node(f, depth + 1));
     }
