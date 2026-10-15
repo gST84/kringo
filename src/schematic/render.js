@@ -194,7 +194,7 @@ function wireSvg(w, an, opts) {
 
 // ---------- frame and title block ----------
 
-export function frameSvg(project, page, pageIdx) {
+export function frameSvg(project, page, pageIdx, total = project.pages.length) {
   const { x0, y0, x1, y1, band, tbY, area } = FRAME;
   const { cols, rows, cw, rh } = pageGrid(project, page);
   let s = `<g class="frame">`;
@@ -235,7 +235,7 @@ export function frameSvg(project, page, pageIdx) {
   s += textSvg(302, ty + 12, page.title || '', 4, 'start', 'tx tb-b');
   s += textSvg(400, ty + 3.2, 'Blad', 1.8, 'middle', 'tx tb-l');
   s += textSvg(400, ty + 13, String(pageIdx + 1), 6, 'middle', 'tx tb-b');
-  s += textSvg(400, ty + 24, `van ${project.pages.length}`, 2.4, 'middle', 'tx');
+  s += textSvg(400, ty + 24, `van ${total}`, 2.4, 'middle', 'tx');
   return s + '</g>';
 }
 

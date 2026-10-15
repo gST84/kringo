@@ -6,6 +6,7 @@ import { standalonePageSvg } from '../schematic/render.js';
 import { renumberDevices, renumberTerminals } from '../schematic/tags.js';
 import { alertDlg, confirmDlg, field, modal, toast } from './dialogs.js';
 import { importQet } from '../import/qet.js';
+import { standalonePlanSvg } from '../building/render.js';
 
 export async function projectDialog(app) {
   const p = app.project;
@@ -225,12 +226,15 @@ export async function exportProjectFile(app) {
 
 // ---------- print / SVG ----------
 
-export function printProject(app, pages = null) {
+export function printProject(app, pages = null, floors = null) {
   const an = app.analysis();
   const root = document.getElementById('print-root');
   const p = app.project;
-  const idx = pages || p.pages.map((_, i) => i);
-  root.innerHTML = idx.map((i) => `<div class="print-page">${standalonePageSvg(p, p.pages[i], i, an)}</div>`).join('');
+  if (floors) root.innerHTML = floors.map((i) => `<div class="print-page">${standalonePlanSvg(p, i, app.lib)}</div>`).join('');
+  else {
+    const idx = pages || p.pages.map((_, i) => i);
+    root.innerHTML = idx.map((i) => `<div class="print-page">${standalonePageSvg(p, p.pages[i], i, an)}</div>`).join('');
+  }
   const done = () => { root.innerHTML = ''; window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   setTimeout(() => window.print(), 50);
@@ -243,6 +247,7 @@ export function exportPageSvg(app) {
 }
 
 export async function printDialog(app) {
+  if (app.mode === 'building') return printPlansDialog(app);
   const all = h('input', { type: 'radio', name: 'pr', checked: true });
   const cur = h('input', { type: 'radio', name: 'pr' });
   const ok = await modal({
@@ -255,4 +260,20 @@ export async function printDialog(app) {
   });
   if (ok === 'svg') exportPageSvg(app);
   else if (ok === 'print') printProject(app, cur.checked ? [app.pageIdx] : null);
+}
+
+async function printPlansDialog(app) {
+  const b = app.project.building;
+  const all = h('input', { type: 'radio', name: 'pp', checked: true });
+  const cur = h('input', { type: 'radio', name: 'pp' });
+  const ok = await modal({
+    title: 'Plattegronden afdrukken / PDF',
+    body: h('div', { class: 'form' },
+      h('label', { class: 'check' }, all, `Alle verdiepingen (${b.floors.length})`),
+      h('label', { class: 'check' }, cur, `Huidige verdieping (${app.floor.name})`),
+      h('p', { class: 'hint' }, `A3 liggend, schaal 1:${b.scale}. Kies "Opslaan als PDF" in het afdrukvenster; marges op "Geen".`)),
+    buttons: [{ label: 'Annuleren', value: false }, { label: 'SVG van verdieping', value: 'svg' }, { label: 'Afdrukken', value: 'print', primary: true }],
+  });
+  if (ok === 'svg') download(`${safeName(app.project.name)} - ${safeName(app.floor.name)}.svg`, standalonePlanSvg(app.project, app.floorIdx, app.lib), 'image/svg+xml');
+  else if (ok === 'print') printProject(app, null, cur.checked ? [app.floorIdx] : b.floors.map((_, i) => i));
 }

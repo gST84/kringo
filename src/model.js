@@ -1,5 +1,6 @@
 // Project data model. All coordinates are millimetres on an A3 landscape sheet.
 import { uid } from './util.js';
+import { newBuilding, normalizeBuilding } from './building/model.js';
 
 export const FORMAT = 'kringo-project';
 /** Formats written by earlier versions (still readable). */
@@ -82,6 +83,7 @@ export function newProject(name = 'Nieuw project') {
     },
     pages: [newPage('Voorblad'), newPage('Stuurstroom', 'control')],
     symbols: {}, // embedded copies of non-builtin symbol definitions
+    building: newBuilding(),
     created: Date.now(),
     updated: Date.now(),
   };
@@ -100,6 +102,7 @@ export function normalizeProject(p) {
     for (const c of pg.comps) c.props ||= {};
   }
   if (!p.pages.length) p.pages.push(newPage('Pagina 1'));
+  p.building = normalizeBuilding(p.building);
   return p;
 }
 

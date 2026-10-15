@@ -262,8 +262,9 @@ export function popupMenu(x, y, items) {
 
 // ---------- properties ----------
 
-export function propertiesPanel(app, el, { editor }) {
+export function propertiesPanel(app, el, { editor, building }) {
   const render = () => rebuild(el, () => {
+    if (app.mode === 'building' && building) return building();
     const keys = [...app.sel];
     if (!keys.length) return pageProps(app);
     if (keys.length > 1) return multiProps(app, editor, keys);

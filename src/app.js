@@ -11,6 +11,8 @@ export class App {
     this.lib = lib;
     this.project = null;
     this.pageIdx = 0;
+    this.floorIdx = 0;
+    this.mode = 'schematic'; // 'schematic' | 'building'
     this.sel = new Set();
     this.undoStack = [];
     this.redoStack = [];
@@ -28,6 +30,22 @@ export class App {
   emit(evt, arg) { for (const fn of this.handlers.get(evt) || []) fn(arg); }
 
   get page() { return this.project.pages[this.pageIdx]; }
+  get floor() { return this.project.building.floors[this.floorIdx]; }
+
+  setMode(mode) {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    this.sel.clear();
+    this.emit('mode', mode);
+    this.emit('change');
+  }
+
+  setFloor(i) {
+    if (i < 0 || i >= this.project.building.floors.length || i === this.floorIdx) return;
+    this.floorIdx = i;
+    this.sel.clear();
+    this.emit('change');
+  }
 
   analysis() {
     if (this._anVersion !== this.version) {
@@ -41,6 +59,7 @@ export class App {
     this.project = normalizeProject(p);
     this.lib.project = this.project;
     this.pageIdx = 0;
+    this.floorIdx = 0;
     this.sel.clear();
     this.undoStack = [];
     this.redoStack = [];
@@ -76,6 +95,7 @@ export class App {
     this.project = JSON.parse(json);
     this.lib.project = this.project;
     this.pageIdx = Math.min(this.pageIdx, this.project.pages.length - 1);
+    this.floorIdx = Math.min(this.floorIdx, this.project.building.floors.length - 1);
     this.pruneSelection();
     this.touched();
   }
@@ -107,6 +127,12 @@ export class App {
   }
 
   pruneSelection() {
+    if (this.mode === 'building') {
+      const f = this.floor;
+      const lists = { W: f.walls, O: f.openings, S: f.stairs, T: f.texts, A: f.symbols, L: f.links };
+      for (const k of [...this.sel]) { const [t, id] = k.split(':'); if (!lists[t]?.some((o) => o.id === id)) this.sel.delete(k); }
+      return;
+    }
     const pg = this.page;
     const exists = (k) => {
       const [t, id] = k.split(':');

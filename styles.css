@@ -240,3 +240,53 @@ td.empty { color: var(--muted); text-align: center; padding: 20px; }
 .cchip.gnye { background: repeating-linear-gradient(45deg, #2e9e3e 0 4px, #e0c000 4px 8px) !important; }
 .cchip.active { outline: 2px solid var(--accent); outline-offset: 1px; }
 .colorpick input[type=color] { width: 30px; height: 24px; padding: 0 1px; }
+
+/* ---------- modes ---------- */
+body[data-mode=schematic] .only-building, body[data-mode=building] .only-schematic { display: none !important; }
+body[data-mode=building] #left-tabs, body[data-mode=building] #library, body[data-mode=building] #pages { display: none !important; }
+body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:not(.plancanvas) { display: none; }
+.modes button.active { background: var(--accent); color: #fff; }
+.tgroup { display: contents; }
+#building-left { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+#building-left .tabs.inner { padding-top: 6px; }
+
+/* ---------- plan ---------- */
+.plancanvas[data-tool=wall], .plancanvas[data-tool=opening], .plancanvas[data-tool=stair], .plancanvas[data-tool=text], .plancanvas[data-tool=place], .plancanvas[data-tool=link] { cursor: crosshair; }
+.plangrid { fill: url(#pgp); }
+.plan .wall { fill: #3d3d3d; stroke: none; }
+.plan .wall.inner { fill: #7a7a7a; }
+.plan .wall:hover { fill: #2f5fbf; }
+.plan .wall.sel { fill: var(--sel) !important; }
+.plan .gap { fill: #fff; stroke: none; }
+.plan .stairbox { fill: #fff; }
+.plan .plink { fill: none; }
+.plan .opening:hover line, .plan .opening:hover path { stroke: #4b8af0; }
+.plan .psym:hover .hit { fill: rgba(31, 111, 235, .1); }
+.plan .psym.sel .hit { fill: rgba(31, 111, 235, .15); stroke: var(--sel); stroke-width: .3; }
+.plan .psym.sel line, .plan .psym.sel circle:not(.hit), .plan .psym.sel path, .plan .psym.sel rect { stroke: var(--sel) !important; }
+.plan .plink.sel { stroke: var(--sel) !important; }
+.plan path.hit { fill: none; stroke: transparent; }
+.room { font-weight: bold; }
+.clabel { font-weight: bold; fill: #c2410c; }
+.croom { fill: #555; }
+.overlay .ghostwall { fill: rgba(31, 111, 235, .35); stroke: none; }
+.overlay .ghostopen { fill: rgba(31, 111, 235, .35); stroke: none; }
+.overlay .measure { fill: var(--sel); font-weight: bold; }
+.overlay .ghost line, .overlay .ghost circle, .overlay .ghost path, .overlay .ghost rect { stroke: var(--sel); stroke-width: .3; fill: none; }
+.overlay .ghost text { fill: var(--sel); }
+
+/* ---------- circuits dialog ---------- */
+.circuits h3 { margin: 12px 0 6px; font-size: 13px; }
+.circuits .board { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+.circuits table input, .circuits table select { padding: 2px 4px; font-size: 12px; }
+.circuits table.circ td { padding: 2px 3px; }
+.circuits td.num { text-align: center; }
+.circuits tr.err td { background: rgba(201, 42, 42, .06); }
+.circuits tr.warnrow td { border-bottom: 1px solid var(--line); padding: 0 6px 6px; }
+.chk { font-size: 12px; color: var(--muted); }
+.chk.error { color: var(--danger); }
+.chk.warn { color: #c77d00; }
+table.list.circ tbody tr:hover { background: none; cursor: default; }
+.circuits table select { min-width: 54px; }
+.circuits table.circ td:nth-child(2) input { min-width: 140px; }
+#toolbar select { max-width: 190px; }

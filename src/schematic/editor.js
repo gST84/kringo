@@ -286,6 +286,7 @@ export class SchematicEditor {
   }
 
   onKey(e) {
+    if (this.app.mode !== 'schematic') return;
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     if (document.querySelector('.modal-back')) return;

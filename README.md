@@ -29,7 +29,17 @@ Omdat het een statische site is, kan de map ook op elke webserver of GitHub Page
 | Modus | Status |
 |---|---|
 | **Stuurkasten** – industriële schema's | eerste versie (dit) |
-| **Gebouwen** – grondplan + AREI-symbolen + ééndraadschema | volgende fase |
+| **Gebouwen** – plattegrond + AREI-symbolen + kringen + eendraadschema | eerste versie |
+
+## Gebouwen
+
+- **Plattegrond per verdieping** op schaal (1:50, 1:20, 1:75, 1:100) op A3: muren (buiten / binnen, dikte; klik punten of typ een lengte in cm + Enter), deuren, dubbele deuren, ramen, schuiframen (op een muur klikken, verslepen langs de muur), trappen en ruimtenamen.
+- **AREI-symbolen**: lichtpunten, stopcontacten (enkel tot viervoudig, buiten, 3F), toestellen (wasmachine, droogkast, vaatwasser, kookplaat, oven, warmtepomp …), schakelaars (enkel-, tweepolig, wissel, kruis, dimmer, drukknop, bewegingsmelder), domotica (ingangen, uitgangen, dimmers, rolluiken), verdeelbord, meter, zonnepanelen, omvormer, thuisbatterij, laadpaal, rookmelder, data, TV … Wandsymbolen draaien vanzelf tegen de dichtstbijzijnde muur.
+- **Kringen en verdeelborden**: elk symbool krijgt een kring en volgnummer (A1, A2 …). Per kring: bord, differentieel, curve, automaat, polen, kabel en doorsnede. Kies een *actieve kring* in de werkbalk om snel te plaatsen.
+- **AREI-controle**: max. 8 stopcontacten per kring, min. 2,5 mm² en max. 20 A voor stopcontacten, automaat ↔ doorsnede, toestellen op een aparte kring, symbolen zonder kring …
+- **Koppelen**: schakelaar → lichtpunten, domotica-ingang → uitgang, zonnepanelen → omvormer (gekleurde stippellijnen op het plan).
+- **Eendraadschema** per verdeelbord genereren als gewone schemapagina's (kWh-meter, hoofdschakelaar / algemene differentieel, differentiëlen 30 mA, automaten, kringen met hun toestellen en kabel). Achteraf aan te passen, of zelf te tekenen met de map *AREI* in de symbolenbibliotheek.
+- Plattegronden afdrukken / PDF of als SVG.
 
 ## Stuurkasten
 
@@ -83,4 +93,5 @@ src/
   schematic/render.js     SVG van pagina's en symbolen
   schematic/editor.js     tekenvlak en gereedschappen
   ui/                     panelen, dialogen, lijsten, symbooleditor
+  building/               plattegronden, AREI-symbolen, kringen, AREI-controle, eendraadschema
 ```
