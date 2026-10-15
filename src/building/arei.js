@@ -43,7 +43,7 @@ const socketBase = (n = 1, { earth = true, child = false } = {}) => {
     const oy = -k * SOCKET_STEP;
     g.push(P(`M -2.5 ${oy - 2.5} A 2.5 2.5 0 0 0 2.5 ${oy - 2.5}`));
     if (earth) g.push(L(-1.7, oy + 0.45, 1.7, oy + 0.45, { w: 0.5 }));
-    if (child) g.push(L(-2.5, oy - 2.5, -3.4, oy - 3.3), L(2.5, oy - 2.5, 3.4, oy - 3.3));
+    if (child) g.push(L(-2.5, oy - 2.5, -3.5, oy - 2.5), L(2.5, oy - 2.5, 3.5, oy - 2.5));
   }
   return g;
 };
@@ -84,6 +84,8 @@ export const AREI = [
   socketDef('socket', 'Stopcontact met aarding', 1),
   socketDef('socket-child', 'Stopcontact met aarding en kinderbescherming', 1, '', { child: true }),
   socketDef('socket2-child', 'Dubbel stopcontact met kinderbescherming', 2, '', { child: true }),
+  socketDef('socket3-child', 'Drievoudig stopcontact met kinderbescherming', 3, '', { child: true }),
+  socketDef('socket4-child', 'Viervoudig stopcontact met kinderbescherming', 4, '', { child: true }),
   socketDef('socket2', 'Dubbel stopcontact', 2),
   socketDef('socket3', 'Drievoudig stopcontact', 3),
   socketDef('socket4', 'Viervoudig stopcontact', 4),
