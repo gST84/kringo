@@ -306,3 +306,4 @@ svg.dial .dot { fill: var(--panel2); stroke: var(--muted); stroke-width: 1; curs
 svg.dial .dot:hover { fill: var(--accent-soft); stroke: var(--accent); }
 svg.dial .dot.on { fill: var(--accent); stroke: var(--accent); }
 svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, sans-serif; dominant-baseline: central; }
+#toolbar select.pagesel { max-width: 240px; min-width: 150px; text-align: center; }

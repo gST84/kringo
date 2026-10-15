@@ -95,7 +95,7 @@ const tools = [
 const toolBtns = new Map();
 const gridSel = h('select', { title: 'Raster', onchange: (e) => { editor.grid = +e.target.value; } },
   [5, 2.5, 1].map((g) => h('option', { value: g, selected: g === 5 }, `raster ${g}`)));
-const pageLbl = h('span', { class: 'pagelbl' });
+const pageLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => app.setPage(+e.target.value) });
 const schemTools = h('span', { class: 'tgroup view-sheet' });
 $('#toolbar').append(schemTools);
 schemTools.append(
@@ -136,7 +136,7 @@ const fillCircuits = () => {
   circSel.replaceChildren(...[['', 'Kring: —'], ...circuitOptions(app.project.building, false).map(([v, l]) => [v, 'Kring ' + l])]
     .map(([v, l]) => h('option', { value: v, selected: v === plan.activeCircuit }, l)));
 };
-const floorLbl = h('span', { class: 'pagelbl' });
+const floorLbl = h('select', { class: 'pagesel', title: 'Verdieping kiezen', onchange: (e) => app.setFloor(+e.target.value) });
 $('#toolbar').append(h('span', { class: 'tgroup view-plan' },
   ...planTools.map(([k, icon, title, o]) => {
     const b = btn(icon, title, () => plan.setTool(o ? 'opening' : k, o), 'tool');
@@ -202,8 +202,10 @@ propertiesPanel(app, $('#props'), { editor, building: () => buildingProps(app, p
 // ---------- events ----------
 app.on('change', () => {
   if (app.mode === 'building') plan.render(); else editor.render();
-  floorLbl.textContent = `${app.floor.name} (${app.floorIdx + 1}/${app.project.building.floors.length})`;
-  pageLbl.textContent = app.page ? `${app.pageIdx + 1} / ${app.project.pages.length}  ${app.page.title}` : '';
+  const floors = app.project.building.floors;
+  floorLbl.replaceChildren(...floors.map((f, i) => h('option', { value: i, selected: i === app.floorIdx }, `${f.name} (${i + 1}/${floors.length})`)));
+  const pages = app.project.pages;
+  pageLbl.replaceChildren(...pages.map((pg, i) => h('option', { value: i, selected: i === app.pageIdx }, `${i + 1} / ${pages.length}  ${pg.title}`)));
   kindEl.textContent = app.project.kind === 'building' ? '🏠 Gebouw' : '🗄 Stuurkast';
   document.body.dataset.kind = app.project.kind;
   undoBtn.disabled = !app.undoStack.length;
