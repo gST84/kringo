@@ -362,7 +362,13 @@ export async function circuitsDialog(app) {
     const byCircuit = new Map();
     for (const c of checks) if (c.circuit) { if (!byCircuit.has(c.circuit)) byCircuit.set(c.circuit, []); byCircuit.get(c.circuit).push(c); }
     const rows = [];
-    const row = (type, node, depth) => {
+    // every residual current device gets its own colour; everything below it is tinted with it
+    const HUES = [212, 145, 28, 280, 175, 340, 50, 250];
+    const rcdHue = new Map();
+    const assign = (id) => { for (const c of treeChildren(temp(), id)) { if (c.type === 'rcd') rcdHue.set(c.node.id, HUES[rcdHue.size % HUES.length]); assign(c.node.id); } };
+    for (const r of rootBoards(temp())) assign(r.id);
+    const row = (type, node, depth, hue = null) => {
+      if (type === 'rcd') hue = rcdHue.get(node.id);
       const kids = treeChildren(temp(), node.id);
       const isRoot = type === 'board' && !node.parent;
       const fields = [];
@@ -412,16 +418,20 @@ export async function circuitsDialog(app) {
         }, '✕'),
         type === 'circuit' ? h('span', { class: 'pts', title: 'Punten op de plattegronden' }, `${circuitSymbols(temp(), node.id).length} punten`) : null);
       const warns = byCircuit.get(node.id) || [];
-      rows.push(h('div', { class: `trow t-${type}${warns.some((w) => w.level === 'error') ? ' err' : ''}`, style: { paddingLeft: depth * 22 + 'px' } },
+      const tint = hue === null ? {} : {
+        background: `hsla(${hue}, 75%, 55%, ${type === 'rcd' ? 0.2 : 0.09})`,
+        boxShadow: `inset 4px 0 0 hsl(${hue}, 65%, 50%)`,
+      };
+      rows.push(h('div', { class: `trow t-${type}${warns.some((w) => w.level === 'error') ? ' err' : ''}`, style: { paddingLeft: depth * 22 + 'px', ...tint } },
         h('div', { class: 'thead' },
           kids.length ? h('button', { class: 'icon caretbtn', title: collapsed.has(node.id) ? 'Uitklappen' : 'Inklappen', onclick: () => { collapsed.has(node.id) ? collapsed.delete(node.id) : collapsed.add(node.id); render(); } }, collapsed.has(node.id) ? '▸' : '▾') : h('span', { class: 'caretbtn' }),
-          h('span', { class: 'ticon' }, ICON[type]),
+          h('span', { class: 'ticon', style: hue === null ? null : { color: `hsl(${hue}, 65%, 42%)` } }, ICON[type]),
           f(type === 'circuit' ? 'Kring' : type === 'rcd' ? 'Differentieel' : 'Verdeelbord',
             h('input', { type: 'text', value: node.name, class: 'tname t-' + type, onchange: (e) => { node.name = e.target.value; render(); } })),
           ...fields),
         actions,
         warns.length ? h('div', { class: 'twarn' }, warns.map((w) => h('div', { class: 'chk ' + w.level }, (w.level === 'error' ? '⚠ ' : 'ℹ ') + w.text))) : null));
-      if (!collapsed.has(node.id)) for (const k of kids) row(k.type, k.node, depth + 1);
+      if (!collapsed.has(node.id)) for (const k of kids) row(k.type, k.node, depth + 1, hue);
     };
     for (const r of rootBoards(temp())) row('board', r, 0);
     const general = checks.filter((c) => !c.circuit);
