@@ -385,12 +385,12 @@ export async function circuitsDialog(app) {
           f('Icn', sel(node.kA || 3, [[3, '3000'], [4.5, '4500'], [6, '6000'], [10, '10000']], (v) => { node.kA = +v; })));
       } else {
         fields.push(
-          f('Omschrijving', inp(node.desc, (v) => { node.desc = v; })),
+          f('Omschrijving', h('input', { type: 'text', value: node.desc || '', class: 'tdesc', onchange: (e) => { node.desc = e.target.value; } })),
           f('Curve', sel(node.curve, [['B', 'B'], ['C', 'C'], ['D', 'D'], ['gG', 'gG (smelt)']], (v) => { node.curve = v; })),
           f('A', sel(node.In, [6, 10, 16, 20, 25, 32, 40, 50, 63].map((x) => [x, x]), (v) => { node.In = +v; render(); })),
           f('Polen', sel(node.poles, [[1, '1P'], [2, '2P'], [3, '3P'], [4, '4P']], (v) => { node.poles = +v; })),
           f('Icn', sel(node.kA || 3, [[3, '3000'], [4.5, '4500'], [6, '6000'], [10, '10000']], (v) => { node.kA = +v; })),
-          f('Kabel', inp(node.cable, (v) => { node.cable = v; }, { list: 'cables' })),
+          f('Kabel', h('input', { type: 'text', value: node.cable || '', list: 'cables', class: 'tcable', onchange: (e) => { node.cable = e.target.value; } })),
           f('Brandkl.', sel(node.fire || '', [['', '—'], ['Eca', 'Eca'], ['Dca', 'Dca'], ['Cca', 'Cca'], ['B2ca', 'B2ca']], (v) => { node.fire = v; })),
           f('Aders', sel(node.cores, [['3G', '3G'], ['5G', '5G'], ['2x', '2x'], ['4G', '4G']], (v) => { node.cores = v; })),
           f('mm²', sel(node.section, Object.keys(MAX_IN).map(Number).sort((x, y) => x - y).map((x) => [x, String(x).replace('.', ',')]), (v) => { node.section = +v; render(); })),
@@ -415,9 +415,10 @@ export async function circuitsDialog(app) {
         h('div', { class: 'thead' },
           kids.length ? h('button', { class: 'icon caretbtn', onclick: () => { collapsed.has(node.id) ? collapsed.delete(node.id) : collapsed.add(node.id); render(); } }, collapsed.has(node.id) ? '▸' : '▾') : h('span', { class: 'caretbtn' }),
           h('span', { class: 'ticon' }, ICON[type]),
-          inp(node.name, (v) => { node.name = v; render(); }, { key: 'n' + node.id }),
-          actions),
-        h('div', { class: 'tfields' }, fields),
+          f(type === 'circuit' ? 'Kring' : type === 'rcd' ? 'Differentieel' : 'Verdeelbord',
+            h('input', { type: 'text', value: node.name, class: 'tname t-' + type, onchange: (e) => { node.name = e.target.value; render(); } })),
+          ...fields),
+        actions,
         warns.length ? h('div', { class: 'twarn' }, warns.map((w) => h('div', { class: 'chk ' + w.level }, (w.level === 'error' ? '⚠ ' : 'ℹ ') + w.text))) : null));
       if (!collapsed.has(node.id)) for (const k of kids) row(k.type, k.node, depth + 1);
     };
@@ -433,7 +434,7 @@ export async function circuitsDialog(app) {
   };
   render();
   const ok = await modal({
-    title: 'Kringen & verdeelborden', wide: true, body,
+    title: 'Kringen & verdeelborden', wide: true, full: false, body,
     buttons: [{ label: 'Annuleren', value: false }, { label: 'Opslaan', value: true, primary: true }],
   });
   if (!ok) return;

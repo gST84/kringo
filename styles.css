@@ -342,15 +342,21 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .circuits.tree .trow { border-bottom: 1px solid var(--line); padding: 6px 4px; }
 .circuits.tree .trow.t-board { background: var(--panel2); }
 .circuits.tree .trow.err { background: rgba(201, 42, 42, .06); }
-.circuits.tree .thead { display: flex; align-items: center; gap: 6px; }
-.circuits.tree .thead > input { max-width: 220px; font-weight: 600; }
-.circuits.tree .caretbtn { width: 22px; display: inline-block; padding: 0; border: none; background: none; }
-.circuits.tree .ticon { width: 18px; text-align: center; font-weight: 700; color: var(--accent); }
-.circuits.tree .tact { display: flex; gap: 3px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
-.circuits.tree .tact button { padding: 2px 6px; font-size: 12px; }
-.circuits.tree .tact select { width: auto; max-width: 150px; font-size: 12px; padding: 2px; }
-.circuits.tree .tfields { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 4px 0 0 46px; align-items: flex-end; }
+.circuits.tree .thead { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 8px; }
+.circuits.tree .caretbtn { width: 20px; display: inline-block; padding: 0; border: none; background: none; align-self: center; }
+.circuits.tree .ticon { width: 16px; text-align: center; font-weight: 700; color: var(--accent); align-self: center; }
+.circuits.tree .tname { font-weight: 700; }
+.circuits.tree .tname.t-circuit { width: 52px !important; min-width: 0 !important; text-align: center; }
+.circuits.tree .tname.t-rcd, .circuits.tree .tname.t-board { width: 170px !important; }
 .circuits.tree .tf { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); }
-.circuits.tree .tf input, .circuits.tree .tf select { width: auto; min-width: 54px; max-width: 160px; font-size: 12px; padding: 2px 4px; color: var(--text); }
+.circuits.tree .tf input, .circuits.tree .tf select { width: auto; min-width: 54px; max-width: 170px; font-size: 12px; padding: 2px 4px; color: var(--text); }
 .circuits.tree .pts { font-size: 12px; color: var(--muted); align-self: center; }
-.circuits.tree .twarn { margin: 4px 0 0 46px; }
+.circuits.tree .tact { display: flex; gap: 4px; flex-wrap: wrap; margin: 5px 0 0 44px; align-items: center; }
+.circuits.tree .tact button { padding: 2px 7px; font-size: 12px; }
+.circuits.tree .tact select { width: auto; max-width: 180px; font-size: 12px; padding: 2px; }
+.circuits.tree .twarn { margin: 4px 0 0 44px; }
+.modal:has(.circuits.tree) { width: min(1180px, 97vw); }
+.circuits.tree .tf select { min-width: 0 !important; }
+.circuits.tree .tf input.tdesc { width: 150px !important; }
+.circuits.tree .tf input.tcable { width: 64px !important; min-width: 0 !important; }
+.circuits.tree .tf input[type=number], .circuits.tree .tf input:not([type]) { width: 70px; }
