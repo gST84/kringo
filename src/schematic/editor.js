@@ -6,6 +6,7 @@ import { geometry, svgTransform, worldBox, xf } from '../symbols/geom.js';
 import { shapeSvg } from './render.js';
 import { autoTag, nextTerminal, needsTag } from './tags.js';
 import { clone, r2, snap, uid } from '../util.js';
+import { attachTouch } from '../touch.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const same = (a, b) => Math.abs(a[0] - b[0]) < 0.01 && Math.abs(a[1] - b[1]) < 0.01;
@@ -33,6 +34,7 @@ export class SchematicEditor {
     this.clipboard = null;
 
     this.bind();
+    attachTouch(this.svg, this);
     new ResizeObserver(() => this.applyView()).observe(host);
     requestAnimationFrame(() => this.fit());
   }
@@ -156,6 +158,14 @@ export class SchematicEditor {
     });
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('keyup', (e) => { if (e.code === 'Space') this.space = false; });
+  }
+
+  /** Aborts a press that turned into a two-finger gesture. */
+  cancelInteraction() {
+    if (this.drag?.moved) { this.cleanWires(this.app.page); this.app.touched(); }
+    this.drag = null;
+    if (this.tool === 'wire' && this.wirePts?.length === 1) this.wirePts = null;
+    this.renderOverlay();
   }
 
   hitKey(target) {

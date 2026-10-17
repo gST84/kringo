@@ -307,3 +307,34 @@ svg.dial .dot:hover { fill: var(--accent-soft); stroke: var(--accent); }
 svg.dial .dot.on { fill: var(--accent); stroke: var(--accent); }
 svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, sans-serif; dominant-baseline: central; }
 #toolbar select.pagesel { max-width: 240px; min-width: 150px; text-align: center; }
+
+/* ---------- touch / narrow screens ---------- */
+.paneltoggle { display: none; }
+@media (max-width: 900px) {
+  main { grid-template-columns: minmax(0, 1fr); position: relative; }
+  #left, #right {
+    position: absolute; top: 0; bottom: 0; z-index: 20; width: min(300px, 85vw);
+    box-shadow: 0 0 24px rgba(0, 0, 0, .25); transform: translateX(-105%); transition: transform .2s;
+  }
+  #left { left: 0; }
+  #right { right: 0; transform: translateX(105%); }
+  body.show-left #left, body.show-right #right { transform: none; }
+  .paneltoggle { display: inline-block; font-size: 16px; min-width: 36px; }
+  #top { gap: 6px; }
+  .menu button { padding: 6px 8px; }
+  #status .hint { display: none; }
+}
+@media (pointer: coarse) {
+  #toolbar button, #toolbar select, .menu button { min-height: 36px; }
+  #toolbar .tool { min-width: 40px; }
+}
+#toolbar .undo { font-size: 16px; }
+.menutoggle { display: none; }
+@media (max-width: 900px) {
+  .menutoggle { display: inline-block; margin-left: auto; }
+  #top .menu { display: none; order: 10; flex-basis: 100%; }
+  body.show-menu #top .menu { display: flex; }
+  #top .menu .sep, #top .menu > button[title^="Ongedaan"], #top .menu > button[title^="Opnieuw"] { display: none; }
+  .projname { max-width: 140px; }
+  .install { order: 5; }
+}

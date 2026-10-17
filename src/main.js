@@ -42,6 +42,7 @@ const redoBtn = btn('↷', 'Opnieuw (Ctrl+Y)', () => app.redo());
 
 $('#top').append(
   h('div', { class: 'brand' }, h('img', { class: 'logo', src: 'icons/icon.svg', alt: '' }), 'Kringo'),
+  h('button', { class: 'menutoggle', onclick: () => document.body.classList.toggle('show-menu') }, 'Menu ▾'),
   nameEl,
   h('div', { class: 'menu' },
     btn('Nieuw', 'Nieuw project', async () => {
@@ -96,6 +97,13 @@ const toolBtns = new Map();
 const gridSel = h('select', { title: 'Raster', onchange: (e) => { editor.grid = +e.target.value; } },
   [5, 2.5, 1].map((g) => h('option', { value: g, selected: g === 5 }, `raster ${g}`)));
 const pageLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => app.setPage(+e.target.value) });
+const panelBtn = (side, label, title) => h('button', {
+  class: 'paneltoggle', title,
+  onclick: () => { document.body.classList.toggle('show-' + side); document.body.classList.remove('show-' + (side === 'left' ? 'right' : 'left')); },
+}, label);
+const undoTb = btn('↶', 'Ongedaan maken (Ctrl+Z)', () => app.undo(), 'tool undo');
+const redoTb = btn('↷', 'Opnieuw (Ctrl+Y)', () => app.redo(), 'tool undo');
+$('#toolbar').append(panelBtn('left', '☰', 'Symbolen / bladen tonen'), undoTb, redoTb, h('span', { class: 'sep' }));
 const schemTools = h('span', { class: 'tgroup view-sheet' });
 $('#toolbar').append(schemTools);
 schemTools.append(
@@ -198,6 +206,7 @@ showTab('library');
 pagesPanel(app, pagesEl);
 libraryPanel(app, libEl, { editor, openSymbolEditor: (def) => openSymbolEditor(app, def) });
 propertiesPanel(app, $('#props'), { editor, building: () => buildingProps(app, plan) });
+$('#toolbar').append(panelBtn('right', 'ⓘ', 'Eigenschappen tonen'));
 
 // ---------- events ----------
 app.on('change', () => {
@@ -208,8 +217,8 @@ app.on('change', () => {
   pageLbl.replaceChildren(...pages.map((pg, i) => h('option', { value: i, selected: i === app.pageIdx }, `${i + 1} / ${pages.length}  ${pg.title}`)));
   kindEl.textContent = app.project.kind === 'building' ? '🏠 Gebouw' : '🗄 Stuurkast';
   document.body.dataset.kind = app.project.kind;
-  undoBtn.disabled = !app.undoStack.length;
-  redoBtn.disabled = !app.redoStack.length;
+  undoBtn.disabled = undoTb.disabled = !app.undoStack.length;
+  redoBtn.disabled = redoTb.disabled = !app.redoStack.length;
   nameEl.textContent = app.project.name;
   document.title = `${app.project.name} – Kringo`;
 });
@@ -261,6 +270,7 @@ app.on('editText', async (id) => {
   const v = await prompt('Tekst bewerken', t.text, { multiline: true });
   if (v !== null) app.mutate(() => { t.text = v; });
 });
+document.querySelector('#top .menu').addEventListener('click', (e) => { if (e.target.closest('button')) document.body.classList.remove('show-menu'); });
 window.addEventListener('beforeunload', () => { app.save(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) app.save(); });
 

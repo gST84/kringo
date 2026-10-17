@@ -5,6 +5,7 @@ import { geometry } from '../symbols/geom.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
 import { planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
 import { nearestWall, nextNumber, projectOnWall, wallFrame } from './model.js';
+import { attachTouch } from '../touch.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const near = (a, b, tol = 0.5) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] - b[1]) <= tol;
@@ -43,6 +44,7 @@ export class PlanEditor {
     this.space = false;
     this.showGrid = true;
     this.bind();
+    attachTouch(this.svg, this);
     new ResizeObserver(() => this.applyView()).observe(host);
     requestAnimationFrame(() => this.fit());
   }
@@ -239,6 +241,14 @@ export class PlanEditor {
     window.addEventListener('keyup', (e) => { if (e.code === 'Space') this.space = false; });
   }
 
+  /** Aborts a press that turned into a two-finger gesture. */
+  cancelInteraction() {
+    if (this.drag?.moved) this.app.touched();
+    this.drag = null;
+    if (this.tool === 'wall' && this.chain && this.chainFresh) this.chain = null;
+    this.renderOverlay();
+  }
+
   hitKey(t) { return t.closest?.('[data-k]')?.dataset.k || null; }
 
   onDown(e) {
@@ -419,6 +429,7 @@ export class PlanEditor {
 
   // ---------- operations ----------
   wallClick(p) {
+    this.chainFresh = !this.chain;
     if (!this.chain) { this.chain = p; this.renderOverlay(); return; }
     if (near(p, this.chain, 0.01)) { this.chain = null; this.renderOverlay(); return; }
     const w = { id: uid('w'), x1: this.chain[0], y1: this.chain[1], x2: p[0], y2: p[1], t: this.wallT, kind: this.wallKind };
