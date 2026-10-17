@@ -365,3 +365,16 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .circuits.tree span.caretbtn { border-color: transparent !important; background: none !important; }
 .circuits.tree button.caretbtn:hover { border-color: var(--accent) !important; }
 .circuits.tree .tact, .circuits.tree .twarn { margin-left: 58px; }
+
+/* ---------- start screen ---------- */
+.modal.start { width: min(640px, 94vw); }
+.startbig { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.startbig button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px; border-radius: 10px; text-align: left; white-space: normal; }
+.startbig button .kicon { font-size: 24px; }
+.startbig button small { opacity: .8; }
+.startscreen h3 { font-size: 13px; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.recent { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow: auto; }
+.recentitem { display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 10px; }
+.recentitem .rname { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.recentitem small { color: var(--muted); }
+@media (max-width: 520px) { .startbig { grid-template-columns: 1fr; } }

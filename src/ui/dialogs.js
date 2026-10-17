@@ -5,7 +5,7 @@ import { h } from '../util.js';
  * Shows a modal. `buttons`: [{label, value, primary?, danger?}]. Resolves with the clicked value
  * (undefined when closed). `onButton(value)` may return false to keep the dialog open.
  */
-export function modal({ title, body, buttons = [{ label: 'Sluiten', value: undefined }], wide = false, full = false, onButton, onClose }) {
+export function modal({ title, body, buttons = [{ label: 'Sluiten', value: undefined }], wide = false, full = false, cls = '', onButton, onClose }) {
   return new Promise((resolve) => {
     const close = (v) => {
       back.remove();
@@ -26,7 +26,7 @@ export function modal({ title, body, buttons = [{ label: 'Sluiten', value: undef
       close(v);
     };
     const back = h('div', { class: 'modal-back', onmousedown: (e) => { if (e.target === back && !full) close(undefined); } },
-      h('div', { class: 'modal' + (wide ? ' wide' : '') + (full ? ' full' : '') },
+      h('div', { class: 'modal' + (wide ? ' wide' : '') + (full ? ' full' : '') + (cls ? ' ' + cls : '') },
         h('div', { class: 'modal-head' }, h('h2', null, title), h('button', { class: 'icon', title: 'Sluiten', onclick: () => close(undefined) }, '✕')),
         h('div', { class: 'modal-body' }, body),
         buttons.length ? h('div', { class: 'modal-foot' }, buttons.map((b) =>

@@ -40,7 +40,7 @@ export const idb = {
 export async function listProjects() {
   const all = (await idb.all('projects')) || [];
   return all
-    .map((p) => ({ id: p.id, name: p.name, updated: p.updated, pages: p.pages?.length || 0, customer: p.meta?.customer }))
+    .map((p) => ({ id: p.id, name: p.name, kind: p.kind, updated: p.updated, pages: p.pages?.length || 0, customer: p.meta?.customer }))
     .sort((a, b) => b.updated - a.updated);
 }
 

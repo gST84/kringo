@@ -45,15 +45,7 @@ $('#top').append(
   h('button', { class: 'menutoggle', onclick: () => document.body.classList.toggle('show-menu') }, 'Menu ▾'),
   nameEl,
   h('div', { class: 'menu' },
-    btn('Nieuw', 'Nieuw project', async () => {
-      const r = await newProjectDialog();
-      if (!r) return;
-      await app.save();
-      const p = createProject(r.name || 'Nieuw project', r.kind);
-      app.setProject(p);
-      await app.save();
-      localStorage.setItem('elecad.last', p.id);
-    }),
+    btn('Nieuw', 'Nieuw project', () => startNewProject()),
     btn('Openen', 'Project openen (uit de browser of een bestand)', async () => { await app.save(); openDialog(app); }),
     btn('Bewaar bestand', 'Project opslaan als .kringo-bestand', () => exportProjectFile(app)),
     btn('Open bestand', '.kringo-bestand of QElectroTech-project (.qet) openen', async () => { await app.save(); importProjectFile(app); }),
@@ -69,6 +61,37 @@ $('#top').append(
     undoBtn, redoBtn, saveEl),
   setupPwa({ onFile: async (f) => { await app.save(); openProjectFile(app, f); } }),
   kindEl);
+
+async function startNewProject() {
+  const r = await newProjectDialog();
+  if (!r) return false;
+  await app.save();
+  const p = createProject(r.name || 'Nieuw project', r.kind);
+  app.setProject(p);
+  await app.save();
+  localStorage.setItem('elecad.last', p.id);
+  return true;
+}
+
+/** Start screen: new project, open a file, or one of the recent projects. */
+async function startScreen() {
+  const recent = (await listProjects()).slice(0, 12);
+  let done = null;
+  const choose = (fn) => async () => { done = fn; document.querySelector('.modal.start')?.closest('.modal-back')?.querySelector('.modal-head button')?.click(); };
+  const body = h('div', { class: 'startscreen' },
+    h('div', { class: 'startbig' },
+      h('button', { class: 'primary', onclick: choose(startNewProject) }, h('span', { class: 'kicon' }, '＋'), h('b', null, 'Nieuw project'), h('small', null, 'Gebouw (AREI) of stuurkast')),
+      h('button', { onclick: choose(async () => { await importProjectFile(app); }) }, h('span', { class: 'kicon' }, '📂'), h('b', null, 'Bestand openen'), h('small', null, '.kringo, .elecad of QElectroTech (.qet)'))),
+    h('h3', null, 'Recente projecten'),
+    recent.length ? h('div', { class: 'recent' }, recent.map((it) => h('button', {
+      class: 'recentitem',
+      onclick: choose(async () => { const p = await loadProject(it.id); if (p) { app.setProject(p); localStorage.setItem('elecad.last', p.id); } }),
+    }, h('span', { class: 'kicon' }, it.kind === 'building' ? '🏠' : '🗄'), h('span', { class: 'rname' }, it.name),
+    h('small', null, new Date(it.updated).toLocaleDateString())))) : h('p', { class: 'hint' }, 'Nog geen projecten in deze browser.'),
+    h('p', { class: 'hint' }, h('button', { class: 'link', onclick: choose(async () => { app.setProject(demoProject(lib)); await app.save(); localStorage.setItem('elecad.last', app.project.id); }) }, 'Demoproject (stuurkast) openen')));
+  await modal({ title: 'Welkom bij Kringo', body, buttons: [], cls: 'start' });
+  if (done) await done();
+}
 
 async function newProjectDialog() {
   const name = h('input', { type: 'text', value: 'Nieuw project' });
@@ -280,10 +303,7 @@ if (!project) {
   const all = await listProjects();
   if (all.length) project = await loadProject(all[0].id);
 }
-if (!project) {
-  project = demoProject(lib);
-  toast('Demoproject geladen – maak een nieuw project via "Nieuw"');
-}
+if (!project) project = demoProject(lib);
 app.setProject(project);
 localStorage.setItem('elecad.last', project.id);
 await app.save();
@@ -291,3 +311,5 @@ editor.setTool('select');
 plan.setTool('select');
 app.emit('mode', app.mode);
 app.emit('saved');
+// let the user choose what to work on (closing the screen keeps the last project)
+startScreen();
