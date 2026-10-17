@@ -1,5 +1,5 @@
 // Basic AREI checks for circuits (Belgian rules for household installations).
-import { circuitSymbols } from './model.js';
+import { boardOf, circuitSymbols, treeAncestors } from './model.js';
 
 /** Maximum breaker rating per copper section (mm²) for household circuits. */
 export const MAX_IN = { 1.5: 16, 2.5: 20, 4: 25, 6: 32, 10: 40, 16: 63 };
@@ -19,9 +19,10 @@ export function checkCircuits(building, lib) {
     if (sockets && c.In > 20) warn(c, 'Kringen met stopcontacten: automaat max. 20 A.', 'error');
     const dedicated = syms.filter((x) => DEDICATED.has(String(x.s.sym).replace('arei/', '')));
     if (dedicated.length && syms.length > 1) warn(c, `${dedicated[0].def.name}: hoort op een aparte kring.`);
-    const board = building.boards.find((b) => b.id === c.board);
-    if (!board) warn(c, 'Geen verdeelbord gekozen.', 'error');
-    else if (!c.rcd && !(board.main?.rcd > 0 && board.main.rcd <= 30)) {
+    const board = boardOf(building, c.id);
+    const has30 = treeAncestors(building, c.id).some((a) => (a.type === 'rcd' && a.node.sens <= 30) || (a.type === 'board' && a.node.main?.rcd > 0 && a.node.main.rcd <= 30));
+    if (!board) warn(c, 'Niet aangesloten op een verdeelbord.', 'error');
+    else if (!has30) {
       if (syms.some((x) => ['socket', 'appliance'].includes(x.def?.kind))) warn(c, 'Stopcontacten / toestellen zonder differentieel 30 mA (verplicht in natte ruimten).', 'info');
     }
   }

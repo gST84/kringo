@@ -35,7 +35,7 @@ Bij **Nieuw** kies je de soort; die ligt daarna vast:
 
 - **Plattegrond per verdieping** op schaal (1:50, 1:20, 1:75, 1:100) op A3: muren (buiten / binnen, dikte; klik punten of typ een lengte in cm + Enter), deuren, dubbele deuren, ramen, schuiframen (op een muur klikken, verslepen langs de muur), trappen en ruimtenamen.
 - **AREI-symbolen**: lichtpunten, stopcontacten (enkel tot viervoudig, buiten, 3F), toestellen (wasmachine, droogkast, vaatwasser, kookplaat, oven, warmtepomp …), schakelaars (enkel-, tweepolig, wissel, kruis, dimmer, drukknop, bewegingsmelder), domotica (ingangen, uitgangen, dimmers, rolluiken), verdeelbord, meter, zonnepanelen, omvormer, thuisbatterij, laadpaal, rookmelder, data, TV … Wandsymbolen draaien vanzelf tegen de dichtstbijzijnde muur.
-- **Kringen en verdeelborden**: elk symbool krijgt een kring en volgnummer (A1, A2 …). Per kring: bord, differentieel, curve, automaat, polen, kabel en doorsnede. Kies een *actieve kring* in de werkbalk om snel te plaatsen.
+- **Kringen en verdeelborden als boom**: verdeelbord → differentieel → kringen, differentiëlen achter differentiëlen, onderverdeelborden gevoed door een kring of differentieel (elk met eigen eendraadbladen). Elk symbool krijgt een kring en volgnummer (A1, A2 …); per kring curve / smeltzekering, automaat, polen, Icn, kabel, brandklasse en doorsnede. Kies een *actieve kring* in de werkbalk om snel te plaatsen.
 - **AREI-controle**: max. 8 stopcontacten per kring, min. 2,5 mm² en max. 20 A voor stopcontacten, automaat ↔ doorsnede, toestellen op een aparte kring, symbolen zonder kring …
 - **Koppelen**: schakelaar → lichtpunten, domotica-ingang → uitgang, zonnepanelen → omvormer (gekleurde stippellijnen op het plan).
 - **Eendraadschema** per verdeelbord in de Belgische opbouw: hoofdrail onderaan met voeding (kWh-meter, kabel, algemene differentieel) en aarding met meetklem; elke differentieel 30 mA op de hoofdrail met een eigen rail; per kring de automaat (kader "3000", "2P - C 20A"), kabel ("VOB Eca 3G2,5²") en genummerde aftakkingen: schakelaars op de lijn gevolgd door de gekoppelde lichtpunten (×n), stopcontactdozen, toestellen. Wordt gegenereerd als bladen in het gebouwproject (onder *Bladen*), achteraf aan te passen of zelf te tekenen met de map *AREI/Eendraad*.
@@ -60,6 +60,10 @@ Bij **Nieuw** kies je de soort; die ligt daarna vast:
 - **QElectroTech importeren**: "Open bestand" opent ook `.qet`-projecten. Folio's worden pagina's (met hun eigen kolom/rij-indeling), elementen worden projectsymbolen (map *QElectroTech*), draden, draadnummers, teksten, spoel/contact-koppelingen en folioverwijzingen worden overgenomen.
 - **Afdrukken / PDF** (A3 liggend, alle of één pagina) en SVG-export per pagina.
 - Ongedaan maken / opnieuw, kopiëren / plakken / dupliceren, pagina's dupliceren en herschikken.
+
+### Tablet / smartphone
+
+Knijpen = zoomen, twee vingers slepen = verschuiven, één vinger = het gekozen gereedschap, lang drukken = rechtermuisknop (draad / muur beëindigen). Op smalle schermen zitten menu en zijpanelen achter knoppen (Menu, ☰, ⓘ).
 
 ### Sneltoetsen
 

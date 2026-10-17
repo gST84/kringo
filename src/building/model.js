@@ -5,26 +5,38 @@ export function newFloor(name = 'Gelijkvloers') {
   return { id: uid('f'), name, walls: [], openings: [], stairs: [], texts: [], symbols: [], links: [] };
 }
 
-export function newBoard(name = 'Hoofdverdeelbord') {
+// ---------- distribution tree ----------
+// Boards, residual current devices and circuits form a tree through `parent`:
+//   board (root: parent null) → rcd / circuit / sub-board
+//   rcd → rcd / circuit / sub-board
+//   circuit → sub-board (the circuit's breaker feeds that board)
+// `pos` orders the children of one parent.
+
+export function newBoard(name = 'Hoofdverdeelbord', parent = null) {
   return {
-    id: uid('bd'), name,
-    main: { In: 40, poles: 2, rcd: 300, type: 'A', kA: 3, cable: 'XVB Cca 3G10²', meter: true }, // general residual current device (mA, 0 = none)
-    rcds: [{ id: uid('rc'), name: 'Differentieel 30 mA', sens: 30, In: 40, type: 'A', kA: 3, poles: 2 }],
+    id: uid('bd'), name, parent, pos: 0,
+    main: { In: 40, poles: 2, rcd: parent ? 0 : 300, type: 'A', kA: 3, cable: parent ? '' : 'XVB Cca 3G10²', meter: !parent },
   };
 }
 
-export function newCircuit(name, boardId) {
-  return { id: uid('k'), name, desc: '', board: boardId, rcd: '', In: 20, poles: 2, curve: 'C', kA: 3, cable: 'VOB', fire: 'Eca', cores: '3G', section: 2.5 };
+export function newRcd(parent, name = 'Differentieel 30 mA') {
+  return { id: uid('rc'), name, parent, pos: 0, sens: 30, In: 40, type: 'A', kA: 3, poles: 2 };
+}
+
+export function newCircuit(name, parent) {
+  return { id: uid('k'), name, desc: '', parent, pos: 0, In: 20, poles: 2, curve: 'C', kA: 3, cable: 'VOB', fire: 'Eca', cores: '3G', section: 2.5 };
 }
 
 export function newBuilding() {
   const board = newBoard();
+  const rcd = newRcd(board.id);
   return {
     scale: 50, // 1:50
     grid: 5, // cm
     floors: [newFloor('Gelijkvloers')],
     boards: [board],
-    circuits: [newCircuit('A', board.id)],
+    rcds: [rcd],
+    circuits: [newCircuit('A', rcd.id)],
   };
 }
 
@@ -38,9 +50,77 @@ export function normalizeBuilding(b) {
   for (const f of b.floors) { f.walls ||= []; f.openings ||= []; f.stairs ||= []; f.texts ||= []; f.symbols ||= []; f.links ||= []; }
   b.boards ||= d.boards;
   if (!b.boards.length) b.boards.push(newBoard());
-  for (const bd of b.boards) { bd.main ||= { In: 40, poles: 2, rcd: 300 }; bd.rcds ||= []; }
+  b.rcds ||= [];
   b.circuits ||= [];
+  // migrate the flat structure (board.rcds, circuit.board / circuit.rcd) to the tree
+  for (const bd of b.boards) {
+    bd.main ||= { In: 40, poles: 2, rcd: 300 };
+    if (bd.parent === undefined) bd.parent = null;
+    for (const r of bd.rcds || []) b.rcds.push({ ...r, parent: bd.id });
+    delete bd.rcds;
+  }
+  b.circuits.forEach((c, i) => {
+    if (c.parent === undefined) c.parent = (c.rcd && b.rcds.some((r) => r.id === c.rcd)) ? c.rcd : c.board || b.boards[0].id;
+    delete c.rcd; delete c.board;
+    if (c.pos === undefined) c.pos = 100 + i;
+  });
+  b.rcds.forEach((r, i) => { if (r.pos === undefined) r.pos = 500 + i; });
+  b.boards.forEach((bd, i) => { if (bd.pos === undefined) bd.pos = 900 + i; });
   return b;
+}
+
+/** Any node of the tree: {type: 'board' | 'rcd' | 'circuit', node}. */
+export function treeNode(b, id) {
+  let n = b.boards.find((x) => x.id === id);
+  if (n) return { type: 'board', node: n };
+  n = b.rcds.find((x) => x.id === id);
+  if (n) return { type: 'rcd', node: n };
+  n = b.circuits.find((x) => x.id === id);
+  if (n) return { type: 'circuit', node: n };
+  return null;
+}
+
+/** Children of a node, in order. */
+export function treeChildren(b, id) {
+  return [
+    ...b.rcds.filter((r) => r.parent === id).map((node) => ({ type: 'rcd', node })),
+    ...b.circuits.filter((c) => c.parent === id).map((node) => ({ type: 'circuit', node })),
+    ...b.boards.filter((x) => x.parent === id).map((node) => ({ type: 'board', node })),
+  ].sort((x, y) => (x.node.pos ?? 0) - (y.node.pos ?? 0));
+}
+
+/** Ancestors of a node, nearest first. */
+export function treeAncestors(b, id) {
+  const out = [];
+  let cur = treeNode(b, id);
+  const seen = new Set();
+  while (cur && cur.node.parent && !seen.has(cur.node.parent)) {
+    seen.add(cur.node.parent);
+    cur = treeNode(b, cur.node.parent);
+    if (cur) out.push(cur);
+  }
+  return out;
+}
+
+/** The board a node belongs to (itself for a board). */
+export function boardOf(b, id) {
+  const t = treeNode(b, id);
+  if (t?.type === 'board') return t.node;
+  return treeAncestors(b, id).find((a) => a.type === 'board')?.node || null;
+}
+
+/** Root boards (not fed from another board). */
+export const rootBoards = (b) => b.boards.filter((x) => !x.parent || !treeNode(b, x.parent));
+
+/** Next sibling position under a parent. */
+export const nextPos = (b, parent) => Math.max(0, ...treeChildren(b, parent).map((c) => (c.node.pos ?? 0) + 1));
+
+/** Removes a node and everything below it; symbols of removed circuits lose their circuit. */
+export function removeNode(b, id) {
+  for (const c of treeChildren(b, id)) removeNode(b, c.node.id);
+  b.boards = b.boards.filter((x) => x.id !== id);
+  b.rcds = b.rcds.filter((x) => x.id !== id);
+  b.circuits = b.circuits.filter((x) => x.id !== id);
 }
 
 /** Next free circuit letter: A … Z, AA … */

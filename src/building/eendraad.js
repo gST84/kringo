@@ -10,7 +10,7 @@
 //    they control (×n), socket boxes, appliances; a circuit with a single appliance carries it on top
 import { newPage } from '../model.js';
 import { uid } from '../util.js';
-import { circuitSymbols } from './model.js';
+import { circuitSymbols, treeChildren, treeNode, rootBoards } from './model.js';
 
 const MAIN_Y = 222; // main busbar
 const SUB_DY = 40; // main busbar → busbar of a residual current device
@@ -112,12 +112,17 @@ function builder(project, lib, board, title) {
     page.busFrom = 18;
     if (first) {
       const m = board.main || {};
-      comp('arei/earth', 22, MAIN_Y);
+      const feed = board.parent && treeNode(b, board.parent);
+      if (feed) {
+        const fb = feed.type === 'board' ? feed.node : null;
+        text(20, MAIN_Y + 22, `Voeding vanuit ${feed.type === 'circuit' ? 'kring ' + feed.node.name : fb ? fb.name : feed.node.name}`, 2.4, { bold: true });
+      }
+      if (!feed) comp('arei/earth', 22, MAIN_Y);
       const sy = MAIN_Y + 15;
       let sx = 34;
-      if (m.meter !== false) { comp('arei/kwh', sx + 20, sy, 90); sx += 20; }
+      if (m.meter !== false && !feed) { comp('arei/kwh', sx + 20, sy, 90); sx += 20; }
       wire([sx, sy], [sx + 26, sy]);
-      text(sx + 1, sy + 4, m.cable || 'XVB Cca 4x10²', 2.2);
+      text(sx + 1, sy + 4, m.cable || (feed?.type === 'circuit' ? cableText(feed.node) : 'XVB Cca 4x10²'), 2.2);
       text(sx + 12, sy - 2.2, '○', 2.4, { anchor: 'middle' });
       const rx = sx + 26;
       comp('arei/mcb-v', rx, sy, 90);
@@ -186,9 +191,11 @@ function builder(project, lib, board, title) {
     const top = base - MCB_H;
     const first = top - CABLE;
     const label = c.desc || '';
+    const fed = treeChildren(b, c.id).filter((t) => t.type === 'board').map((t) => t.node.name);
     if (!branches.length) {
       wire([x, top], [x, top - 8]);
-      vtext(x + 1, top - 10, label || 'Reserve', 2.3, { bold: true });
+      vtext(x + 1, top - 10, fed.length ? `→ ${fed.join(', ')}` : label || 'Reserve', 2.3, { bold: true });
+      if (fed.length) vtext(x + 2.6, top - 3, cableText(c), 2.1);
       return w;
     }
     vtext(x + 2.6, top - 3, cableText(c), 2.1);
@@ -233,63 +240,89 @@ function builder(project, lib, board, title) {
     return w * cols;
   };
 
+  // ---------- tree ----------
+  const stack = []; // open residual current devices: {rcd, parentBase, base, from, lastX}
+  const openRcd = (e) => {
+    const rx = x + 7;
+    comp(e.rcd.curve === 'gG' ? 'arei/fuse-v' : 'arei/mcb-v', rx, e.parentBase);
+    breakerTexts(rx, e.parentBase, [
+      { text: `Type ${e.rcd.type || 'A'} - Δ${e.rcd.sens || 30}mA` }, { text: icn(e.rcd.kA), box: true }, { text: `${e.rcd.poles || 2}P - ${e.rcd.In || 40}A` },
+    ]);
+    wire([rx, e.parentBase - MCB_H], [rx, e.base]);
+    e.from = x - 6;
+    e.lastX = x;
+    const parent = stack[stack.indexOf(e) - 1];
+    if (parent) parent.lastX = Math.max(parent.lastX, rx - 6);
+  };
+  const closeRcd = (e) => bus(e.from, Math.max(e.lastX + 6, e.from + 14), e.base);
+  const pageBreak = () => {
+    for (let i = stack.length - 1; i >= 0; i--) closeRcd(stack[i]);
+    closePage();
+    newSheet(false);
+    for (const e of stack) openRcd(e);
+  };
+  const ensureRoom = (w) => { if (x + w > X_END && x > X_START + 12 * (stack.length + 1)) pageBreak(); };
+
+  const children = (parentId, base) => {
+    for (const { type, node } of treeChildren(b, parentId)) {
+      if (type === 'circuit') {
+        ensureRoom(circuitWidth(buildBranches(b, lib, node)));
+        if (stack.length) stack[stack.length - 1].lastX = x;
+        x += circuit(node, base);
+      } else if (type === 'rcd') {
+        ensureRoom(40);
+        const e = { rcd: node, parentBase: base, base: base - SUB_DY };
+        stack.push(e);
+        openRcd(e);
+        children(node.id, e.base);
+        closeRcd(e);
+        stack.pop();
+        x += 12;
+      } else if (type === 'board') {
+        // sub-board fed directly (no own breaker in this board): a line with its name
+        ensureRoom(20);
+        if (stack.length) stack[stack.length - 1].lastX = x;
+        wire([x, base], [x, base - 24]);
+        vtext(x + 1, base - 26, `→ ${node.name}`, 2.3, { bold: true });
+        x += 20;
+      }
+    }
+  };
+
   return {
     pages,
     start() { newSheet(true); },
-    group(rcd, circuits) {
-      const widths = circuits.map((c) => circuitWidth(buildBranches(b, lib, c)));
-      const base = rcd ? MAIN_Y - SUB_DY : MAIN_Y;
-      let subFrom = 0, lastX = 0;
-      const open = () => {
-        if (!rcd) return;
-        subFrom = x - 6;
-        const rx = x + 7;
-        comp('arei/mcb-v', rx, MAIN_Y);
-        breakerTexts(rx, MAIN_Y, [
-          { text: `Type ${rcd.type || 'A'} - Δ${rcd.sens || 30}mA` }, { text: icn(rcd.kA), box: true }, { text: `${rcd.poles || 2}P - ${rcd.In || 40}A` },
-        ]);
-        wire([rx, MAIN_Y - MCB_H], [rx, base]);
-      };
-      const close = () => { if (rcd) bus(subFrom, lastX + 6, base); };
-      open();
-      circuits.forEach((c, i) => {
-        if (x + widths[i] > X_END && x > X_START + 20) {
-          close();
-          closePage();
-          newSheet(false);
-          open();
-        }
-        lastX = x;
-        x += circuit(c, base);
-      });
-      close();
-      x += rcd ? 12 : 4;
-    },
+    tree() { children(board.id, MAIN_Y); },
     finish() { closePage(); for (const p of pages) delete p.busFrom; return pages; },
   };
+}
+
+/** Boards in tree order: each root board followed by the boards it feeds. */
+function boardsInOrder(b) {
+  const out = [];
+  const walk = (id) => {
+    for (const { type, node } of treeChildren(b, id)) {
+      if (type === 'board') { out.push(node); walk(node.id); } else walk(node.id);
+    }
+  };
+  for (const r of rootBoards(b)) { out.push(r); walk(r.id); }
+  return out;
 }
 
 /** (Re)generates the single-line sheets of every board. Returns the index of the first generated sheet. */
 export function generateEendraad(project, lib) {
   const b = project.building;
-  let firstIdx = -1;
-  for (const board of b.boards) {
-    const circuits = b.circuits.filter((c) => c.board === board.id); // in the order of the circuit list
+  const all = [];
+  for (const board of boardsInOrder(b)) {
     const bld = builder(project, lib, board, `Eendraadschema ${board.name}`);
     bld.start();
-    const direct = circuits.filter((c) => !board.rcds.some((r) => r.id === c.rcd));
-    if (direct.length) bld.group(null, direct);
-    for (const rcd of board.rcds) {
-      const list = circuits.filter((c) => c.rcd === rcd.id);
-      if (list.length) bld.group(rcd, list);
-    }
-    const pages = bld.finish();
-    const old = project.pages.map((p, i) => (p.gen === 'eendraad' && p.board === board.id ? i : -1)).filter((i) => i >= 0);
-    let at = old.length ? old[0] : project.pages.length;
-    for (const i of old.reverse()) project.pages.splice(i, 1);
-    at = Math.min(at, project.pages.length);
-    project.pages.splice(at, 0, ...pages);
-    if (firstIdx < 0) firstIdx = at;
+    bld.tree();
+    all.push(...bld.finish());
   }
-  return firstIdx;
+  const old = project.pages.map((p, i) => (p.gen === 'eendraad' ? i : -1)).filter((i) => i >= 0);
+  let at = old.length ? old[0] : project.pages.length;
+  for (const i of old.reverse()) project.pages.splice(i, 1);
+  at = Math.min(at, project.pages.length);
+  project.pages.splice(at, 0, ...all);
+  return at;
 }

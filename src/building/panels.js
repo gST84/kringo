@@ -3,7 +3,7 @@ import { clone, h, natCmp } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { circuitSymbols, newBoard, newCircuit, newFloor, nextCircuitName, nextNumber, wallFrame } from './model.js';
+import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, removeNode, rootBoards, treeChildren, treeNode, wallFrame } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, cableText } from './eendraad.js';
 import { OPENING_TYPES } from './editor.js';
@@ -225,7 +225,8 @@ function symbolProps(app, plan, s) {
     section('Kring',
       field('Kring', sel(s.circuit || '', [...circuitOptions(b), ['__new', '＋ nieuwe kring…']], (v) => set(() => {
         if (v === '__new') {
-          const c = newCircuit(nextCircuitName(b), b.boards[0]?.id);
+          const c = newCircuit(nextCircuitName(b), rootBoards(b)[0]?.id);
+          c.pos = nextPos(b, c.parent);
           if (kind === 'light') { c.In = 16; c.section = 1.5; c.desc = 'Verlichting'; }
           b.circuits.push(c);
           v = c.id;
@@ -304,83 +305,129 @@ function floorProps(app, plan) {
   ];
 }
 
-// ---------- circuits dialog ----------
+// ---------- circuits dialog: distribution tree ----------
+
+const ICON = { board: '🗄', rcd: 'Δ', circuit: '⚡' };
 
 export async function circuitsDialog(app) {
   const b = app.project.building;
-  const draft = { boards: clone(b.boards), circuits: clone(b.circuits) };
-  const body = h('div', { class: 'circuits' });
-  const temp = () => ({ ...b, boards: draft.boards, circuits: draft.circuits });
+  const draft = clone({ boards: b.boards, rcds: b.rcds, circuits: b.circuits });
+  const temp = () => ({ ...b, ...draft });
+  const body = h('div', { class: 'circuits tree' });
+  const collapsed = new Set();
+
+  const f = (label, el) => h('label', { class: 'tf' }, h('span', null, label), el);
+  const add = (type, parent) => {
+    const t = temp();
+    let n;
+    if (type === 'rcd') { n = newRcd(parent, `Differentieel ${draft.rcds.length + 1}`); draft.rcds.push(n); }
+    else if (type === 'board') { n = newBoard(`Verdeelbord ${draft.boards.length + 1}`, parent); draft.boards.push(n); }
+    else { n = newCircuit(nextCircuitName(t), parent); draft.circuits.push(n); }
+    n.pos = nextPos(temp(), parent);
+    if (type === 'circuit' && n.parent) collapsed.delete(parent);
+    render();
+  };
+  const move = (node, dir) => {
+    const sib = treeChildren(temp(), node.parent);
+    const i = sib.findIndex((x) => x.node === node);
+    const j = i + dir;
+    if (j < 0 || j >= sib.length) return;
+    sib.forEach((x, k) => { x.node.pos = k; });
+    [sib[i].node.pos, sib[j].node.pos] = [sib[j].node.pos, sib[i].node.pos];
+    render();
+  };
+  /** Possible parents for a node: boards and rcds (and circuits for a board), not itself or below it. */
+  const parentOptions = (type, node) => {
+    const below = new Set();
+    const walk = (id) => { below.add(id); for (const c of treeChildren(temp(), id)) walk(c.node.id); };
+    walk(node.id);
+    const out = [];
+    const visit = (id, depth) => {
+      for (const c of treeChildren(temp(), id)) {
+        if (below.has(c.node.id)) continue;
+        if (c.type !== 'circuit' || type === 'board') out.push([c.node.id, `${'  '.repeat(depth)}${ICON[c.type]} ${c.node.name}`]);
+        visit(c.node.id, depth + 1);
+      }
+    };
+    for (const r of rootBoards(temp())) {
+      if (below.has(r.id)) continue;
+      out.push([r.id, `${ICON.board} ${r.name}`]);
+      visit(r.id, 1);
+    }
+    return out;
+  };
+
   const render = () => {
     const checks = checkCircuits(temp(), app.lib);
     const byCircuit = new Map();
     for (const c of checks) if (c.circuit) { if (!byCircuit.has(c.circuit)) byCircuit.set(c.circuit, []); byCircuit.get(c.circuit).push(c); }
-    const boardsEl = h('div', { class: 'boards' }, draft.boards.map((bd) => h('div', { class: 'board' },
-      h('div', { class: 'grid3' },
-        field('Verdeelbord', inp(bd.name, (v) => { bd.name = v; render(); })),
-        field('Hoofdschakelaar (A)', inp(bd.main.In, (v) => { bd.main.In = v; render(); }, { type: 'number' })),
-        field('Algemene diff. (mA, 0 = geen)', inp(bd.main.rcd, (v) => { bd.main.rcd = v || 0; render(); }, { type: 'number' }))),
-      h('div', { class: 'grid3' },
-        field('Polen', sel(bd.main.poles || 2, [[2, '2P'], [4, '4P']], (v) => { bd.main.poles = +v; })),
-        field('Type / kA', h('div', { class: 'grid2' },
-          sel(bd.main.type || 'A', [['AC', 'AC'], ['A', 'A'], ['F', 'F'], ['B', 'B']], (v) => { bd.main.type = v; }),
-          sel(bd.main.kA || 3, [[3, '3000'], [4.5, '4500'], [6, '6000'], [10, '10000']], (v) => { bd.main.kA = +v; }))),
-        field('Voedingskabel', inp(bd.main.cable, (v) => { bd.main.cable = v; }, { placeholder: 'bv. XVB Cca 4x10²' }))),
-      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: bd.main.meter !== false, onchange: (e) => { bd.main.meter = e.target.checked; } }), 'kWh-meter tekenen'),
-      h('table', { class: 'list rcds' },
-        h('thead', null, h('tr', null, h('th', null, 'Differentieel'), h('th', null, 'mA'), h('th', null, 'A'), h('th', null, 'Type'), h('th', null, 'Polen'), h('th', null, ''))),
-        h('tbody', null, bd.rcds.map((r) => h('tr', null,
-          h('td', null, inp(r.name, (v) => { r.name = v; })),
-          h('td', null, inp(r.sens, (v) => { r.sens = v; }, { type: 'number' })),
-          h('td', null, inp(r.In, (v) => { r.In = v; }, { type: 'number' })),
-          h('td', null, sel(r.type, [['AC', 'AC'], ['A', 'A'], ['F', 'F'], ['B', 'B']], (v) => { r.type = v; })),
-          h('td', null, sel(r.poles || 2, [[2, '2P'], [4, '4P']], (v) => { r.poles = +v; })),
-          h('td', null, h('button', { class: 'icon danger', onclick: () => { bd.rcds = bd.rcds.filter((x) => x !== r); for (const c of draft.circuits) if (c.rcd === r.id) c.rcd = ''; render(); } }, '✕')))))),
-      h('div', { class: 'btnrow' },
-        h('button', { onclick: () => { bd.rcds.push({ id: uid('rc'), name: `Differentieel ${bd.rcds.length + 1}`, sens: 30, In: 40, type: 'A' }); render(); } }, '＋ Differentieel'),
-        draft.boards.length > 1 ? h('button', { class: 'danger', onclick: () => { draft.boards = draft.boards.filter((x) => x !== bd); render(); } }, 'Bord verwijderen') : null))));
-    const boardOpts = draft.boards.map((bd) => [bd.id, bd.name]);
-    const rcdOpts = (c) => [['', '— (rechtstreeks)'], ...(draft.boards.find((bd) => bd.id === c.board)?.rcds || []).map((r) => [r.id, `${r.name} (${r.sens} mA)`])];
-    const count = (c) => circuitSymbols(temp(), c.id).length;
-    const table = h('table', { class: 'list circ' },
-      h('thead', null, h('tr', null, ['Kring', 'Omschrijving', 'Bord', 'Differentieel', 'Curve', 'A', 'Polen', 'kA', 'Kabel', 'Brandkl.', 'Aders', 'mm²', 'Punten', ''].map((x) => h('th', null, x)))),
-      h('tbody', null, draft.circuits.map((c, ci) => {
-        const warns = byCircuit.get(c.id) || [];
-        return [
-          h('tr', { class: warns.some((w) => w.level === 'error') ? 'err' : '' },
-            h('td', null, inp(c.name, (v) => { c.name = v; render(); })),
-            h('td', null, inp(c.desc, (v) => { c.desc = v; })),
-            h('td', null, sel(c.board, boardOpts, (v) => { c.board = v; c.rcd = ''; render(); })),
-            h('td', null, sel(c.rcd, rcdOpts(c), (v) => { c.rcd = v; render(); })),
-            h('td', null, sel(c.curve, [['B', 'B'], ['C', 'C'], ['D', 'D'], ['gG', 'gG (smeltzekering)']], (v) => { c.curve = v; })),
-            h('td', null, sel(c.In, [6, 10, 16, 20, 25, 32, 40, 50, 63].map((x) => [x, x]), (v) => { c.In = +v; render(); })),
-            h('td', null, sel(c.poles, [[1, '1P'], [2, '2P'], [3, '3P'], [4, '4P']], (v) => { c.poles = +v; })),
-            h('td', null, sel(c.kA || 3, [[3, '3'], [4.5, '4,5'], [6, '6'], [10, '10']], (v) => { c.kA = +v; })),
-            h('td', null, inp(c.cable, (v) => { c.cable = v; }, { list: 'cables' })),
-            h('td', null, sel(c.fire || '', [['', '—'], ['Eca', 'Eca'], ['Dca', 'Dca'], ['Cca', 'Cca'], ['B2ca', 'B2ca']], (v) => { c.fire = v; })),
-            h('td', null, sel(c.cores, [['3G', '3G'], ['5G', '5G'], ['2x', '2x'], ['4G', '4G']], (v) => { c.cores = v; })),
-            h('td', null, sel(c.section, Object.keys(MAX_IN).map(Number).sort((x, y) => x - y).map((x) => [x, String(x).replace('.', ',')]), (v) => { c.section = +v; render(); })),
-            h('td', { class: 'num' }, count(c)),
-            h('td', { class: 'nowrap' },
-              h('button', { class: 'icon', title: 'Naar links in het eendraadschema', disabled: ci === 0, onclick: () => { draft.circuits.splice(ci - 1, 0, draft.circuits.splice(ci, 1)[0]); render(); } }, '↑'),
-              h('button', { class: 'icon', title: 'Naar rechts in het eendraadschema', disabled: ci === draft.circuits.length - 1, onclick: () => { draft.circuits.splice(ci + 1, 0, draft.circuits.splice(ci, 1)[0]); render(); } }, '↓'),
-              h('button', {
-                class: 'icon danger', title: 'Kring verwijderen',
-                onclick: () => { draft.circuits = draft.circuits.filter((x) => x !== c); render(); },
-              }, '✕'))),
-          warns.length ? h('tr', { class: 'warnrow' }, h('td', { colspan: 14 }, warns.map((w) => h('div', { class: 'chk ' + w.level }, (w.level === 'error' ? '⚠ ' : 'ℹ ') + w.text)))) : null,
-        ];
-      }).flat().filter(Boolean)));
+    const rows = [];
+    const row = (type, node, depth) => {
+      const kids = treeChildren(temp(), node.id);
+      const isRoot = type === 'board' && !node.parent;
+      const fields = [];
+      if (type === 'board') {
+        const m = node.main;
+        fields.push(
+          f('Hoofdschakelaar A', inp(m.In, (v) => { m.In = v; })),
+          f('Polen', sel(m.poles || 2, [[2, '2P'], [4, '4P']], (v) => { m.poles = +v; })),
+          f('Diff. mA (0 = geen)', inp(m.rcd, (v) => { m.rcd = v || 0; render(); }, { type: 'number' })),
+          f('Type', sel(m.type || 'A', [['AC', 'AC'], ['A', 'A'], ['F', 'F'], ['B', 'B']], (v) => { m.type = v; })),
+          f('Icn', sel(m.kA || 3, [[3, '3000'], [4.5, '4500'], [6, '6000'], [10, '10000']], (v) => { m.kA = +v; })),
+          f('Voedingskabel', inp(m.cable, (v) => { m.cable = v; }, { placeholder: 'XVB Cca 4x10²' })));
+        if (isRoot) fields.push(h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: m.meter !== false, onchange: (e) => { m.meter = e.target.checked; } }), 'kWh-meter'));
+      } else if (type === 'rcd') {
+        fields.push(
+          f('mA', sel(node.sens, [[10, '10'], [30, '30'], [100, '100'], [300, '300'], [500, '500']], (v) => { node.sens = +v; render(); })),
+          f('A', sel(node.In, [25, 40, 63, 80, 100].map((x) => [x, x]), (v) => { node.In = +v; })),
+          f('Type', sel(node.type, [['AC', 'AC'], ['A', 'A'], ['F', 'F'], ['B', 'B']], (v) => { node.type = v; })),
+          f('Polen', sel(node.poles || 2, [[2, '2P'], [4, '4P']], (v) => { node.poles = +v; })),
+          f('Icn', sel(node.kA || 3, [[3, '3000'], [4.5, '4500'], [6, '6000'], [10, '10000']], (v) => { node.kA = +v; })));
+      } else {
+        fields.push(
+          f('Omschrijving', inp(node.desc, (v) => { node.desc = v; })),
+          f('Curve', sel(node.curve, [['B', 'B'], ['C', 'C'], ['D', 'D'], ['gG', 'gG (smelt)']], (v) => { node.curve = v; })),
+          f('A', sel(node.In, [6, 10, 16, 20, 25, 32, 40, 50, 63].map((x) => [x, x]), (v) => { node.In = +v; render(); })),
+          f('Polen', sel(node.poles, [[1, '1P'], [2, '2P'], [3, '3P'], [4, '4P']], (v) => { node.poles = +v; })),
+          f('Icn', sel(node.kA || 3, [[3, '3000'], [4.5, '4500'], [6, '6000'], [10, '10000']], (v) => { node.kA = +v; })),
+          f('Kabel', inp(node.cable, (v) => { node.cable = v; }, { list: 'cables' })),
+          f('Brandkl.', sel(node.fire || '', [['', '—'], ['Eca', 'Eca'], ['Dca', 'Dca'], ['Cca', 'Cca'], ['B2ca', 'B2ca']], (v) => { node.fire = v; })),
+          f('Aders', sel(node.cores, [['3G', '3G'], ['5G', '5G'], ['2x', '2x'], ['4G', '4G']], (v) => { node.cores = v; })),
+          f('mm²', sel(node.section, Object.keys(MAX_IN).map(Number).sort((x, y) => x - y).map((x) => [x, String(x).replace('.', ',')]), (v) => { node.section = +v; render(); })),
+          h('span', { class: 'pts', title: 'Punten op de plattegronden' }, `${circuitSymbols(temp(), node.id).length} pt`));
+      }
+      const actions = h('div', { class: 'tact' },
+        type !== 'circuit' ? h('button', { title: 'Differentieel toevoegen', onclick: () => add('rcd', node.id) }, '+Δ') : null,
+        type !== 'circuit' ? h('button', { title: 'Kring toevoegen', onclick: () => add('circuit', node.id) }, '+ Kring') : null,
+        h('button', { title: type === 'circuit' ? 'Onderverdeelbord gevoed door deze kring' : 'Onderverdeelbord toevoegen', onclick: () => add('board', node.id) }, '+ Bord'),
+        !isRoot ? sel('', [['', 'Verplaats naar…'], ...parentOptions(type, node)], (v) => { if (v) { node.parent = v; node.pos = nextPos(temp(), v); render(); } }) : null,
+        h('button', { class: 'icon', title: 'Omhoog', onclick: () => move(node, -1) }, '↑'),
+        h('button', { class: 'icon', title: 'Omlaag', onclick: () => move(node, 1) }, '↓'),
+        h('button', {
+          class: 'icon danger', title: 'Verwijderen (met alles eronder)',
+          onclick: () => {
+            if (isRoot && rootBoards(temp()).length < 2) return toast('Er moet minstens één verdeelbord zijn.');
+            removeNode(draft, node.id); render();
+          },
+        }, '✕'));
+      const warns = byCircuit.get(node.id) || [];
+      rows.push(h('div', { class: `trow t-${type}${warns.some((w) => w.level === 'error') ? ' err' : ''}`, style: { paddingLeft: depth * 22 + 'px' } },
+        h('div', { class: 'thead' },
+          kids.length ? h('button', { class: 'icon caretbtn', onclick: () => { collapsed.has(node.id) ? collapsed.delete(node.id) : collapsed.add(node.id); render(); } }, collapsed.has(node.id) ? '▸' : '▾') : h('span', { class: 'caretbtn' }),
+          h('span', { class: 'ticon' }, ICON[type]),
+          inp(node.name, (v) => { node.name = v; render(); }, { key: 'n' + node.id }),
+          actions),
+        h('div', { class: 'tfields' }, fields),
+        warns.length ? h('div', { class: 'twarn' }, warns.map((w) => h('div', { class: 'chk ' + w.level }, (w.level === 'error' ? '⚠ ' : 'ℹ ') + w.text))) : null));
+      if (!collapsed.has(node.id)) for (const k of kids) row(k.type, k.node, depth + 1);
+    };
+    for (const r of rootBoards(temp())) row('board', r, 0);
     const general = checks.filter((c) => !c.circuit);
     body.replaceChildren(...[
-      h('h3', null, 'Verdeelborden'), boardsEl,
-      h('div', { class: 'btnrow' }, h('button', { onclick: () => { draft.boards.push(newBoard(`Onderverdeelbord ${draft.boards.length}`)); render(); } }, '＋ Verdeelbord')),
-      h('h3', null, 'Kringen'),
+      h('p', { class: 'hint' }, 'Bouw de verdeling als boom: verdeelbord → differentieel → kringen, differentiëlen in differentiëlen, onderverdeelborden gevoed door een kring of differentieel. De volgorde (↑ ↓) is die van het eendraadschema.'),
       h('datalist', { id: 'cables' }, ['XVB', 'XGB', 'VOB', 'EXVB', 'XFVB'].map((x) => h('option', { value: x }))),
-      h('div', { class: 'tablewrap' }, table),
-      h('div', { class: 'btnrow' },
-        h('button', { onclick: () => { draft.circuits.push(newCircuit(nextCircuitName(temp()), draft.boards[0].id)); render(); } }, '＋ Kring'),
-        h('button', { onclick: () => { const c = newCircuit(nextCircuitName(temp()), draft.boards[0].id); c.In = 16; c.section = 1.5; c.desc = 'Verlichting'; draft.circuits.push(c); render(); } }, '＋ Verlichtingskring')),
+      ...rows,
+      h('div', { class: 'btnrow' }, h('button', { onclick: () => { const n = newBoard(`Verdeelbord ${draft.boards.length + 1}`); n.pos = draft.boards.length; draft.boards.push(n); render(); } }, '＋ Apart verdeelbord')),
       general.length ? h('div', null, general.map((w) => h('div', { class: 'chk ' + w.level }, 'ℹ ' + w.text))) : null,
     ].filter(Boolean));
   };
@@ -392,9 +439,10 @@ export async function circuitsDialog(app) {
   if (!ok) return;
   app.mutate(() => {
     b.boards = draft.boards;
+    b.rcds = draft.rcds;
     b.circuits = draft.circuits;
     const ids = new Set(b.circuits.map((c) => c.id));
-    for (const f of b.floors) for (const s of f.symbols) if (s.circuit && !ids.has(s.circuit)) { s.circuit = ''; delete s.n; }
+    for (const fl of b.floors) for (const sy of fl.symbols) if (sy.circuit && !ids.has(sy.circuit)) { sy.circuit = ''; delete sy.n; }
   });
   app.emit('planCircuits');
 }
