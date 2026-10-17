@@ -3,11 +3,10 @@ import { clone, h, natCmp } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, removeNode, rootBoards, treeChildren, treeNode, wallFrame } from './model.js';
+import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, removeNode, rootBoards, treeChildren, wallFrame } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
-import { generateEendraad, cableText } from './eendraad.js';
+import { generateEendraad } from './eendraad.js';
 import { OPENING_TYPES } from './editor.js';
-import { uid } from '../util.js';
 
 const inp = (value, commit, { type = 'text', key, placeholder, list, step } = {}) => {
   const el = h('input', { type, value: value ?? '', 'data-key': key, placeholder, list, step });
@@ -481,4 +480,3 @@ export async function generateDialog(app) {
   toast('Eendraadschema gegenereerd');
 }
 
-export { cableText };

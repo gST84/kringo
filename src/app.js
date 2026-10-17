@@ -1,7 +1,7 @@
 // Application state: current project, page, selection, undo / redo, autosave.
 import { analyze } from './schematic/analyze.js';
 import { normalizeProject } from './model.js';
-import { saveProject } from './storage.js';
+import { rememberProject, saveProject } from './storage.js';
 import { debounce } from './util.js';
 
 const UNDO_LIMIT = 150;
@@ -67,6 +67,7 @@ export class App {
     this.undoStack = [];
     this.redoStack = [];
     this.version++;
+    rememberProject(this.project.id);
     this.emit('project');
     this.emit('mode', this.mode);
     this.emit('change');
@@ -100,6 +101,8 @@ export class App {
     this.lib.project = this.project;
     this.pageIdx = Math.max(0, Math.min(this.pageIdx, this.project.pages.length - 1));
     this.floorIdx = Math.min(this.floorIdx, this.project.building.floors.length - 1);
+    // undoing the generation of the only single-line sheets: back to the floor plan
+    if (this.mode === 'schematic' && !this.project.pages.length) { this.mode = 'building'; this.emit('mode', this.mode); }
     this.pruneSelection();
     this.touched();
   }

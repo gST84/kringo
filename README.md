@@ -83,9 +83,11 @@ Coördinaten zijn millimeters; pinnen van symbolen liggen op een raster van 5 mm
 
 ```
 index.html, styles.css, serve.py, start.command
+tools/check.py          controle vóór een commit: offline-lijst in sw.js, imports (python3 tools/check.py)
 manifest.webmanifest, sw.js, icons/   installeerbare app (PWA), offline cache
 src/
   main.js                 opbouw UI en events
+  pwa.js, touch.js        installeerbare app, aanraakgebaren
   app.js                  toestand, undo/redo, autosave
   model.js                projectmodel, kader, paginasjablonen
   storage.js              IndexedDB
@@ -97,6 +99,6 @@ src/
   schematic/tags.js       nummering toestellen / klemmen / contacten
   schematic/render.js     SVG van pagina's en symbolen
   schematic/editor.js     tekenvlak en gereedschappen
-  ui/                     panelen, dialogen, lijsten, symbooleditor
+  ui/                     panelen, dialogen, startscherm, lijsten, symbooleditor
   building/               plattegronden, AREI-symbolen, kringen, AREI-controle, eendraadschema
 ```

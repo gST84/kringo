@@ -70,9 +70,8 @@ aside { background: var(--panel); min-height: 0; display: flex; flex-direction: 
 #center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 #toolbar { display: flex; gap: 4px; align-items: center; padding: 5px 8px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 #toolbar .tool { min-width: 32px; }
-#toolbar select { width: auto; }
+#toolbar select { width: auto; max-width: 190px; }
 .grow { flex: 1; }
-.pagelbl { min-width: 120px; text-align: center; color: var(--muted); }
 #canvas { flex: 1; position: relative; overflow: hidden; background: var(--canvas); min-height: 0; }
 #status { display: flex; gap: 16px; padding: 3px 10px; background: var(--panel); border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; }
 .check { display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 4px 0; }
@@ -156,8 +155,7 @@ svg text { font-family: Arial, Helvetica, sans-serif; dominant-baseline: central
 .btnrow { display: flex; gap: 4px; flex-wrap: wrap; }
 .chips { display: flex; gap: 3px; flex-wrap: wrap; margin: 4px 0; }
 .chips button { padding: 2px 6px; font-size: 12px; }
-.railrow { display: grid; grid-template-columns: 10px 1fr 60px auto; gap: 4px; align-items: center; margin-bottom: 4px; }
-.swatch { width: 10px; height: 10px; border-radius: 2px; }
+.railrow { display: grid; grid-template-columns: 28px 1fr 60px auto; gap: 4px; align-items: center; margin-bottom: 4px; }
 .pingrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .pingrid label { display: flex; align-items: center; gap: 4px; }
 .pingrid label span { color: var(--muted); font-size: 11px; min-width: 18px; }
@@ -230,7 +228,6 @@ td.empty { color: var(--muted); text-align: center; padding: 20px; }
 }
 
 /* ---------- wire colours ---------- */
-.railrow { grid-template-columns: 28px 1fr 60px auto; }
 .railrow input[type=color] { height: 24px; padding: 0 1px; }
 .chips.colors { gap: 4px; align-items: center; }
 .cchip { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid var(--line); font-size: 10px; font-weight: 700; color: #fff; }
@@ -280,22 +277,10 @@ body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:no
 .overlay .ghost line, .overlay .ghost circle, .overlay .ghost path, .overlay .ghost rect { stroke: var(--sel); stroke-width: .3; fill: none; }
 .overlay .ghost text { fill: var(--sel); }
 
-/* ---------- circuits dialog ---------- */
-.circuits h3 { margin: 12px 0 6px; font-size: 13px; }
-.circuits .board { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px; }
-.circuits table input, .circuits table select { padding: 2px 4px; font-size: 12px; }
-.circuits table.circ td { padding: 2px 3px; }
-.circuits td.num { text-align: center; }
-.circuits tr.err td { background: rgba(201, 42, 42, .06); }
-.circuits tr.warnrow td { border-bottom: 1px solid var(--line); padding: 0 6px 6px; }
+/* ---------- AREI checks ---------- */
 .chk { font-size: 12px; color: var(--muted); }
 .chk.error { color: var(--danger); }
 .chk.warn { color: #c77d00; }
-table.list.circ tbody tr:hover { background: none; cursor: default; }
-.circuits table select { min-width: 54px; }
-.circuits table.circ td:nth-child(2) input { min-width: 140px; }
-#toolbar select { max-width: 190px; }
-.nowrap { white-space: nowrap; }
 .ink rect.tbox { stroke-width: .2; fill: none; }
 .dialwrap { display: flex; justify-content: center; margin: 4px 0 8px; }
 svg.dial { width: 120px; height: 120px; }
@@ -337,34 +322,29 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
   .projname { max-width: 140px; }
   .install { order: 5; }
 }
-/* ---------- distribution tree ---------- */
+/* ---------- distribution tree (circuits dialog) ---------- */
+.modal:has(.circuits.tree) { width: min(1180px, 97vw); }
 .circuits.tree .trow { border-bottom: 1px solid var(--line); padding: 6px 4px; }
 .circuits.tree .trow.t-board { background: var(--panel2); }
 .circuits.tree .trow.err { background: rgba(201, 42, 42, .06); }
 .circuits.tree .thead { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 8px; }
-.circuits.tree .caretbtn { width: 20px; display: inline-block; padding: 0; border: none; background: none; align-self: center; }
+.circuits.tree .caretbtn { display: inline-block; width: 26px; height: 26px; padding: 0; align-self: center; font-size: 18px; line-height: 1; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
+.circuits.tree span.caretbtn { border-color: transparent; background: none; }
+.circuits.tree button.caretbtn:hover { border-color: var(--accent); }
 .circuits.tree .ticon { width: 16px; text-align: center; font-weight: 700; color: var(--accent); align-self: center; }
-.circuits.tree .tname { font-weight: 700; }
-.circuits.tree .tname.t-circuit { width: 52px !important; min-width: 0 !important; text-align: center; }
-.circuits.tree .tname.t-rcd, .circuits.tree .tname.t-board { width: 170px !important; }
 .circuits.tree .tf { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); }
-.circuits.tree .tf input, .circuits.tree .tf select { width: auto; min-width: 54px; max-width: 170px; font-size: 12px; padding: 2px 4px; color: var(--text); }
-.circuits.tree .pts { font-size: 12px; color: var(--muted); align-self: center; }
-.circuits.tree .tact { display: flex; gap: 4px; flex-wrap: wrap; margin: 5px 0 0 44px; align-items: center; }
+.circuits.tree .tf input, .circuits.tree .tf select { width: 70px; max-width: 170px; font-size: 12px; padding: 2px 4px; color: var(--text); }
+.circuits.tree .tf select { width: auto; min-width: 0; }
+.circuits.tree .tf input.tname { font-weight: 700; }
+.circuits.tree .tf input.tname.t-circuit { width: 52px; text-align: center; }
+.circuits.tree .tf input.tname.t-rcd, .circuits.tree .tf input.tname.t-board { width: 170px; }
+.circuits.tree .tf input.tdesc { width: 150px; }
+.circuits.tree .tf input.tcable { width: 64px; }
+.circuits.tree .tact { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin: 5px 0 0 58px; }
 .circuits.tree .tact button { padding: 2px 7px; font-size: 12px; }
 .circuits.tree .tact select { width: auto; max-width: 180px; font-size: 12px; padding: 2px; }
-.circuits.tree .twarn { margin: 4px 0 0 44px; }
-.modal:has(.circuits.tree) { width: min(1180px, 97vw); }
-.circuits.tree .tf select { min-width: 0 !important; }
-.circuits.tree .tf input.tdesc { width: 150px !important; }
-.circuits.tree .tf input.tcable { width: 64px !important; min-width: 0 !important; }
-.circuits.tree .tf input[type=number], .circuits.tree .tf input:not([type]) { width: 70px; }
-.circuits.tree .tact, .circuits.tree .twarn { margin-left: 52px; }
-.circuits.tree .tact .pts { margin-left: auto; padding-right: 6px; }
-.circuits.tree .caretbtn { width: 26px !important; height: 26px; font-size: 18px; line-height: 1; color: var(--accent); border: 1px solid var(--line) !important; border-radius: 6px; background: var(--panel) !important; cursor: pointer; }
-.circuits.tree span.caretbtn { border-color: transparent !important; background: none !important; }
-.circuits.tree button.caretbtn:hover { border-color: var(--accent) !important; }
-.circuits.tree .tact, .circuits.tree .twarn { margin-left: 58px; }
+.circuits.tree .tact .pts { margin-left: auto; padding-right: 6px; font-size: 12px; color: var(--muted); }
+.circuits.tree .twarn { margin: 4px 0 0 58px; }
 
 /* ---------- start screen ---------- */
 .modal.start { width: min(640px, 94vw); }

@@ -1,9 +1,8 @@
 // Schematic canvas: view (zoom / pan), tools and mouse / keyboard interaction.
 import { SHEET } from '../model.js';
-import { pageSvg } from './render.js';
+import { pageSvg, shapeSvg } from './render.js';
 import { onRail, onSegment } from './analyze.js';
 import { geometry, svgTransform, worldBox, xf } from '../symbols/geom.js';
-import { shapeSvg } from './render.js';
 import { autoTag, nextTerminal, needsTag } from './tags.js';
 import { clone, r2, snap, uid } from '../util.js';
 import { attachTouch } from '../touch.js';
@@ -126,8 +125,8 @@ export class SchematicEditor {
     this.overlay.innerHTML = s;
   }
 
-  dragRect() {
-    const [ax, ay] = this.drag.start, [bx, by] = this.drag.cur;
+  dragRect(d = this.drag) {
+    const [ax, ay] = d.start, [bx, by] = d.cur;
     return { x0: Math.min(ax, bx), y0: Math.min(ay, by), x1: Math.max(ax, bx), y1: Math.max(ay, by) };
   }
 
@@ -268,7 +267,7 @@ export class SchematicEditor {
       if (r.x1 - r.x0 > 0.5 || r.y1 - r.y0 > 0.5) app.select(this.itemsIn(r), d.add);
       this.renderOverlay();
     } else if (d.type === 'box') {
-      const { x0, y0, x1, y1 } = this.dragRect.call({ drag: d });
+      const { x0, y0, x1, y1 } = this.dragRect(d);
       if (x1 - x0 >= 2 && y1 - y0 >= 2) {
         const b = { id: uid('b'), x: x0, y: y0, w: r2(x1 - x0), h: r2(y1 - y0), style: 'dashdot', label: '' };
         app.mutate(() => app.page.boxes.push(b));

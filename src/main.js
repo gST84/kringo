@@ -2,17 +2,18 @@
 import { App } from './app.js';
 import { Library } from './symbols/library.js';
 import { SchematicEditor } from './schematic/editor.js';
-import { PlanEditor, OPENING_TYPES } from './building/editor.js';
+import { PlanEditor } from './building/editor.js';
 import { buildingLeftPanel, buildingProps, circuitOptions, circuitsDialog, generateDialog } from './building/panels.js';
 import { libraryPanel, pagesPanel, propertiesPanel } from './ui/panels.js';
 import { listsDialog } from './ui/lists.js';
 import { openSymbolEditor } from './ui/symbolEditor.js';
 import { setupPwa } from './pwa.js';
 import {
-  createProject, exportProjectFile, importProjectFile, openProjectFile, openDialog, printDialog, projectDialog, renumberDialog, settingsDialog,
+  exportProjectFile, importProjectFile, openProjectFile, openDialog, printDialog, projectDialog, renumberDialog, settingsDialog,
 } from './ui/project.js';
-import { modal, prompt, toast } from './ui/dialogs.js';
-import { listProjects, loadProject } from './storage.js';
+import { startNewProject, startScreen } from './ui/start.js';
+import { prompt } from './ui/dialogs.js';
+import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
 import { locate } from './model.js';
 import { h } from './util.js';
@@ -45,7 +46,7 @@ $('#top').append(
   h('button', { class: 'menutoggle', onclick: () => document.body.classList.toggle('show-menu') }, 'Menu ▾'),
   nameEl,
   h('div', { class: 'menu' },
-    btn('Nieuw', 'Nieuw project', () => startNewProject()),
+    btn('Nieuw', 'Nieuw project', () => startNewProject(app)),
     btn('Openen', 'Project openen (uit de browser of een bestand)', async () => { await app.save(); openDialog(app); }),
     btn('Bewaar bestand', 'Project opslaan als .kringo-bestand', () => exportProjectFile(app)),
     btn('Open bestand', '.kringo-bestand of QElectroTech-project (.qet) openen', async () => { await app.save(); importProjectFile(app); }),
@@ -61,55 +62,6 @@ $('#top').append(
     undoBtn, redoBtn, saveEl),
   setupPwa({ onFile: async (f) => { await app.save(); openProjectFile(app, f); } }),
   kindEl);
-
-async function startNewProject() {
-  const r = await newProjectDialog();
-  if (!r) return false;
-  await app.save();
-  const p = createProject(r.name || 'Nieuw project', r.kind);
-  app.setProject(p);
-  await app.save();
-  localStorage.setItem('elecad.last', p.id);
-  return true;
-}
-
-/** Start screen: new project, open a file, or one of the recent projects. */
-async function startScreen() {
-  const recent = (await listProjects()).slice(0, 12);
-  let done = null;
-  const choose = (fn) => async () => { done = fn; document.querySelector('.modal.start')?.closest('.modal-back')?.querySelector('.modal-head button')?.click(); };
-  const body = h('div', { class: 'startscreen' },
-    h('div', { class: 'startbig' },
-      h('button', { class: 'primary', onclick: choose(startNewProject) }, h('span', { class: 'kicon' }, '＋'), h('b', null, 'Nieuw project'), h('small', null, 'Gebouw (AREI) of stuurkast')),
-      h('button', { onclick: choose(async () => { await importProjectFile(app); }) }, h('span', { class: 'kicon' }, '📂'), h('b', null, 'Bestand openen'), h('small', null, '.kringo, .elecad of QElectroTech (.qet)'))),
-    h('h3', null, 'Recente projecten'),
-    recent.length ? h('div', { class: 'recent' }, recent.map((it) => h('button', {
-      class: 'recentitem',
-      onclick: choose(async () => { const p = await loadProject(it.id); if (p) { app.setProject(p); localStorage.setItem('elecad.last', p.id); } }),
-    }, h('span', { class: 'kicon' }, it.kind === 'building' ? '🏠' : '🗄'), h('span', { class: 'rname' }, it.name),
-    h('small', null, new Date(it.updated).toLocaleDateString())))) : h('p', { class: 'hint' }, 'Nog geen projecten in deze browser.'),
-    h('p', { class: 'hint' }, h('button', { class: 'link', onclick: choose(async () => { app.setProject(demoProject(lib)); await app.save(); localStorage.setItem('elecad.last', app.project.id); }) }, 'Demoproject (stuurkast) openen')));
-  await modal({ title: 'Welkom bij Kringo', body, buttons: [], cls: 'start' });
-  if (done) await done();
-}
-
-async function newProjectDialog() {
-  const name = h('input', { type: 'text', value: 'Nieuw project' });
-  let kind = 'building';
-  const cards = h('div', { class: 'kinds' });
-  const renderCards = () => cards.replaceChildren(
-    ...[['building', '🏠', 'Gebouw', 'Woning / gebouw volgens AREI: plattegronden, stopcontacten, verlichting, kringen en het eendraadschema.'],
-      ['schematic', '🗄', 'Stuurkast', 'Industriële schema\'s: stuurstroom, vermogen, PLC, klemmen, kruisverwijzingen en lijsten.']]
-      .map(([k, icon, title, text]) => h('button', { class: 'kind' + (kind === k ? ' active' : ''), onclick: () => { kind = k; renderCards(); } },
-        h('span', { class: 'kicon' }, icon), h('b', null, title), h('small', null, text))));
-  renderCards();
-  const ok = await modal({
-    title: 'Nieuw project',
-    body: h('div', { class: 'form' }, h('label', { class: 'field' }, h('span', null, 'Projectnaam'), name), h('span', { class: 'hint' }, 'Soort project (kan nadien niet gewijzigd worden):'), cards),
-    buttons: [{ label: 'Annuleren', value: false }, { label: 'Aanmaken', value: true, primary: true }],
-  });
-  return ok ? { name: name.value.trim(), kind } : null;
-}
 
 // tools bar
 const tools = [
@@ -296,20 +248,17 @@ window.addEventListener('beforeunload', () => { app.save(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) app.save(); });
 
 // ---------- start ----------
+// open the last project behind the start screen, so closing the screen just continues
 let project = null;
-const last = localStorage.getItem('elecad.last');
+const last = lastProjectId();
 if (last) project = await loadProject(last);
 if (!project) {
   const all = await listProjects();
   if (all.length) project = await loadProject(all[0].id);
 }
-if (!project) project = demoProject(lib);
-app.setProject(project);
-localStorage.setItem('elecad.last', project.id);
+app.setProject(project || demoProject(lib));
 await app.save();
 editor.setTool('select');
 plan.setTool('select');
-app.emit('mode', app.mode);
 app.emit('saved');
-// let the user choose what to work on (closing the screen keeps the last project)
-startScreen();
+startScreen(app);

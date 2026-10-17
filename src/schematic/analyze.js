@@ -247,17 +247,3 @@ export function analyze(project, lib, opts = {}) {
 }
 
 const near = (e, p) => Math.abs(e.x - p[0]) < EPS && Math.abs(e.y - p[1]) < EPS;
-
-/** Pins in the same net as the given pin, excluding the pin itself (for terminal / wire lists). */
-export function partners(an, compId, pinId) {
-  const net = an.pinNet.get(`${compId}:${pinId}`);
-  if (!net) return [];
-  return net.pins.filter((p) => !(p.info.comp.id === compId && p.pin.id === pinId));
-}
-
-export const pinLabel = (p) => {
-  const role = p.info.def?.role;
-  if (role === 'terminal') return `${p.info.tag}:${p.info.comp.props?.number ?? '?'}`;
-  if (role === 'link') return `→${p.info.tag}`;
-  return `${p.info.tag || '?'}:${p.pin.name}`;
-};

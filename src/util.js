@@ -79,8 +79,6 @@ export function pickFiles({ accept = '', multiple = false, directory = false } =
   });
 }
 
-export const readText = (file) => file.text();
-
 export function readDataURL(file) {
   return new Promise((res, rej) => {
     const fr = new FileReader();

@@ -1,5 +1,5 @@
 // Project dialogs: properties, settings, open / new, file import / export, printing.
-import { h, download, pickFiles, readDataURL, safeName, shrinkImage } from '../util.js';
+import { h, download, pickFiles, readDataURL, safeName, shrinkImage, uid } from '../util.js';
 import { FORMAT, LEGACY_FORMATS, newProject, SHEET } from '../model.js';
 import { deleteProject, listProjects, loadProject } from '../storage.js';
 import { standalonePageSvg } from '../schematic/render.js';
@@ -131,40 +131,34 @@ export function createProject(name, kind = 'schematic') {
 }
 
 export async function openDialog(app) {
-  const list = await listProjects();
   const body = h('div', { class: 'openlist' });
-  let result;
+  let close;
   const render = (items) => body.replaceChildren(
     items.length ? h('table', { class: 'list' },
-      h('thead', null, h('tr', null, h('th', null, 'Project'), h('th', null, 'Klant'), h('th', null, "Pagina's"), h('th', null, 'Gewijzigd'), h('th', null, ''))),
+      h('thead', null, h('tr', null, h('th', null, 'Project'), h('th', null, 'Soort'), h('th', null, 'Klant'), h('th', null, 'Gewijzigd'), h('th', null, ''))),
       h('tbody', null, items.map((it) => h('tr', { class: it.id === app.project?.id ? 'current' : '' },
-        h('td', null, h('button', { class: 'link', onclick: () => { result = it.id; dlgClose(); } }, it.name)),
-        h('td', null, it.customer || ''), h('td', null, it.pages), h('td', null, new Date(it.updated).toLocaleString()),
+        h('td', null, h('button', { class: 'link', onclick: () => close(it.id) }, it.name)),
+        h('td', null, it.kind === 'building' ? '🏠 Gebouw' : '🗄 Stuurkast'),
+        h('td', null, it.customer || ''), h('td', null, new Date(it.updated).toLocaleString()),
         h('td', null, h('button', {
           class: 'icon danger', title: 'Verwijderen',
           onclick: async () => {
             if (it.id === app.project?.id) return toast('Het geopende project kan niet verwijderd worden.');
             if (!(await confirmDlg('Project verwijderen', `"${it.name}" definitief verwijderen uit de browser?`, 'Verwijderen', true))) return;
             await deleteProject(it.id);
-            render((await listProjects()));
+            render(await listProjects());
           },
         }, '🗑')))))) : h('p', null, 'Nog geen projecten in deze browser.'));
-  render(list);
-  let dlgClose;
-  const pr = modal({
+  render(await listProjects());
+  const result = await modal({
     title: 'Project openen', wide: true, body,
     buttons: [{ label: 'Bestand openen…', value: 'file' }, { label: 'Sluiten', value: undefined }],
-    onButton: async (v) => {
-      if (v === 'file') { result = 'file'; }
-      return true;
-    },
+    bind: (c) => { close = c; },
   });
-  dlgClose = () => document.querySelector('.modal-back .modal-head button')?.click();
-  await pr;
   if (result === 'file') return importProjectFile(app);
   if (result) {
     const p = await loadProject(result);
-    if (p) { app.setProject(p); localStorage.setItem('elecad.last', p.id); }
+    if (p) app.setProject(p);
   }
 }
 
@@ -180,7 +174,6 @@ export async function openProjectFile(app, f) {
       const { project, report } = importQet(await f.text(), f.name);
       app.setProject(project);
       await app.save();
-      localStorage.setItem('elecad.last', project.id);
       alertDlg('QElectroTech geïmporteerd',
         `${report.pages} pagina's, ${report.comps} symbolen, ${report.wires} draden` +
         (report.routed ? ` (${report.routed} draden zonder vast verloop opnieuw gerouteerd)` : '') +
@@ -192,12 +185,11 @@ export async function openProjectFile(app, f) {
     p.format = FORMAT;
     const existing = await loadProject(p.id);
     if (existing && !(await confirmDlg('Project bestaat al', `"${existing.name}" staat al in deze browser. Overschrijven met het bestand? (Annuleren = als kopie openen)`, 'Overschrijven'))) {
-      p.id = 'prj' + Math.random().toString(36).slice(2, 10);
+      p.id = uid('prj');
       p.name += ' (kopie)';
     }
     app.setProject(p);
     await app.save();
-    localStorage.setItem('elecad.last', p.id);
     toast('Project geopend');
   } catch (e) {
     alertDlg('Openen mislukt', e.message);

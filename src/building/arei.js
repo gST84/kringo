@@ -146,8 +146,8 @@ export const AREI = [
 ];
 
 // Single-line (eendraad) protection symbols: pins at the top (0, 0) and bottom (0, 20).
-const line2 = (id, name, kind, graphics, prefix = 'Q') => ({
-  id: 'arei/' + id, name, folder: F('Eendraad'), kind, role: 'device', prefix, arei: true, pinText: false,
+const line2 = (id, name, kind, graphics, prefix = 'Q', hidden = true) => ({
+  id: 'arei/' + id, name, folder: F('Eendraad'), kind, role: 'device', prefix, arei: true, pinText: false, hidden,
   graphics, pins: [{ id: '1', x: 0, y: 0, name: '' }, { id: '2', x: 0, y: 20, name: '' }], tagAt: { x: -7, y: 10, anchor: 'end' },
 });
 const pole = [L(0, 0, 0, 6), L(-1.3, 4.7, 1.3, 7.3), L(-1.3, 7.3, 1.3, 4.7), L(0, 14, 0, 20), L(0, 14, -4.5, 7)];
@@ -171,7 +171,5 @@ AREI.push(
   line2('mcb', 'Automaat (eendraad)', 'breaker', [...pole, L(-2.25, 10.5, -7, 10.5, { dash: true }), R(-10, 8.5, 3, 4)]),
   line2('rcd', 'Differentieel (eendraad)', 'rcd', [...pole, L(-2.25, 10.5, -8, 10.5, { dash: true }), R(-14, 8, 6, 5), T(-11, 10.5, 'IΔ', 2)]),
   line2('mainswitch', 'Hoofdschakelaar (eendraad)', 'mainswitch', [L(0, 0, 0, 7), L(0, 13, 0, 20), L(0, 13, -4.5, 6.5), L(-2.25, 9.75, -8, 9.75, { dash: true }), P('M -10 7.5 L -8.5 7.5 L -8.5 12 L -7 12')]),
-  line2('kwh', 'kWh-meter (eendraad)', 'meter', [L(0, 0, 0, 5), R(-5, 5, 10, 10), T(0, 10, 'kWh', 2.2), L(0, 15, 0, 20)], 'P'),
+  line2('kwh', 'kWh-meter (eendraad)', 'meter', [L(0, 0, 0, 5), R(-5, 5, 10, 10), T(0, 10, 'kWh', 2.2), L(0, 15, 0, 20)], 'P', false),
 );
-
-export const isSocket = (d) => d?.kind === 'socket';

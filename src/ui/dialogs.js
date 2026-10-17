@@ -5,7 +5,7 @@ import { h } from '../util.js';
  * Shows a modal. `buttons`: [{label, value, primary?, danger?}]. Resolves with the clicked value
  * (undefined when closed). `onButton(value)` may return false to keep the dialog open.
  */
-export function modal({ title, body, buttons = [{ label: 'Sluiten', value: undefined }], wide = false, full = false, cls = '', onButton, onClose }) {
+export function modal({ title, body, buttons = [{ label: 'Sluiten', value: undefined }], wide = false, full = false, cls = '', onButton, onClose, bind }) {
   return new Promise((resolve) => {
     const close = (v) => {
       back.remove();
@@ -33,6 +33,7 @@ export function modal({ title, body, buttons = [{ label: 'Sluiten', value: undef
           h('button', { class: (b.primary ? 'primary' : '') + (b.danger ? ' danger' : ''), onclick: () => click(b.value) }, b.label))) : null));
     document.body.append(back);
     document.addEventListener('keydown', onKey, true);
+    bind?.(close); // lets content inside the body close the dialog with a value
     setTimeout(() => {
       const f = back.querySelector('input,textarea,select');
       f?.focus();

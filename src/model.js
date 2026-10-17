@@ -135,4 +135,3 @@ export function locate(project, x, y, page) {
   return { col, row: String.fromCharCode(64 + row) };
 }
 
-export const pageNo = (project, pageId) => project.pages.findIndex((p) => p.id === pageId) + 1;

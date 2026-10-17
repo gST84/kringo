@@ -1,6 +1,5 @@
 // Device tags (page / column / row based), terminal numbers and contact numbering.
 import { locate } from '../model.js';
-import { natCmp } from '../util.js';
 
 const NO_TAG_ROLES = new Set(['terminal', 'link', 'graphic']);
 
@@ -110,5 +109,3 @@ export function numberContact(project, lib, comp) {
   else if (def.contact === 'NC') comp.pinNames = { 1: `${k}1`, 2: `${k}2` };
   else comp.pinNames = { 1: `${k}1`, 2: `${k}2`, 3: `${k}4` };
 }
-
-export const sortTags = (a, b) => natCmp(a, b);

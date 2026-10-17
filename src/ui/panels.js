@@ -1,5 +1,5 @@
 // Side panels: pages, symbol library and properties.
-import { h, natCmp, pickFiles } from '../util.js';
+import { h, natCmp, pickFiles, uid } from '../util.js';
 import { newPage, newRail, PAGE_TEMPLATES, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { refText } from '../schematic/analyze.js';
@@ -139,11 +139,11 @@ async function addPageDialog(app) {
 function duplicatePage(app) {
   const src = JSON.parse(JSON.stringify(app.page));
   const idMap = new Map();
-  src.id = 'p' + Math.random().toString(36).slice(2, 9);
+  src.id = uid('p');
   src.title += ' (kopie)';
-  for (const c of src.comps) { const n = 'c' + Math.random().toString(36).slice(2, 10); idMap.set(c.id, n); c.id = n; }
+  for (const c of src.comps) { const n = uid('c'); idMap.set(c.id, n); c.id = n; }
   for (const c of src.comps) if (c.link && idMap.has(c.link)) c.link = idMap.get(c.link);
-  for (const list of [src.wires, src.texts, src.boxes, src.rails]) for (const o of list) o.id = o.id[0] + Math.random().toString(36).slice(2, 10);
+  for (const list of [src.wires, src.texts, src.boxes, src.rails]) for (const o of list) o.id = uid(o.id[0]);
   for (const w of src.wires) delete w.label;
   app.mutate((p) => {
     p.pages.splice(app.pageIdx + 1, 0, src);
@@ -275,6 +275,7 @@ export function popupMenu(x, y, items) {
 export function propertiesPanel(app, el, { editor, building }) {
   const render = () => rebuild(el, () => {
     if (app.mode === 'building' && building) return building();
+    if (!app.page) return [];
     const keys = [...app.sel];
     if (!keys.length) return pageProps(app);
     if (keys.length > 1) return multiProps(app, editor, keys);

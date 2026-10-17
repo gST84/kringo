@@ -47,5 +47,9 @@ export async function listProjects() {
 export const loadProject = (id) => idb.get('projects', id);
 export const saveProject = (p) => idb.put('projects', JSON.parse(JSON.stringify(p)));
 export const deleteProject = (id) => idb.del('projects', id);
+const LAST_KEY = 'elecad.last'; // historic name, kept so the last project keeps opening
+export const lastProjectId = () => { try { return localStorage.getItem(LAST_KEY); } catch { return null; } };
+export const rememberProject = (id) => { try { localStorage.setItem(LAST_KEY, id); } catch { /* private mode */ } };
+
 export const kvGet = (k) => idb.get('kv', k);
 export const kvSet = (k, v) => idb.put('kv', v, k);
