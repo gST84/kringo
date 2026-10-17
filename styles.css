@@ -362,3 +362,7 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .circuits.tree .tf input[type=number], .circuits.tree .tf input:not([type]) { width: 70px; }
 .circuits.tree .tact, .circuits.tree .twarn { margin-left: 52px; }
 .circuits.tree .tact .pts { margin-left: auto; padding-right: 6px; }
+.circuits.tree .caretbtn { width: 26px !important; height: 26px; font-size: 18px; line-height: 1; color: var(--accent); border: 1px solid var(--line) !important; border-radius: 6px; background: var(--panel) !important; cursor: pointer; }
+.circuits.tree span.caretbtn { border-color: transparent !important; background: none !important; }
+.circuits.tree button.caretbtn:hover { border-color: var(--accent) !important; }
+.circuits.tree .tact, .circuits.tree .twarn { margin-left: 58px; }

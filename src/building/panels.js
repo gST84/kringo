@@ -414,7 +414,7 @@ export async function circuitsDialog(app) {
       const warns = byCircuit.get(node.id) || [];
       rows.push(h('div', { class: `trow t-${type}${warns.some((w) => w.level === 'error') ? ' err' : ''}`, style: { paddingLeft: depth * 22 + 'px' } },
         h('div', { class: 'thead' },
-          kids.length ? h('button', { class: 'icon caretbtn', onclick: () => { collapsed.has(node.id) ? collapsed.delete(node.id) : collapsed.add(node.id); render(); } }, collapsed.has(node.id) ? '▸' : '▾') : h('span', { class: 'caretbtn' }),
+          kids.length ? h('button', { class: 'icon caretbtn', title: collapsed.has(node.id) ? 'Uitklappen' : 'Inklappen', onclick: () => { collapsed.has(node.id) ? collapsed.delete(node.id) : collapsed.add(node.id); render(); } }, collapsed.has(node.id) ? '▸' : '▾') : h('span', { class: 'caretbtn' }),
           h('span', { class: 'ticon' }, ICON[type]),
           f(type === 'circuit' ? 'Kring' : type === 'rcd' ? 'Differentieel' : 'Verdeelbord',
             h('input', { type: 'text', value: node.name, class: 'tname t-' + type, onchange: (e) => { node.name = e.target.value; render(); } })),
