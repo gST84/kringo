@@ -328,13 +328,12 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
   #toolbar button, #toolbar select, .menu button { min-height: 36px; }
   #toolbar .tool { min-width: 40px; }
 }
-#toolbar .undo { font-size: 16px; }
 .menutoggle { display: none; }
 @media (max-width: 900px) {
   .menutoggle { display: inline-block; margin-left: auto; }
   #top .menu { display: none; order: 10; flex-basis: 100%; }
   body.show-menu #top .menu { display: flex; }
-  #top .menu .sep, #top .menu > button[title^="Ongedaan"], #top .menu > button[title^="Opnieuw"] { display: none; }
+  #top .menu .sep { display: none; }
   .projname { max-width: 140px; }
   .install { order: 5; }
 }
