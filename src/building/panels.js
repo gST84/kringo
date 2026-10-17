@@ -249,7 +249,7 @@ function symbolProps(app, plan, s) {
       })) : h('p', { class: 'hint' }, 'Nog geen koppelingen.'),
       h('button', {
         onclick: () => { plan.setTool('link'); plan.linkFrom = s.id; plan.render(); },
-        title: 'Klik daarna op de symbolen die je wil koppelen (bv. lichtpunten bij een schakelaar). Esc = stoppen.',
+        title: 'Klik daarna de volgende symbolen na elkaar aan: dit symbool → 2 → 3 … (bv. schakelaar → lamp → lamp). Esc = stoppen.',
       }, '🔗 Koppelen…')),
     section('Plaatsing',
       rotationDial(s.rot || 0, (deg) => set(() => { s.rot = deg; })),

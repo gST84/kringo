@@ -203,7 +203,7 @@ const PLAN_HINTS = {
   stair: 'Sleep een rechthoek voor de trap',
   text: 'Klik in een ruimte om een naam te plaatsen',
   place: 'Klik om te plaatsen (tegen de dichtstbijzijnde muur) · R draaien · Alt = vrij plaatsen · Esc = stoppen',
-  link: 'Klik eerst de bediening (schakelaar / ingang / paneel), dan de toestellen die erbij horen · opnieuw klikken = ontkoppelen · Esc',
+  link: 'Klik de symbolen na elkaar: 1 → 2 → 3 … (bv. schakelaar → lamp → lamp) · opnieuw klikken op een gekoppeld paar = ontkoppelen · Esc = stoppen',
   pan: 'Sleep om te verschuiven',
 };
 

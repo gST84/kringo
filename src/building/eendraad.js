@@ -44,12 +44,20 @@ export function buildBranches(building, lib, circuit) {
     const kind = def?.kind;
     used.add(s.id);
     if (isControl(s)) {
-      // the lights this switch controls, and the other switches controlling the same lights (2-way / cross)
-      const lights = (linksOf.get(s.id) || []).map((id) => symById.get(id)).filter((o) => o && kindOf(o) === 'light');
+      // everything reachable through the links (chains like switch → switch → light → light):
+      // the lights this switch controls and the other switches of the same group (2-way / cross)
+      const lights = [];
       const switches = new Set([s]);
-      for (const lt of lights) for (const id of linksOf.get(lt.id) || []) {
-        const o = symById.get(id);
-        if (o && isControl(o)) switches.add(o);
+      const seen = new Set([s.id]);
+      const queue = [s.id];
+      while (queue.length) {
+        for (const id of linksOf.get(queue.shift()) || []) {
+          const o = symById.get(id);
+          if (!o || seen.has(id)) continue;
+          seen.add(id);
+          if (kindOf(o) === 'light') { lights.push(o); queue.push(id); }
+          else if (isControl(o)) { switches.add(o); queue.push(id); }
+        }
       }
       const order = (o) => lib.get(o.sym)?.order ?? 0;
       const twoWay = [...switches].filter((o) => order(o) === 1);

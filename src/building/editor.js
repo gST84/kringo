@@ -475,6 +475,7 @@ export class PlanEditor {
     if (!key?.startsWith('A:')) { this.linkFrom = null; this.render(); return; }
     const id = key.slice(2);
     if (!this.linkFrom || this.linkFrom === id) { this.linkFrom = this.linkFrom === id ? null : id; this.render(); return; }
+    // chain: 1 → 2 → 3 … (each click links to the previous symbol and continues from the new one)
     const a = this.linkFrom;
     this.app.mutate(() => {
       const f = this.floor;
@@ -482,6 +483,8 @@ export class PlanEditor {
       if (i >= 0) f.links.splice(i, 1);
       else f.links.push({ id: uid('l'), a, b: id });
     });
+    this.linkFrom = id;
+    this.render();
   }
 
   /** Wall ends at a point (for dragging shared corners). */
