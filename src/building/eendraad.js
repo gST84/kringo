@@ -138,8 +138,8 @@ function builder(project, lib, board, title) {
   };
   const closePage = () => { if (page) bus(page.busFrom, Math.max(x - 4, page.busFrom + 10), MAIN_Y); };
 
-  /** Breaker texts: vertical columns right of the line (framed breaking capacity, rating …). */
-  const breakerTexts = (bx, by, lines) => lines.forEach((t, i) => vtext(bx + 2.6 + i * 3, by - 1, t.text, 2.1, t.box ? { box: true } : {}));
+  /** Breaker texts: vertical columns right of the breaker, centred on its middle. */
+  const breakerTexts = (bx, by, lines) => lines.forEach((t, i) => vtext(bx + 2.6 + i * 3, by - MCB_H / 2, t.text, 2.1, { anchor: 'middle', ...(t.box ? { box: true } : {}) }));
 
   const drawBranch = (br, lx, y) => {
     const px = lx + 4;
