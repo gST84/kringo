@@ -360,3 +360,5 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .circuits.tree .tf input.tdesc { width: 150px !important; }
 .circuits.tree .tf input.tcable { width: 64px !important; min-width: 0 !important; }
 .circuits.tree .tf input[type=number], .circuits.tree .tf input:not([type]) { width: 70px; }
+.circuits.tree .tact, .circuits.tree .twarn { margin-left: 52px; }
+.circuits.tree .tact .pts { min-width: 62px; margin-right: 4px; }
