@@ -397,7 +397,6 @@ export async function circuitsDialog(app) {
         );
       }
       const actions = h('div', { class: 'tact' },
-        type === 'circuit' ? h('span', { class: 'pts', title: 'Punten op de plattegronden' }, `${circuitSymbols(temp(), node.id).length} punten`) : null,
         type !== 'circuit' ? h('button', { title: 'Differentieel toevoegen', onclick: () => add('rcd', node.id) }, '+Δ') : null,
         type !== 'circuit' ? h('button', { title: 'Kring toevoegen', onclick: () => add('circuit', node.id) }, '+ Kring') : null,
         h('button', { title: type === 'circuit' ? 'Onderverdeelbord gevoed door deze kring' : 'Onderverdeelbord toevoegen', onclick: () => add('board', node.id) }, '+ Bord'),
@@ -410,7 +409,8 @@ export async function circuitsDialog(app) {
             if (isRoot && rootBoards(temp()).length < 2) return toast('Er moet minstens één verdeelbord zijn.');
             removeNode(draft, node.id); render();
           },
-        }, '✕'));
+        }, '✕'),
+        type === 'circuit' ? h('span', { class: 'pts', title: 'Punten op de plattegronden' }, `${circuitSymbols(temp(), node.id).length} punten`) : null);
       const warns = byCircuit.get(node.id) || [];
       rows.push(h('div', { class: `trow t-${type}${warns.some((w) => w.level === 'error') ? ' err' : ''}`, style: { paddingLeft: depth * 22 + 'px' } },
         h('div', { class: 'thead' },
