@@ -58,11 +58,11 @@ $('#top').append(
     btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app), 'kind-building'),
     btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app), 'kind-building'),
     btn('Afdrukken', 'Afdrukken of PDF', () => printDialog(app)),
-    btn('♥ Steun', 'Kringo is gratis – steun de ontwikkeling via Ko-fi', () => window.open(DONATE_URL, '_blank', 'noopener'), 'donatebtn'),
     h('span', { class: 'sep' }),
     undoBtn, redoBtn, saveEl),
   setupPwa({ onFile: async (f) => { await app.save(); openProjectFile(app, f); } }),
-  kindEl);
+  kindEl,
+  btn('♥ Steun', 'Kringo is gratis – steun de ontwikkeling via Ko-fi', () => window.open(DONATE_URL, '_blank', 'noopener'), 'donatebtn'));
 
 // tools bar
 const tools = [
