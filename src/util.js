@@ -1,5 +1,8 @@
 // Small DOM / data helpers shared by every module.
 
+/** Donation page (Kringo is free; donating is optional). */
+export const DONATE_URL = 'https://ko-fi.com/gst84';
+
 export const uid = (p = '') =>
   p + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
 

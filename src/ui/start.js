@@ -1,5 +1,5 @@
 // Start screen and the "new project" dialog.
-import { h } from '../util.js';
+import { DONATE_URL, h } from '../util.js';
 import { modal } from './dialogs.js';
 import { createProject, importProjectFile } from './project.js';
 import { listProjects, loadProject } from '../storage.js';
@@ -47,7 +47,9 @@ export async function startScreen(app) {
       onclick: choose(async () => { const p = await loadProject(it.id); if (p) app.setProject(p); }),
     }, h('span', { class: 'kicon' }, it.kind === 'building' ? '🏠' : '🗄'), h('span', { class: 'rname' }, it.name),
     h('small', null, new Date(it.updated).toLocaleDateString())))) : h('p', { class: 'hint' }, 'Nog geen projecten in deze browser.'),
-    h('p', { class: 'hint' }, h('button', { class: 'link', onclick: choose(async () => { app.setProject(demoProject(app.lib)); await app.save(); }) }, 'Demoproject (stuurkast) openen')));
+    h('p', { class: 'hint' }, h('button', { class: 'link', onclick: choose(async () => { app.setProject(demoProject(app.lib)); await app.save(); }) }, 'Demoproject (stuurkast) openen')),
+    h('p', { class: 'donate' }, 'Kringo is gratis. Wil je de verdere ontwikkeling steunen? ',
+      h('a', { href: DONATE_URL, target: '_blank', rel: 'noopener' }, '♥ Doneer via Ko-fi')));
   const action = await modal({ title: 'Welkom bij Kringo', body, buttons: [], cls: 'start', bind: (c) => { close = c; } });
   if (typeof action === 'function') await action();
 }

@@ -16,7 +16,7 @@ import { prompt } from './ui/dialogs.js';
 import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
 import { locate } from './model.js';
-import { h } from './util.js';
+import { DONATE_URL, h } from './util.js';
 
 const lib = new Library();
 await lib.init();
@@ -58,6 +58,7 @@ $('#top').append(
     btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app), 'kind-building'),
     btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app), 'kind-building'),
     btn('Afdrukken', 'Afdrukken of PDF', () => printDialog(app)),
+    btn('♥ Steun', 'Kringo is gratis – steun de ontwikkeling via Ko-fi', () => window.open(DONATE_URL, '_blank', 'noopener'), 'donatebtn'),
     h('span', { class: 'sep' }),
     undoBtn, redoBtn, saveEl),
   setupPwa({ onFile: async (f) => { await app.save(); openProjectFile(app, f); } }),

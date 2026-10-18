@@ -2,6 +2,10 @@
 
 CAD-programma in de browser voor elektrische schema's. Geen installatie en geen build-stap: plain JavaScript (ES-modules) + SVG.
 
+## Steun Kringo
+
+Kringo is gratis. Wil je de verdere ontwikkeling steunen, dan kan dat via [Ko-fi](https://ko-fi.com/gst84). ♥
+
 ## Starten
 
 **Online, zonder installatie:** <https://gst84.github.io/kringo/> (Chrome of Edge, ook op Windows).
