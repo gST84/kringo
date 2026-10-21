@@ -5,7 +5,7 @@ import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
 import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, removeNode, rootBoards, treeChildren, wallFrame } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
-import { generateEendraad } from './eendraad.js';
+import { generateEendraad, INSTALL } from './eendraad.js';
 import { OPENING_TYPES } from './editor.js';
 
 const inp = (value, commit, { type = 'text', key, placeholder, list, step } = {}) => {
@@ -397,6 +397,7 @@ export async function circuitsDialog(app) {
           f('Icn', sel(node.kA || 3, [[3, '3000'], [4.5, '4500'], [6, '6000'], [10, '10000']], (v) => { node.kA = +v; })),
           f('Kabel', h('input', { type: 'text', value: node.cable || '', list: 'cables', class: 'tcable', onchange: (e) => { node.cable = e.target.value; } })),
           f('Brandkl.', sel(node.fire || '', [['', '—'], ['Eca', 'Eca'], ['Dca', 'Dca'], ['Cca', 'Cca'], ['B2ca', 'B2ca']], (v) => { node.fire = v; })),
+          f('Plaatsing', sel(node.install || 'tube-wall', Object.entries(INSTALL).map(([k, [l]]) => [k, l]), (v) => { node.install = v; })),
           f('Aders', sel(node.cores, [['3G', '3G'], ['5G', '5G'], ['2x', '2x'], ['4G', '4G']], (v) => { node.cores = v; })),
           f('mm²', sel(node.section, Object.keys(MAX_IN).map(Number).sort((x, y) => x - y).map((x) => [x, String(x).replace('.', ',')]), (v) => { node.section = +v; render(); }))
         );

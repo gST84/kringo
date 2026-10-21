@@ -156,6 +156,18 @@ AREI.push({
   graphics: [L(0, 0, 0, 5), L(-2.5, 5, 2.5, 5), L(-2.5, 7, 2.5, 7), L(0, 7, 0, 10), L(-2.5, 10, 2.5, 10), L(-2.5, 12, 2.5, 12), L(0, 12, 0, 16), L(-3, 16, 3, 16), L(-2, 17.3, 2, 17.3), L(-1, 18.6, 1, 18.6)],
   pins: [{ id: '1', x: 0, y: 0, name: '' }],
 });
+// Cable installation marks (AREI, "plaatsing van de leiding") for a vertical cable line at x = 0.
+const mark = (id, name, graphics) => ({
+  id: 'arei/mark-' + id, name, folder: F('Eendraad'), kind: 'mark', role: 'graphic', arei: true, pinText: false, hidden: true, graphics, pins: [],
+});
+AREI.push(
+  mark('wall', 'Leiding in een wand', [L(-3.4, -1.6, -3.4, 1.6), L(-3.4, -1.6, -1.6, -1.6), L(-3.4, 0, -1.6, 0), L(-3.4, 1.6, -1.6, 1.6)]),
+  mark('onwall', 'Leiding op een wand', [L(-1.6, -1.6, -1.6, 1.6), L(-1.6, -1.6, -3.4, -1.6), L(-1.6, 0, -3.4, 0), L(-1.6, 1.6, -3.4, 1.6)]),
+  mark('tube', 'Leiding in een buis', [C(-2.6, 0, 1.1)]),
+  mark('ground', 'Ondergrondse leiding', [L(-1.8, -1.8, -1.8, 1.8), L(-2.6, -1.2, -2.6, 1.2), L(-3.4, -0.6, -3.4, 0.6)]),
+  mark('overhead', 'Luchtleiding', [C(0, 0, 1.4, WHITE)]),
+);
+
 // Breaker for the Belgian single-line layout: busbar below (pin 1 at 0,0), circuit above (pin 2 at 0,-12).
 AREI.push({
   id: 'arei/mcb-v', name: 'Automaat (eendraad, verticaal)', folder: F('Eendraad'), kind: 'breaker', role: 'device', prefix: 'Q', arei: true, pinText: false,

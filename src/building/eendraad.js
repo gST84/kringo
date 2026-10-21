@@ -23,6 +23,16 @@ const X_START = 40, X_END = 408;
 
 const fmtSection = (s) => String(s ?? '').replace('.', ',');
 export const cableText = (c) => [c.cable, c.fire, `${c.cores || ''}${fmtSection(c.section)}²`].filter(Boolean).join(' ');
+/** Installation of the cable (AREI symbols), drawn along the circuit line: [mark, offset above the breaker]. */
+export const INSTALL = {
+  none: ['Algemeen (geen aanduiding)', []],
+  'tube-wall': ['In een buis in een wand', [['wall', -4], ['tube', -17], ['wall', -26]]],
+  wall: ['In een wand', [['wall', -4], ['wall', -26]]],
+  onwall: ['Op een wand', [['onwall', -4], ['onwall', -26]]],
+  tube: ['In een buis', [['tube', -17]]],
+  underground: ['Ondergronds', [['ground', -17]]],
+  overhead: ['Luchtleiding', [['overhead', -17]]],
+};
 const icn = (kA) => String(Math.round((kA || 3) * 1000));
 
 /** Groups the devices of a circuit into numbered branches. */
@@ -95,7 +105,6 @@ const circuitWidth = (branches) => Math.max(21, ...branches.map((br) => branchLe
 
 function builder(project, lib, board, title) {
   const b = project.building;
-  const marks = b.cableMarks !== false;
   const pages = [];
   let page, x;
   const comp = (sym, px, py, rot = 0) => {
@@ -187,6 +196,10 @@ function builder(project, lib, board, title) {
     }
   };
 
+  const installMarks = (c, top) => {
+    for (const [m, dy] of (INSTALL[c.install] || INSTALL['tube-wall'])[1]) comp('arei/mark-' + m, x, top + dy);
+  };
+
   const circuit = (c, base) => {
     const branches = buildBranches(b, lib, c);
     const w = circuitWidth(branches);
@@ -203,15 +216,11 @@ function builder(project, lib, board, title) {
     if (!branches.length) {
       wire([x, top], [x, top - 8]);
       vtext(x + 1, top - 10, fed.length ? `→ ${fed.join(', ')}` : label || 'Reserve', 2.3, { bold: true });
-      if (fed.length) vtext(x + 2.6, top - 3, cableText(c), 2.1);
+      if (fed.length) { vtext(x + 2.6, top - 3, cableText(c), 2.1); installMarks(c, top); }
       return w;
     }
     vtext(x + 2.6, top - 3, cableText(c), 2.1);
-    if (marks) {
-      text(x - 1.2, top - 4, 'E', 2.2, { anchor: 'end' });
-      text(x - 1.2, top - 17, '○', 2.2, { anchor: 'end' });
-      text(x - 1.2, top - 26, 'E', 2.2, { anchor: 'end' });
-    }
+    installMarks(c, top);
     // a single appliance (or a single socket) sits on top of the line
     const one = branches.length === 1 ? branches[0] : null;
     if (one && (one.type === 'box' || (one.type === 'sockets' && one.qty === 1))) {

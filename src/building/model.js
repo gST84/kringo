@@ -24,7 +24,7 @@ export function newRcd(parent, name = 'Differentieel 30 mA') {
 }
 
 export function newCircuit(name, parent) {
-  return { id: uid('k'), name, desc: '', parent, pos: 0, In: 20, poles: 2, curve: 'C', kA: 3, cable: 'VOB', fire: 'Eca', cores: '3G', section: 2.5 };
+  return { id: uid('k'), name, desc: '', parent, pos: 0, In: 20, poles: 2, curve: 'C', kA: 3, cable: 'VOB', fire: 'Eca', cores: '3G', section: 2.5, install: 'tube-wall' };
 }
 
 export function newBuilding() {
@@ -63,6 +63,7 @@ export function normalizeBuilding(b) {
     if (c.parent === undefined) c.parent = (c.rcd && b.rcds.some((r) => r.id === c.rcd)) ? c.rcd : c.board || b.boards[0].id;
     delete c.rcd; delete c.board;
     if (c.pos === undefined) c.pos = 100 + i;
+    if (c.install === undefined) c.install = b.cableMarks === false ? 'none' : 'tube-wall';
   });
   b.rcds.forEach((r, i) => { if (r.pos === undefined) r.pos = 500 + i; });
   b.boards.forEach((bd, i) => { if (bd.pos === undefined) bd.pos = 900 + i; });
