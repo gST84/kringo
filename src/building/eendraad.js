@@ -198,6 +198,13 @@ function builder(project, lib, board, title) {
 
   const installMarks = (c, top) => {
     for (const [m, dy] of (INSTALL[c.install] || INSTALL['tube-wall'])[1]) comp('arei/mark-' + m, x, top + dy);
+    // number of conductors from the cores ("3G2,5" → 3)
+    const n = parseInt(c.cores, 10);
+    if (c.showConductors !== false && n > 0) {
+      const y = top - 10;
+      if (n <= 3) comp('arei/mark-cond' + n, x, y);
+      else { comp('arei/mark-condn', x, y); text(x - 2, y - 1.6, String(n), 1.9, { anchor: 'end' }); }
+    }
   };
 
   const circuit = (c, base) => {

@@ -166,6 +166,10 @@ AREI.push(
   mark('tube', 'Leiding in een buis', [C(-2.6, 0, 1.1)]),
   mark('ground', 'Ondergrondse leiding', [L(-1.8, -1.8, -1.8, 1.8), L(-2.6, -1.2, -2.6, 1.2), L(-3.4, -0.6, -3.4, 0.6)]),
   mark('overhead', 'Luchtleiding', [C(0, 0, 1.4, WHITE)]),
+  // number of conductors: one slash per conductor up to 3, otherwise one slash with the number
+  ...[1, 2, 3].map((n) => mark('cond' + n, `${n} geleider(s)`,
+    Array.from({ length: n }, (_, i) => L(-1.5, 0.9 + (i - (n - 1) / 2) * 1.3, 1.5, -0.9 + (i - (n - 1) / 2) * 1.3)))),
+  mark('condn', 'n geleiders', [L(-1.5, 0.9, 1.5, -0.9)]),
 );
 
 // Breaker for the Belgian single-line layout: busbar below (pin 1 at 0,0), circuit above (pin 2 at 0,-12).
