@@ -38,7 +38,43 @@ export function newBuilding() {
     boards: [board],
     rcds: [rcd],
     circuits: [newCircuit('A', rcd.id)],
+    domotics: { modules: [] },
   };
+}
+
+// ---------- domotics ----------
+// Modules sit in a board; every module has 1 … 32 channels. A load on the plan is driven by one output
+// channel (symbol.dom = 'moduleId:channel'); push buttons / sensors can sit on an input channel.
+
+export const MODULE_TYPES = {
+  switch: { label: 'Schakelmodule', channels: 8, out: true },
+  dimmer: { label: 'Dimmermodule', channels: 4, out: true },
+  blind: { label: 'Rolluikmodule', channels: 3, out: true },
+  input: { label: 'Ingangsmodule', channels: 8, out: false },
+};
+export const MAX_CHANNELS = 32;
+
+export function newModule(b, type = 'switch') {
+  const used = new Set(b.domotics.modules.map((m) => m.name));
+  let i = 1;
+  while (used.has('M' + i)) i++;
+  return { id: uid('dm'), name: 'M' + i, type, channels: MODULE_TYPES[type].channels, board: rootBoards(b)[0]?.id || '', circuit: '', desc: '' };
+}
+
+/** 'M1.4' for a symbol driven by (or wired to) a domotics channel, '' otherwise. */
+export function domAddress(b, s) {
+  if (!s?.dom) return '';
+  const [mid, ch] = s.dom.split(':');
+  const m = b.domotics?.modules.find((x) => x.id === mid);
+  return m && +ch <= m.channels ? `${m.name}.${ch}` : '';
+}
+
+/** Symbols on a channel, over all floors: [{s, floor}]. */
+export function channelUsers(b, moduleId, ch) {
+  const key = `${moduleId}:${ch}`;
+  const out = [];
+  for (const f of b.floors) for (const s of f.symbols) if (s.dom === key) out.push({ s, floor: f });
+  return out;
 }
 
 export function normalizeBuilding(b) {
@@ -53,6 +89,8 @@ export function normalizeBuilding(b) {
   if (!b.boards.length) b.boards.push(newBoard());
   b.rcds ||= [];
   b.circuits ||= [];
+  b.domotics ||= { modules: [] };
+  b.domotics.modules ||= [];
   // migrate the flat structure (board.rcds, circuit.board / circuit.rcd) to the tree
   for (const bd of b.boards) {
     bd.main ||= { In: 40, poles: 2, rcd: 300 };

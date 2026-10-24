@@ -99,6 +99,7 @@ export const AREI = [
   boxDef('freezer', 'Diepvriezer', box(T(0, 0.6, '***', 3.6))),
   boxDef('fridge', 'Koelkast', box(T(0, 0.9, '*', 5))),
   boxDef('hob', 'Kookplaten', box(C(1.6, -1.6, 0.6, INK), C(-1.6, 1.6, 0.6, INK), C(1.6, 1.6, 0.6, INK))),
+  boxDef('blind', 'Rolluik / screen (motor)', box(C(0, 0, 2.3), T(0, 0.1, 'M', 2.4))),
   boxDef('microwave', 'Microgolfoven', box(...[-1.8, 0, 1.8].map((y) => P(`M -1.8 ${y} q 0.9 -1 1.8 0 t 1.8 0`)))),
   boxDef('oven', 'Oven', box(L(-3.5, -1.5, 3.5, -1.5), C(0, 1.1, 0.6, INK))),
   boxDef('dishwasher', 'Vaatwasmachine', box(L(-3.5, -3.5, 3.5, 3.5), L(-3.5, 3.5, 3.5, -3.5), C(0, 0, 1.4, WHITE))),
@@ -123,14 +124,18 @@ export const AREI = [
   def('dimmer', 'Dimmer', 'Schakelaars', 'switch', [...switchBase(), P('M -2.8 1.6 L -0.9 -1.4 M -0.9 -1.4 L -2 -1.1 M -0.9 -1.4 L -1.1 -0.3')], { wall: true, pinY: 1.1, prefix: 'S', extra: { order: 0 } }),
   def('push', 'Drukknop', 'Schakelaars', 'push', [C(0, 0, 2), C(0, 0, 0.8, INK)], { wall: true, pinY: 2, prefix: 'S' }),
   def('motion', 'Bewegingsmelder', 'Schakelaars', 'switch', [P('M -2.5 1 A 2.5 2.5 0 0 1 2.5 1 Z'), P('M -1.6 -2.6 A 3.5 3.5 0 0 1 1.6 -2.6')], { wall: true, pinY: 1, prefix: 'B' }),
+  def('motion-ceiling', 'Bewegingsmelder (plafond, 360°)', 'Schakelaars', 'switch', [C(0, 0, 2), P('M -3.3 -1.4 A 3.6 3.6 0 0 1 -1.4 -3.3'), P('M 1.4 -3.3 A 3.6 3.6 0 0 1 3.3 -1.4'), P('M 3.3 1.4 A 3.6 3.6 0 0 1 1.4 3.3'), P('M -1.4 3.3 A 3.6 3.6 0 0 1 -3.3 1.4')], { pinY: 2, prefix: 'B' }),
   def('thermostat', 'Thermostaat', 'Schakelaars', 'other', [C(0, 0, 2.2), T(0, 0, 'θ', 2.2)], { wall: true, pinY: 2.2, prefix: 'B' }),
 
   // Domotica
   def('dom-in', 'Domotica ingang (drukknop)', 'Domotica', 'dom-in', [R(-2.5, -2.5, 5, 5), T(0, 0, 'I', 2.2)], { wall: true, prefix: 'S' }),
   def('dom-sensor', 'Domotica sensor', 'Domotica', 'dom-in', [R(-2.5, -2.5, 5, 5), T(0, 0, 'S', 2.2)], { prefix: 'B' }),
-  def('dom-out', 'Domotica uitgang (relais)', 'Domotica', 'dom-out', [R(-2.5, -2.5, 5, 5), T(0, 0, 'O', 2.2)], { prefix: 'K' }),
-  def('dom-dim', 'Domotica dimmer', 'Domotica', 'dom-out', [R(-2.5, -2.5, 5, 5), T(0, 0, 'D', 2.2)], { prefix: 'K' }),
-  def('dom-blind', 'Domotica rolluik', 'Domotica', 'dom-out', [R(-2.5, -2.5, 5, 5), T(0, 0, 'R', 2.2)], { prefix: 'K' }),
+  def('dom-motion', 'Domotica bewegingsmelder', 'Domotica', 'dom-in', [R(-2.5, -2.5, 5, 5), P('M -1.6 1.2 A 1.6 1.6 0 0 1 1.6 1.2 Z'), P('M -1.1 -0.9 A 1.9 1.9 0 0 1 1.1 -0.9')], { wall: true, prefix: 'B' }),
+  def('dom-presence', 'Domotica aanwezigheidsmelder (plafond)', 'Domotica', 'dom-in', [C(0, 0, 2.6), T(0, 0, 'P', 2.2)], { pinY: 2.6, prefix: 'B' }),
+  // outputs sit in the board (modules in the Domotica dialog); kept hidden for older projects
+  def('dom-out', 'Domotica uitgang (relais)', 'Domotica', 'dom-out', [R(-2.5, -2.5, 5, 5), T(0, 0, 'O', 2.2)], { prefix: 'K', extra: { hidden: true } }),
+  def('dom-dim', 'Domotica dimmer', 'Domotica', 'dom-out', [R(-2.5, -2.5, 5, 5), T(0, 0, 'D', 2.2)], { prefix: 'K', extra: { hidden: true } }),
+  def('dom-blind', 'Domotica rolluik', 'Domotica', 'dom-out', [R(-2.5, -2.5, 5, 5), T(0, 0, 'R', 2.2)], { prefix: 'K', extra: { hidden: true } }),
 
   // Energie
   def('board', 'Verdeelbord', 'Energie', 'board', [R(-4, -2.5, 8, 5), P('M -4 2.5 L 4 -2.5 L 4 2.5 Z', INK)], { wall: true, prefix: 'A' }),
@@ -191,3 +196,16 @@ AREI.push(
   line2('mainswitch', 'Hoofdschakelaar (eendraad)', 'mainswitch', [L(0, 0, 0, 7), L(0, 13, 0, 20), L(0, 13, -4.5, 6.5), L(-2.25, 9.75, -8, 9.75, { dash: true }), P('M -10 7.5 L -8.5 7.5 L -8.5 12 L -7 12')]),
   line2('kwh', 'kWh-meter (eendraad)', 'meter', [L(0, 0, 0, 5), R(-5, 5, 10, 10), T(0, 10, 'kWh', 2.2), L(0, 15, 0, 20)], 'P', false),
 );
+
+// Domotics in the single-line diagram: an output contact on a branch (pins left / right, white box over
+// the line, normally open contact inside) and the modules box on the circuit that feeds them.
+AREI.push({
+  id: 'arei/dom-relay', name: 'Domotica-uitgang (eendraad)', folder: F('Eendraad'), kind: 'dom-relay', role: 'device', prefix: 'K', arei: true, pinText: false, hidden: true,
+  graphics: [R(-2.6, -1.8, 5.2, 3.6, WHITE), L(-2.6, 0, -0.9, 0), L(-0.9, 0, 1.1, -1.2), L(1.1, 0, 2.6, 0)],
+  pins: [{ id: '1', x: -2.6, y: 0, name: '' }, { id: '2', x: 2.6, y: 0, name: '' }],
+});
+AREI.push({
+  id: 'arei/dom-module', name: 'Domotica-modules (eendraad)', folder: F('Eendraad'), kind: 'appliance', role: 'device', prefix: 'K', arei: true, pinText: false, hidden: true, box: true, half: 3.5,
+  graphics: [R(-3.5, -3.5, 7, 7, WHITE), R(-2.3, -2.3, 4.6, 4.6), L(-2.3, 0, 2.3, 0), L(0, -2.3, 0, 2.3)],
+  pins: [{ id: '1', x: 0, y: 3.5, name: '' }],
+});

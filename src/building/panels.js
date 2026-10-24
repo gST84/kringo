@@ -1,10 +1,10 @@
 // Panels and dialogs of the building mode: floors, AREI symbol library, properties, circuits.
 import { t } from '../i18n.js';
-import { clone, h, natCmp } from '../util.js';
+import { clone, download, h, natCmp, safeName, toCsv } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, wallGeom } from './model.js';
+import { channelUsers, circuitSymbols, domAddress, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
@@ -337,7 +337,9 @@ function symbolProps(app, plan, s) {
   if (kind === 'pv') extra.push(field('Piekvermogen (Wp)', inp(s.props.wp, setProp('wp'), { type: 'number', key: 'wp' })), field('Aantal panelen', inp(s.props.count, setProp('count'), { type: 'number', key: 'pc' })));
   if (kind === 'inverter') extra.push(field('Vermogen (kW)', inp(s.props.kw, setProp('kw'), { type: 'number', key: 'kw' })));
   if (kind === 'battery') extra.push(field('Capaciteit (kWh)', inp(s.props.kwh, setProp('kwh'), { type: 'number', key: 'kwh' })));
-  if (kind === 'dom-in' || kind === 'dom-out') extra.push(field('Domotica-adres / kanaal', inp(s.props.addr, setProp('addr'), { key: 'da', placeholder: 'bv. module 2 – kanaal 4' })));
+  if (kind === 'dom-out') extra.push(field('Domotica-adres / kanaal', inp(s.props.addr, setProp('addr'), { key: 'da', placeholder: 'bv. module 2 – kanaal 4' })));
+  const domSel = domChannelSelect(app, s);
+  if (domSel) extra.push(domSel);
   const symById = new Map(f.symbols.map((x) => [x.id, x]));
   const links = f.links.filter((l) => l.a === s.id || l.b === s.id);
   const label = (o) => {
@@ -471,6 +473,155 @@ function floorProps(app, plan) {
     section('Sneltoetsen', h('p', { class: 'hint keys' },
       'W muur (cijfers + Enter = lengte in cm) · A gebogen muur · D deur · N raam · M maatlijn · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),
   ];
+}
+
+// ---------- domotics ----------
+
+/** Loads that can hang on an output channel, and controls that sit on an input channel. */
+const isLoad = (def) => ['light', 'socket', 'appliance', 'other'].includes(def?.kind);
+const isInput = (def) => def?.kind === 'dom-in';
+
+/** Short description of a plan symbol: "A3 Lichtpunt – Keuken (Gelijkvloers)". */
+function symLabel(app, s, floor) {
+  const b = app.project.building;
+  const c = b.circuits.find((x) => x.id === s.circuit);
+  const def = app.lib.get(s.sym);
+  const room = s.props?.room ? ` – ${s.props.room}` : '';
+  const addr = isInput(def) ? domAddress(b, s) : '';
+  return `${c ? c.name + (s.n ?? '') + ' ' : ''}${addr ? addr + ' ' : ''}${t(def?.name || '?')}${room}${floor && b.floors.length > 1 ? ` (${floor.name})` : ''}`;
+}
+
+/** Channel choice in the symbol properties: output channels for loads, input channels for push buttons. */
+function domChannelSelect(app, s) {
+  const b = app.project.building;
+  const def = app.lib.get(s.sym);
+  const input = isInput(def);
+  if (!input && !isLoad(def)) return null;
+  const mods = b.domotics.modules.filter((m) => !!MODULE_TYPES[m.type]?.out !== input);
+  if (!mods.length) {
+    return field(input ? 'Domotica-ingang' : 'Gestuurd door domotica', h('button', { onclick: () => domoticsDialog(app) }, '＋ Domotica-module toevoegen…'));
+  }
+  const el = h('select', { 'data-key': 'dom' },
+    h('option', { value: '' }, '— geen —'),
+    mods.map((m) => h('optgroup', { label: `${m.name} – ${t(MODULE_TYPES[m.type].label)}${m.desc ? ' – ' + m.desc : ''}` },
+      Array.from({ length: m.channels }, (_, i) => {
+        const key = `${m.id}:${i + 1}`;
+        const users = channelUsers(b, m.id, i + 1).filter(({ s: o }) => o !== s);
+        return h('option', { value: key, selected: s.dom === key },
+          `${m.name}.${i + 1}${users.length ? ' · ' + users.map(({ s: o }) => symLabel(app, o)).join(', ') : ' ' + t('(vrij)')}`);
+      }))));
+  el.addEventListener('change', () => app.mutate(() => { if (el.value) s.dom = el.value; else delete s.dom; }));
+  return field(input ? 'Domotica-ingang' : 'Gestuurd door domotica', el, input ? 'Kanaal van een ingangsmodule.' : 'Het relaiscontact komt in de aftakking van het eendraadschema.');
+}
+
+/** Domotics: modules in the boards and what every channel drives. Changes apply directly (undo works). */
+export function domoticsDialog(app) {
+  const body = h('div', { class: 'domotics' });
+  const collapsed = new Set();
+  const render = () => {
+    const b = app.project.building;
+    const mods = b.domotics.modules;
+    const set = (fn) => { app.mutate(fn); render(); };
+    const allSyms = b.floors.flatMap((f) => f.symbols.map((s) => ({ s, floor: f })));
+    const linkedButtons = (users) => {
+      const ids = new Set(users.map(({ s }) => s.id));
+      const out = [];
+      for (const f of b.floors) for (const l of f.links) {
+        for (const [x, y] of [[l.a, l.b], [l.b, l.a]]) {
+          if (!ids.has(x)) continue;
+          const o = f.symbols.find((q) => q.id === y);
+          if (o && isInput(app.lib.get(o.sym)) && !out.some((q) => q.s === o)) out.push({ s: o, floor: f });
+        }
+      }
+      return out;
+    };
+    const add = h('div', { class: 'btnrow' }, Object.entries(MODULE_TYPES).map(([type, mt]) =>
+      h('button', { onclick: () => set(() => { mods.push(newModule(b, type)); }) }, '＋ ' + t(mt.label))));
+    const blocks = mods.map((m) => {
+      const mt = MODULE_TYPES[m.type] || MODULE_TYPES.switch;
+      const num = h('input', { type: 'number', min: 1, max: MAX_CHANNELS, value: m.channels, class: 'tnum' });
+      num.addEventListener('change', () => set(() => { m.channels = Math.max(1, Math.min(MAX_CHANNELS, parseInt(num.value, 10) || 1)); }));
+      const txt = (value, commit, cls, ph) => {
+        const el = h('input', { type: 'text', value: value || '', class: cls, placeholder: ph });
+        el.addEventListener('change', () => set(() => commit(el.value)));
+        return el;
+      };
+      const pick = (value, options, commit) => {
+        const el = h('select', null, options.map(([v, l]) => h('option', { value: v, selected: String(v) === String(value ?? '') }, l)));
+        el.addEventListener('change', () => set(() => commit(el.value)));
+        return el;
+      };
+      const open = !collapsed.has(m.id);
+      const head = h('div', { class: 'dmhead' },
+        h('button', { class: 'icon caretbtn', title: open ? 'Inklappen' : 'Uitklappen', onclick: () => { if (open) collapsed.add(m.id); else collapsed.delete(m.id); render(); } }, open ? '▾' : '▸'),
+        txt(m.name, (v) => { m.name = v || m.name; }, 'tname'),
+        pick(m.type, Object.entries(MODULE_TYPES).map(([k, v]) => [k, t(v.label)]), (v) => { m.type = v; }),
+        h('label', { class: 'tf' }, h('span', null, 'Kanalen'), num),
+        h('label', { class: 'tf' }, h('span', null, 'Bord'), pick(m.board, b.boards.map((x) => [x.id, x.name]), (v) => { m.board = v; })),
+        h('label', { class: 'tf' }, h('span', null, 'Voeding'), pick(m.circuit, [['', '—'], ...circuitOptions(b, false)], (v) => { m.circuit = v; })),
+        txt(m.desc, (v) => { m.desc = v; }, 'tdesc', t('Omschrijving')),
+        h('button', {
+          class: 'icon danger', title: 'Module verwijderen',
+          onclick: async () => {
+            if (!(await confirmDlg('Module verwijderen', t('{name} verwijderen? De toegewezen symbolen worden losgekoppeld.', { name: m.name }), 'Verwijderen', true))) return;
+            set(() => {
+              b.domotics.modules = b.domotics.modules.filter((x) => x !== m);
+              for (const { s } of allSyms) if (s.dom?.startsWith(m.id + ':')) delete s.dom;
+            });
+          },
+        }, '🗑'));
+      if (!open) return h('div', { class: 'dmod' }, head);
+      const candidates = allSyms.filter(({ s }) => !s.dom && (mt.out ? isLoad(app.lib.get(s.sym)) : isInput(app.lib.get(s.sym))));
+      const rows = Array.from({ length: m.channels }, (_, i) => {
+        const ch = i + 1;
+        const users = channelUsers(b, m.id, ch);
+        const assign = h('select', { class: 'dmassign' },
+          h('option', { value: '' }, '＋ toewijzen…'),
+          candidates.map(({ s, floor }) => h('option', { value: s.id }, symLabel(app, s, floor))));
+        assign.addEventListener('change', () => {
+          const hit = allSyms.find(({ s }) => s.id === assign.value);
+          if (hit) set(() => { hit.s.dom = `${m.id}:${ch}`; });
+        });
+        const buttons = mt.out ? linkedButtons(users) : [];
+        return h('tr', null,
+          h('td', { class: 'dmaddr' }, `${m.name}.${ch}`),
+          h('td', null, users.length ? users.map(({ s, floor }) => h('span', { class: 'dmchip' }, symLabel(app, s, floor),
+            h('button', { class: 'link', title: 'Loskoppelen', onclick: () => set(() => { delete s.dom; }) }, '✕'))) : h('span', { class: 'hint' }, 'vrij')),
+          mt.out ? h('td', { class: 'hint' }, buttons.map(({ s, floor }) => symLabel(app, s, floor)).join(', ')) : null,
+          h('td', null, candidates.length ? assign : null));
+      });
+      const beyond = allSyms.filter(({ s }) => s.dom?.startsWith(m.id + ':') && +s.dom.split(':')[1] > m.channels).length;
+      return h('div', { class: 'dmod' }, head,
+        h('table', { class: 'list dmtable' },
+          h('thead', null, h('tr', null, h('th', null, 'Kanaal'), h('th', null, mt.out ? 'Stuurt' : 'Ingang'), mt.out ? h('th', null, 'Bediening') : null, h('th', null, ''))),
+          h('tbody', null, rows)),
+        beyond ? h('p', { class: 'warn' }, t('{n} symbool/symbolen op een kanaal boven {max}: verhoog het aantal kanalen of wijs ze opnieuw toe.', { n: beyond, max: m.channels })) : null);
+    });
+    body.replaceChildren(
+      h('p', { class: 'hint' }, 'Modules zitten in het verdeelbord. Wijs per kanaal toe wat het stuurt, hier of bij het symbool zelf (eigenschappen). Koppel op het plan drukknoppen aan lampen om de bediening te tonen.'),
+      add,
+      ...(blocks.length ? blocks : [h('p', { class: 'hint' }, 'Nog geen modules.')]));
+  };
+  render();
+  const csv = () => {
+    const b = app.project.building;
+    const rows = [['Adres', 'Module', 'Type', 'Bord', 'Stuurt / ingang', 'Kring', 'Ruimte']];
+    for (const m of b.domotics.modules) for (let ch = 1; ch <= m.channels; ch++) {
+      const users = channelUsers(b, m.id, ch);
+      const board = b.boards.find((x) => x.id === m.board)?.name || '';
+      if (!users.length) rows.push([`${m.name}.${ch}`, m.desc || m.name, t(MODULE_TYPES[m.type]?.label || ''), board, '', '', '']);
+      for (const { s, floor } of users) {
+        const c = b.circuits.find((x) => x.id === s.circuit);
+        rows.push([`${m.name}.${ch}`, m.desc || m.name, t(MODULE_TYPES[m.type]?.label || ''), board, t(app.lib.get(s.sym)?.name || ''), c ? c.name + (s.n ?? '') : '', [s.props?.room, floor.name].filter(Boolean).join(' – ')]);
+      }
+    }
+    download(`${safeName(app.project.name)} - ${t('Domotica')}.csv`, '\ufeff' + toCsv(rows.map((r) => r.map((x) => t(x)))), 'text/csv;charset=utf-8');
+  };
+  return modal({
+    title: 'Domotica', wide: true, body,
+    buttons: [{ label: 'CSV exporteren', value: 'csv' }, { label: 'Sluiten', value: true, primary: true }],
+    onButton: (v) => { if (v === 'csv') { csv(); return false; } return true; },
+  });
 }
 
 const NOTE_COLORS = ['#1f2937', '#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed'];

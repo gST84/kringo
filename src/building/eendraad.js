@@ -11,7 +11,7 @@
 import { t } from '../i18n.js';
 import { newPage } from '../model.js';
 import { uid } from '../util.js';
-import { circuitSymbols, treeChildren, treeNode, rootBoards } from './model.js';
+import { circuitSymbols, domAddress, treeChildren, treeNode, rootBoards } from './model.js';
 
 const MAIN_Y = 222; // main busbar
 const SUB_DY = 40; // main busbar → busbar of a residual current device
@@ -47,7 +47,15 @@ export function buildBranches(building, lib, circuit) {
   const symById = new Map();
   for (const f of building.floors) for (const s of f.symbols) symById.set(s.id, s);
   const kindOf = (s) => lib.get(s.sym)?.kind;
-  const isControl = (s) => ['switch', 'push', 'dom-in'].includes(kindOf(s));
+  // domotics push buttons / sensors are on the bus, not on the 230 V single-line diagram
+  const isControl = (s) => ['switch', 'push'].includes(kindOf(s));
+  const addr = (s) => domAddress(building, s);
+  const branchOf = (s, def, relay) => {
+    const kind = def?.kind;
+    if (kind === 'socket' || (kind === 'appliance' && !def.box)) return { type: 'sockets', sym: s.sym, qty: Math.max(1, parseInt(s.props?.qty, 10) || 1), units: def.units || 1, relay };
+    if (def?.box) return { type: 'box', sym: s.sym, relay };
+    return { type: 'single', sym: s.sym, relay };
+  };
   const branches = [];
   // switches first, so the lights they control (which may share their number) end up in their chain;
   // the branches are put back in the order of the numbers afterwards
@@ -57,6 +65,21 @@ export function buildBranches(building, lib, circuit) {
     const at = branches.length;
     const def = lib.get(s.sym);
     const kind = def?.kind;
+    if (kind === 'dom-in' || kind === 'dom-out') { used.add(s.id); continue; }
+    const relay = addr(s);
+    if (relay && !isControl(s)) {
+      // everything on this domotics channel in this circuit: the relay contact, then the loads
+      const same = items.map(({ s: o }) => o).filter((o) => !used.has(o.id) && o.dom === s.dom);
+      const groups = new Map();
+      for (const o of same) {
+        used.add(o.id);
+        if (kindOf(o) === 'light') groups.set(o.sym, (groups.get(o.sym) || 0) + 1);
+      }
+      if (groups.size) branches.push({ type: 'chain', switches: [], relay, lights: [...groups].map(([sym, count]) => ({ sym, count })) });
+      for (const o of same) if (kindOf(o) !== 'light') branches.push(branchOf(o, lib.get(o.sym), relay));
+      for (let i = at; i < branches.length; i++) branches[i].n = s.n || 0;
+      continue;
+    }
     used.add(s.id);
     if (isControl(s)) {
       // everything reachable through the links (chains like switch → switch → light → light):
@@ -70,7 +93,7 @@ export function buildBranches(building, lib, circuit) {
           const o = symById.get(id);
           if (!o || seen.has(id)) continue;
           seen.add(id);
-          if (kindOf(o) === 'light') { lights.push(o); queue.push(id); }
+          if (kindOf(o) === 'light' && !addr(o)) { lights.push(o); queue.push(id); }
           else if (isControl(o)) { switches.add(o); queue.push(id); }
         }
       }
@@ -88,20 +111,24 @@ export function buildBranches(building, lib, circuit) {
       branches.push({ type: 'chain', switches: chain.map((o) => o.sym), lights: [...groups].map(([sym, count]) => ({ sym, count })) });
     } else if (kind === 'light') {
       branches.push({ type: 'chain', switches: [], lights: [{ sym: s.sym, count: 1 }] });
-    } else if (kind === 'socket' || (kind === 'appliance' && !def.box)) {
-      branches.push({ type: 'sockets', sym: s.sym, qty: Math.max(1, parseInt(s.props?.qty, 10) || 1), units: def.units || 1 });
-    } else if (def?.box) {
-      branches.push({ type: 'box', sym: s.sym });
     } else {
-      branches.push({ type: 'single', sym: s.sym });
+      const { relay: _, ...br } = branchOf(s, def, '');
+      branches.push(br);
     }
     if (branches.length > at) branches[at].n = s.n || 0;
   }
+  // a circuit feeding domotics modules: the modules as an appliance box, first
+  const mods = (building.domotics?.modules || []).filter((m) => m.circuit === circuit.id);
+  if (mods.length) branches.push({ type: 'box', sym: 'arei/dom-module', label: mods.map((m) => m.name).join(', '), n: -1 });
   return branches.sort((x, y) => x.n - y.n).map(({ n, ...br }) => br);
 }
 
 const socketLen = (units) => 5 + (units - 1) * 4.5;
+const RELAY_W = 7; // room for a domotics output contact at the start of a branch
 function branchLength(br) {
+  return (br.relay ? RELAY_W : 0) + (br.label ? br.label.length * 1.4 + 2 : 0) + branchBody(br);
+}
+function branchBody(br) {
   if (br.type === 'chain') return 4 + br.switches.length * SW + br.lights.length * 8 + 4;
   if (br.type === 'sockets') return 4 + br.qty * (socketLen(br.units) + 1.5);
   if (br.type === 'box') return 4 + 2 * 7;
@@ -165,7 +192,15 @@ function builder(project, lib, board, title) {
   const breakerTexts = (bx, by, lines) => lines.forEach((t, i) => vtext(bx + 2.6 + i * 3, by - MCB_H / 2, t.text, 2.1, { anchor: 'middle', ...(t.box ? { box: true } : {}) }));
 
   const drawBranch = (br, lx, y) => {
-    const px = lx + 4;
+    let px = lx + 4;
+    if (br.relay) {
+      // domotics output contact with its address, then the loads
+      comp('arei/dom-relay', px + 2.6, y);
+      text(px + 2.6, y - 3.4, br.relay, 2, { anchor: 'middle' });
+      px += RELAY_W;
+      lx += RELAY_W;
+      wire([lx - RELAY_W, y], [lx, y]);
+    }
     if (br.type === 'chain') {
       const placed = [];
       let cx = px + 1.1;
@@ -195,6 +230,7 @@ function builder(project, lib, board, title) {
     } else if (br.type === 'box') {
       wire([lx, y], [px, y]);
       comp(br.sym, px + (lib.get(br.sym)?.half || 3.5), y);
+      if (br.label) text(px + 2 * (lib.get(br.sym)?.half || 3.5) + 1.5, y, br.label, 2.2);
     } else {
       const pinY = lib.get(br.sym)?.pins?.[0]?.y ?? 2.5;
       wire([lx, y], [px, y]);
@@ -236,7 +272,7 @@ function builder(project, lib, board, title) {
     installMarks(c, top);
     // a single appliance (or a single socket) sits on top of the line
     const one = branches.length === 1 ? branches[0] : null;
-    if (one && (one.type === 'box' || (one.type === 'sockets' && one.qty === 1))) {
+    if (one && !one.relay && !one.label && (one.type === 'box' || (one.type === 'sockets' && one.qty === 1))) {
       wire([x, top], [x, first]);
       if (one.type === 'box') comp(one.sym, x, first - (lib.get(one.sym)?.pins?.[0]?.y ?? 3.5));
       else {

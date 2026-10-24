@@ -415,3 +415,18 @@ button .icon svg { display: block; }
 
 #top .menu button.iconbtn { padding-left: 7px; padding-right: 7px; }
 #top .menu button.iconbtn .icon svg { width: 18px; height: 18px; }
+
+/* domotics */
+.plan .cdom { fill: #7c3aed; font-weight: bold; }
+.domotics .dmod { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 8px 0; }
+.domotics .dmhead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.domotics .dmhead select, .domotics .dmhead input { width: auto; min-width: 0; }
+.domotics .dmhead .tf span { color: var(--muted); font-size: 12px; }
+.domotics .dmhead .tname { width: 56px; font-weight: bold; }
+.domotics .dmhead .tnum { width: 56px; }
+.domotics .dmhead .tdesc { flex: 1; min-width: 120px; }
+.domotics .dmhead .tf { display: inline-flex; gap: 4px; align-items: center; }
+.domotics .dmtable { margin-top: 6px; }
+.domotics .dmaddr { font-weight: bold; white-space: nowrap; width: 1%; }
+.domotics .dmchip { display: inline-flex; gap: 4px; align-items: center; background: var(--panel2); border-radius: 10px; padding: 1px 8px; margin: 1px 4px 1px 0; }
+.domotics .dmassign { max-width: 220px; }

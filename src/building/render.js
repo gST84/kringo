@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { wallGeom, wallPath } from './model.js';
+import { domAddress, wallGeom, wallPath } from './model.js';
 
 /** Sheet millimetres per plan centimetre. */
 export const planK = (b) => 10 / (b.scale || 50);
@@ -312,10 +312,12 @@ function stripSvg(sym, k, building, sel, opts) {
   s += `<circle class="strip-feed" cx="${r2(P[0][0])}" cy="${r2(P[0][1])}" r="${r2(0.75 * mm)}"/>`;
   const c = building.circuits.find((x) => x.id === sym.circuit);
   const label = c ? `${c.name}${sym.n ?? ''}` : '';
-  if (label || (opts.showRooms && sym.props?.room)) {
+  if (label || (opts.showRooms && sym.props?.room) || sym.dom) {
     s += `<g transform="translate(${r2(P[0][0])} ${r2(P[0][1])}) scale(${r2(mm)})">`;
     if (label) s += textSvg(1.8, -2.4, label, 2, 'start', 'tx clabel');
     if (opts.showRooms && sym.props?.room) s += textSvg(1.8, -0.2, sym.props.room, 1.5, 'start', 'tx croom');
+    const dom = domAddress(building, sym);
+    if (dom) s += textSvg(label ? 1.8 + label.length * 1.3 : 1.8, -2.4, dom, 1.7, 'start', 'tx cdom');
     s += '</g>';
   }
   if (!opts.print) s += `<polyline class="hit" points="${d}" style="fill:none;stroke-width:${r2(4 * mm)}"/>`;
@@ -335,6 +337,8 @@ function symbolSvg(sym, def, k, building, sel, opts) {
   const label = c ? `${c.name}${sym.n ?? ''}` : '';
   if (label) s += textSvg(3.6, -3.2, label, 2, 'start', 'tx clabel');
   if (opts.showRooms && sym.props?.room) s += textSvg(3.6, -0.8, sym.props.room, 1.5, 'start', 'tx croom');
+  const dom = domAddress(building, sym);
+  if (dom) s += textSvg(3.6, opts.showRooms && sym.props?.room ? 1.2 : -0.9, dom, 1.7, 'start', 'tx cdom');
   if (!opts.print) s += `<circle class="hit" cx="0" cy="0" r="4.5"/>`;
   return s + '</g>';
 }
@@ -413,7 +417,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
 .plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
-.plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}
+.plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.cdom{fill:#7c3aed;font-weight:bold}
 `;
 
 export function standalonePlanSvg(project, floorIdx, lib) {

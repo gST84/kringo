@@ -3,7 +3,7 @@ import { App } from './app.js';
 import { Library } from './symbols/library.js';
 import { SchematicEditor } from './schematic/editor.js';
 import { PlanEditor } from './building/editor.js';
-import { buildingLeftPanel, buildingProps, circuitOptions, circuitsDialog, generateDialog } from './building/panels.js';
+import { buildingLeftPanel, buildingProps, circuitOptions, circuitsDialog, domoticsDialog, generateDialog } from './building/panels.js';
 import { libraryPanel, pagesPanel, propertiesPanel } from './ui/panels.js';
 import { listsDialog } from './ui/lists.js';
 import { openSymbolEditor } from './ui/symbolEditor.js';
@@ -59,6 +59,7 @@ $('#top').append(
     btn('Hernummeren', 'Toestellen / klemmen hernummeren', () => renumberDialog(app), 'kind-schematic'),
     btn('Lijsten', 'Toestellen-, klemmen-, draad- en PLC-lijst', () => listsDialog(app), 'kind-schematic'),
     btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app), 'kind-building'),
+    btn('Domotica', 'Domotica-modules en hun kanalen', () => domoticsDialog(app), 'kind-building'),
     btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app), 'kind-building'),
     h('span', { class: 'sep' }),
     undoBtn, redoBtn, saveEl),
