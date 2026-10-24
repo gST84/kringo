@@ -1,6 +1,7 @@
 // Small DOM / data helpers shared by every module.
 
 /** Donation page (Kringo is free; donating is optional). */
+export const MANUAL_URL = 'https://github.com/gST84/kringo/blob/main/docs/HANDLEIDING.md';
 export const DONATE_URL = 'https://ko-fi.com/gst84';
 
 export const uid = (p = '') =>
@@ -29,6 +30,7 @@ const ICONS = {
   open: '<path d="M1.5 4V13h11.5l1.8-6.5H4.2L2.5 13"/><path d="M1.5 4V2.5h4.5l1.5 1.5h5V6.5"/>',
   save: '<path d="M2 2h9.5L14 4.5V14H2z"/><path d="M5 2v4h5.5V2M4.5 14V9.5h7V14"/>',
   import: '<path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/><path d="M8.5 13V8M6.3 10.2 8.5 8l2.2 2.2"/>',
+  help: '<circle cx="8" cy="8" r="6.5"/><path d="M6.1 6.2a2 2 0 1 1 2.6 1.9c-.5.2-.7.6-.7 1.1v.6"/><circle cx="8" cy="11.6" r=".4" fill="currentColor"/>',
   print: '<path d="M4.5 6V1.5h7V6"/><rect x="1.5" y="6" width="13" height="6" rx="1.2"/><path d="M4.5 10h7v4.5h-7z" fill="var(--panel, #fff)"/><circle cx="12.3" cy="8" r=".5" fill="currentColor"/>',
 };
 

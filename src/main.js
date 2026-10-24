@@ -16,7 +16,7 @@ import { prompt, toast } from './ui/dialogs.js';
 import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
 import { locate } from './model.js';
-import { cursorIcon, DONATE_URL, h, icon } from './util.js';
+import { cursorIcon, DONATE_URL, h, icon, MANUAL_URL } from './util.js';
 
 import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
 startAutoTranslate();
@@ -53,6 +53,7 @@ $('#top').append(
     btn(() => icon('save'), 'Project opslaan als .kringo-bestand', () => exportProjectFile(app), 'iconbtn'),
     btn(() => icon('import'), '.kringo-bestand of QElectroTech-project (.qet) openen', async () => { await app.save(); importProjectFile(app); }, 'iconbtn'),
     btn(() => icon('print'), 'Afdrukken of PDF', () => printDialog(app), 'iconbtn'),
+    btn(() => icon('help'), 'Handleiding met voorbeelden', () => window.open(MANUAL_URL, '_blank', 'noopener'), 'iconbtn'),
     h('span', { class: 'sep' }),
     btn('Gegevens', 'Projectgegevens, bedrijf, logo', () => projectDialog(app)),
     btn('Instellingen', 'Nummering en bladindeling', () => settingsDialog(app), 'kind-schematic'),

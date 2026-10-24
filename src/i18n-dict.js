@@ -825,4 +825,5 @@ export const DICT = [
   ["Kabel (solar / DC)", "Câble (solaire / DC)", "Cable (solar / DC)"],
   ["Komt in het eendraadschema bij het toestel.", "Apparaît dans le schéma unifilaire près de l’appareil.", "Shown in the single-line diagram next to the device."],
   ["Batterij", "Batterie", "Battery"],
+  ["Handleiding met voorbeelden", "Manuel avec exemples", "Manual with examples"],
 ];

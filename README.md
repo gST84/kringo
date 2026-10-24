@@ -2,6 +2,10 @@
 
 CAD-programma in de browser voor elektrische schema's. Geen installatie en geen build-stap: plain JavaScript (ES-modules) + SVG.
 
+## Handleiding
+
+📖 **[Handleiding met voorbeelden](docs/HANDLEIDING.md)** – grondplan tekenen, kringen, koppelen, eendraadschema, en uitgewerkte voorbeelden: wisselschakeling, ledstrip, zonnepanelen (met DC-busbar, MPPT's en batterij), domotica en een PDF overtekenen. In Kringo opent de **?**-knop bovenaan de handleiding.
+
 ## Taal
 
 Nederlands, Français en English. Kies de taal op het welkomscherm of met 🌐 rechtsboven; de vaste teksten in de tekeningen (titelblok, eendraadschema) volgen mee, je eigen namen en teksten niet. Vertalingen staan in `src/i18n-dict.js` (Nederlandse tekst = sleutel).
@@ -43,11 +47,14 @@ Bij **Nieuw** kies je de soort; die ligt daarna vast:
 
 - **Plattegrond per verdieping** op schaal (1:50, 1:20, 1:75, 1:100) op A3: muren (buiten / binnen, dikte; klik punten of typ een lengte in cm + Enter), gebogen muren (3-puntsboog, of sleep het middelpunt van een muur), deuren, deuropeningen zonder deurblad, dubbele deuren, ramen, schuiframen en garagepoorten (op een muur klikken, verslepen langs de muur, breedte aanpassen aan de uiteinden), rechte trappen, kwartdraaitrappen, wenteltrappen, maatlijnen, gekleurde vlakken en lijnen, en ruimtenamen. De tekengereedschappen staan ook bij de symbolen onder *Grondplan*.
 - **Achtergrond**: een afbeelding of PDF van een bestaand plan als onderlegger, met *Schaal bepalen* (klik twee punten met een gekende afstand). Een PDF wordt met pdf.js omgezet (eenmalig internet nodig).
-- **AREI-symbolen**: lichtpunten, stopcontacten (enkel tot viervoudig, buiten, 3F), toestellen (wasmachine, droogkast, vaatwasser, kookplaat, oven, warmtepomp …), schakelaars (enkel-, tweepolig, wissel, kruis, dimmer, drukknop, bewegingsmelder), domotica (ingangen, uitgangen, dimmers, rolluiken), verdeelbord, meter, zonnepanelen, omvormer, thuisbatterij, laadpaal, rookmelder, data, TV … Wandsymbolen draaien vanzelf tegen de dichtstbijzijnde muur.
+- **Aantekeningen**: pijlen, dubbele pijlen, tekstballonnen met aanwijspijl en tekstvakken.
+- **AREI-symbolen**: lichtpunten, ledstrips (getekend als pad, met W/m), stopcontacten (enkel tot viervoudig, buiten, 3F), toestellen (wasmachine, droogkast, vaatwasser, kookplaat, oven, warmtepomp, rolluikmotor …), schakelaars (enkel-, tweepolig, wissel, kruis, dimmer, drukknop, bewegingsmelders), domotica (drukknoppen, bewegings- en aanwezigheidsmelders), verdeelbord, meter, zonnepanelen, omvormer, MPPT-laadregelaar, DC-busbar, thuisbatterij, laadpaal, rookmelder, data, TV … Wandsymbolen draaien vanzelf tegen de dichtstbijzijnde muur.
 - **Kringen en verdeelborden als boom**: verdeelbord → differentieel → kringen, differentiëlen achter differentiëlen, onderverdeelborden gevoed door een kring of differentieel (elk met eigen eendraadbladen). Elk symbool krijgt een kring en volgnummer (A1, A2 …); per kring curve / smeltzekering, automaat, polen, Icn, kabel, brandklasse en doorsnede. Kies een *actieve kring* in de werkbalk om snel te plaatsen.
 - **AREI-controle**: max. 8 stopcontacten per kring, min. 2,5 mm² en max. 20 A voor stopcontacten, automaat ↔ doorsnede, toestellen op een aparte kring, symbolen zonder kring …
-- **Koppelen**: schakelaar → lichtpunten, domotica-ingang → uitgang, zonnepanelen → omvormer (gekleurde stippellijnen op het plan).
-- **Eendraadschema** per verdeelbord in de Belgische opbouw: hoofdrail onderaan met voeding (kWh-meter, kabel, algemene differentieel) en aarding met meetklem; elke differentieel 30 mA op de hoofdrail met een eigen rail; per kring de automaat (kader "3000", "2P - C 20A"), kabel ("VOB Eca 3G2,5²") en genummerde aftakkingen: schakelaars op de lijn gevolgd door de gekoppelde lichtpunten (×n), stopcontactdozen, toestellen. Wordt gegenereerd als bladen in het gebouwproject (onder *Bladen*), achteraf aan te passen of zelf te tekenen met de map *AREI/Eendraad*.
+- **Koppelen**: schakelaar → lichtpunten, omvormer → DC-busbar → MPPT → zonnepanelen … (gekleurde stippellijnen op het plan). Gekoppelde symbolen krijgen dezelfde kring en hetzelfde nummer en komen in één aftakking van het eendraadschema. Op een PV- / DC-koppeling stel je het kabeltype in.
+- **Domotica**: modules (schakel-, dimmer-, rolluik-, ingangsmodule, 1–32 kanalen) in het verdeelbord; verbruikers krijgen een kanaal (M1.4), bij het symbool of in een centrale tabel met CSV-export. In het eendraadschema komt het relaiscontact in de aftakking.
+- **PV / DC**: type, serienummer, vermogen en capaciteit van omvormer, panelen, MPPT en batterij, en de kabels ertussen komen in het eendraadschema.
+- **Eendraadschema** per verdeelbord in de Belgische opbouw: hoofdrail onderaan met voeding (kWh-meter, kabel, algemene differentieel) en aarding met meetklem; elke differentieel 30 mA op de hoofdrail met een eigen rail; per kring de automaat (kader "3000", "2P - C 20A"), kabel ("VOB Eca 3G2,5²") en genummerde aftakkingen: schakelaars op de lijn gevolgd door de gekoppelde lichtpunten (×n), stopcontactdozen, toestellen, domotica-relais, en PV-installaties met DC-busbar (één rij per DC-toestel, kabel boven de lijn, gegevens onder het symbool). Wordt gegenereerd als bladen in het gebouwproject (onder *Bladen*), achteraf aan te passen of zelf te tekenen met de map *AREI/Eendraad*.
 - Symbolen draaien in stappen van 15° met de draaiknop in het eigenschappenpaneel.
 - Plattegronden afdrukken / PDF of als SVG.
 
