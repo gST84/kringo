@@ -3,7 +3,7 @@ import { uid } from '../util.js';
 import { t } from '../i18n.js';
 
 export function newFloor(name = t('Gelijkvloers')) {
-  return { id: uid('f'), name, walls: [], openings: [], stairs: [], texts: [], symbols: [], links: [] };
+  return { id: uid('f'), name, walls: [], openings: [], stairs: [], texts: [], symbols: [], links: [], dims: [], shapes: [], bg: null };
 }
 
 // ---------- distribution tree ----------
@@ -48,7 +48,7 @@ export function normalizeBuilding(b) {
   b.grid ||= 5;
   b.floors ||= [];
   if (!b.floors.length) b.floors.push(newFloor());
-  for (const f of b.floors) { f.walls ||= []; f.openings ||= []; f.stairs ||= []; f.texts ||= []; f.symbols ||= []; f.links ||= []; }
+  for (const f of b.floors) { f.walls ||= []; f.openings ||= []; f.stairs ||= []; f.texts ||= []; f.symbols ||= []; f.links ||= []; f.dims ||= []; f.shapes ||= []; f.bg ||= null; }
   b.boards ||= d.boards;
   if (!b.boards.length) b.boards.push(newBoard());
   b.rcds ||= [];
@@ -156,14 +156,76 @@ export function wallFrame(w) {
   return { len, u, n: [-u[1], u[0]] };
 }
 
+const TAU = Math.PI * 2;
+const norm = (a) => ((a % TAU) + TAU) % TAU;
+
+/**
+ * Geometry of a wall: a straight wall, or an arc through (cx, cy) when the wall has one.
+ * `at(t)` gives the point t cm along the wall's centre line with its tangent u and normal n.
+ */
+export function wallGeom(w) {
+  if (w.cx != null && w.cy != null) {
+    const [ax, ay, bx, by, cx, cy] = [w.x1, w.y1, w.cx, w.cy, w.x2, w.y2];
+    const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+    if (Math.abs(d) > 1e-6) {
+      const A = ax * ax + ay * ay, B = bx * bx + by * by, C = cx * cx + cy * cy;
+      const ox = (A * (by - cy) + B * (cy - ay) + C * (ay - by)) / d;
+      const oy = (A * (cx - bx) + B * (ax - cx) + C * (bx - ax)) / d;
+      const r = Math.hypot(ax - ox, ay - oy);
+      const a1 = Math.atan2(ay - oy, ax - ox);
+      const s = norm(Math.atan2(cy - oy, cx - ox) - a1);
+      const sm = norm(Math.atan2(by - oy, bx - ox) - a1);
+      const dir = sm < s ? 1 : -1;
+      const sweep = dir === 1 ? s : TAU - s;
+      if (r < 1e6 && sweep > 1e-4) {
+        const len = r * sweep;
+        const at = (t) => {
+          const a = a1 + (dir * t) / r;
+          const u = [-Math.sin(a) * dir, Math.cos(a) * dir];
+          return { x: ox + r * Math.cos(a), y: oy + r * Math.sin(a), u, n: [-u[1], u[0]] };
+        };
+        return { arc: true, len, at, ox, oy, r, a1, dir, sweep };
+      }
+    }
+  }
+  const { len, u, n } = wallFrame(w);
+  return { arc: false, len, u, n, at: (t) => ({ x: w.x1 + u[0] * t, y: w.y1 + u[1] * t, u, n }) };
+}
+
 /** Closest point on a wall to (x, y): {t (cm from start), d (signed distance, + = normal side), x, y}. */
 export function projectOnWall(w, x, y) {
-  const { len, u, n } = wallFrame(w);
-  let t = (x - w.x1) * u[0] + (y - w.y1) * u[1];
-  t = Math.max(0, Math.min(len, t));
-  const px = w.x1 + u[0] * t, py = w.y1 + u[1] * t;
-  const d = (x - px) * n[0] + (y - py) * n[1];
-  return { t, d, x: px, y: py, len };
+  const g = wallGeom(w);
+  let t;
+  if (g.arc) {
+    const delta = norm((Math.atan2(y - g.oy, x - g.ox) - g.a1) * g.dir);
+    t = delta <= g.sweep ? delta * g.r : (delta - g.sweep < TAU - delta ? g.len : 0);
+  } else {
+    t = Math.max(0, Math.min(g.len, (x - w.x1) * g.u[0] + (y - w.y1) * g.u[1]));
+  }
+  const p = g.at(t);
+  const d = (x - p.x) * p.n[0] + (y - p.y) * p.n[1];
+  return { t, d, x: p.x, y: p.y, len: g.len };
+}
+
+/** Points along a wall from t0 to t1 at a distance `off` from its centre line (polyline for arcs). */
+export function wallPath(w, t0, t1, off, g = wallGeom(w)) {
+  const steps = g.arc ? Math.max(1, Math.ceil((Math.abs(t1 - t0) / g.r) / (Math.PI / 48))) : 1;
+  const out = [];
+  for (let i = 0; i <= steps; i++) {
+    const p = g.at(t0 + ((t1 - t0) * i) / steps);
+    out.push([p.x + p.n[0] * off, p.y + p.n[1] * off]);
+  }
+  return out;
+}
+
+/** Area of a polygon (cm²). */
+export function polygonArea(pts) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];
+    a += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(a) / 2;
 }
 
 export function nearestWall(floor, x, y, maxDist) {

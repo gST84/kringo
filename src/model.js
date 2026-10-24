@@ -111,6 +111,10 @@ export function normalizeProject(p) {
   }
   if (!p.pages.length && p.kind !== 'building') p.pages.push(newPage('Pagina 1'));
   p.building = normalizeBuilding(p.building);
+  // background images of floor plans (data URLs), kept apart so undo snapshots stay small
+  p.images ||= {};
+  const used = new Set(p.building.floors.map((f) => f.bg?.img).filter(Boolean));
+  for (const k of Object.keys(p.images)) if (!used.has(k)) delete p.images[k];
   return p;
 }
 

@@ -4,10 +4,12 @@ import { clone, h, natCmp } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, removeNode, rootBoards, treeChildren, wallFrame } from './model.js';
+import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, polygonArea, removeNode, rootBoards, treeChildren, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
-import { OPENING_TYPES } from './editor.js';
+import { PLAN_PALETTE } from './editor.js';
+import { dimGeom, hasLeaf, OPENING_TYPES } from './render.js';
+import { loadBackground } from './background.js';
 
 const inp = (value, commit, { type = 'text', key, placeholder, list, step } = {}) => {
   const el = h('input', { type, value: value ?? '', 'data-key': key, placeholder, list, step });
@@ -19,6 +21,11 @@ const sel = (value, options, commit, key) => {
   const el = h('select', { 'data-key': key }, options.map(([v, l]) => h('option', { value: v, selected: String(v) === String(value ?? '') }, l)));
   el.addEventListener('change', () => commit(el.value));
   return el;
+};
+const chk = (value, commit, label, key) => {
+  const el = h('input', { type: 'checkbox', checked: !!value, 'data-key': key });
+  el.addEventListener('change', () => commit(el.checked));
+  return h('label', { class: 'check' }, el, label);
 };
 const section = (title, ...children) => h('div', { class: 'psec' }, h('h3', null, title), ...children);
 
@@ -32,7 +39,7 @@ export const circuitOptions = (b, withNone = true) => [
 export function buildingLeftPanel(app, el, { plan, editor }) {
   let tab = 'symbols';
   let filter = '';
-  const open = new Set(['AREI', 'AREI/Verlichting']);
+  const open = new Set(['Grondplan', 'AREI', 'AREI/Verlichting']);
   const render = () => {
     const tabs = h('div', { class: 'tabs inner' },
       h('button', { class: tab === 'symbols' ? 'active' : '', onclick: () => { tab = 'symbols'; render(); } }, 'Symbolen'),
@@ -46,10 +53,33 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
     const tree = h('div', { class: 'tree' }, ...treeNodes());
     return h('div', { class: 'panel' }, search, tree);
   };
+  const paletteNodes = () => {
+    const q = filter.trim().toLowerCase();
+    const items = PLAN_PALETTE.filter((p) => !q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q));
+    if (!items.length) return [];
+    const isOpen = q || open.has('Grondplan');
+    const out = [h('div', { class: 'folder' + (isOpen ? ' open' : ''), onclick: () => { toggleFolder(open, 'Grondplan'); render(); } },
+      h('span', { class: 'caret' }, isOpen ? '▾' : '▸'), ' ', 'Grondplan')];
+    if (isOpen) out.push(h('div', { class: 'symgrid tools' }, items.map((p) => {
+      const item = h('div', {
+        class: 'sym' + (app.mode === 'building' && !p.action && plan.tool !== 'place' && plan.toolKey === p.key ? ' active' : ''),
+        title: p.label,
+        onclick: () => {
+          if (app.mode !== 'building') app.setMode('building');
+          if (p.action === 'background') loadBackground(app);
+          else plan.setTool(p.tool, { ...(p.opts || {}), key: p.key });
+        },
+      });
+      item.innerHTML = p.icon;
+      item.append(h('span', null, p.label));
+      return item;
+    })));
+    return out;
+  };
   const treeNodes = () => {
     const root = app.lib.tree(filter).folders.get('AREI');
-    if (!root) return [h('p', { class: 'hint' }, 'Geen symbolen gevonden.')];
-    const out = [];
+    const out = app.project?.kind === 'building' ? paletteNodes() : [];
+    if (!root) return out.length ? out : [h('p', { class: 'hint' }, 'Geen symbolen gevonden.')];
     for (const f of [...root.folders.values()]) {
       if (f.name === 'Eendraad' && app.mode === 'building') continue;
       const isOpen = filter || open.has(f.path);
@@ -140,46 +170,113 @@ export function buildingProps(app, plan) {
         h('button', { onclick: () => plan.rotate() }, '⟳ Draaien (R)'),
         h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')))];
   }
-  const [t, id] = keys[0].split(':');
-  if (t === 'W') {
+  const [kind, id] = keys[0].split(':');
+  if (kind === 'W') {
     const w = f.walls.find((x) => x.id === id);
     if (!w) return [];
-    const { len, u } = wallFrame(w);
-    return [section('Muur',
+    const g = wallGeom(w);
+    const del = h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen');
+    return [section(g.arc ? 'Gebogen muur' : 'Muur',
       field('Soort', sel(w.kind || 'outer', [['outer', 'Buitenmuur'], ['inner', 'Binnenmuur']], (v) => set(() => { w.kind = v; }), 'wkind')),
       field('Dikte (cm)', inp(w.t, (v) => set(() => { w.t = Math.max(1, v || 10); }), { type: 'number', key: 'wt' })),
-      field('Lengte (cm)', inp(Math.round(len * 10) / 10, (v) => set(() => {
-        if (!(v > 0)) return;
-        w.x2 = Math.round((w.x1 + u[0] * v) * 100) / 100; w.y2 = Math.round((w.y1 + u[1] * v) * 100) / 100;
-      }), { type: 'number', key: 'wlen' }), 'Verlengt / verkort vanaf het beginpunt.'),
-      h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')))];
+      g.arc
+        ? h('p', null, t('Lengte (cm)'), ': ', h('b', null, String(Math.round(g.len * 10) / 10)), ' · ', t('straal {r} cm', { r: Math.round(g.r) }))
+        : field('Lengte (cm)', inp(Math.round(g.len * 10) / 10, (v) => set(() => {
+          if (!(v > 0)) return;
+          w.x2 = Math.round((w.x1 + g.u[0] * v) * 100) / 100; w.y2 = Math.round((w.y1 + g.u[1] * v) * 100) / 100;
+        }), { type: 'number', key: 'wlen' }), 'Verlengt / verkort vanaf het beginpunt.'),
+      h('div', { class: 'btnrow' },
+        g.arc
+          ? h('button', { onclick: () => set(() => { delete w.cx; delete w.cy; }) }, '▬ Recht maken')
+          : h('button', {
+            title: 'Of sleep het ronde middelpunt van de geselecteerde muur',
+            onclick: () => set(() => { w.cx = Math.round(((w.x1 + w.x2) / 2 + g.n[0] * g.len / 4) * 10) / 10; w.cy = Math.round(((w.y1 + w.y2) / 2 + g.n[1] * g.len / 4) * 10) / 10; }),
+          }, '◠ Buigen'),
+        del),
+      h('p', { class: 'hint' }, 'Sleep de hoekpunten om te verlengen, het ronde middelpunt om te buigen.'))];
   }
-  if (t === 'O') {
+  if (kind === 'O') {
     const o = f.openings.find((x) => x.id === id);
     if (!o) return [];
-    return [section(OPENING_TYPES[o.type]?.label || 'Opening',
+    const door = o.type === 'door' || o.type === 'door2';
+    const leaf = hasLeaf(o);
+    return [section(door && !leaf ? 'Deuropening' : OPENING_TYPES[o.type]?.label || 'Opening',
       field('Type', sel(o.type, Object.entries(OPENING_TYPES).map(([k, v]) => [k, v.label]), (v) => set(() => { o.type = v; }), 'otype')),
+      door ? chk(o.leaf === false, (v) => set(() => { if (v) o.leaf = false; else delete o.leaf; }), 'Zonder deurblad (enkel deuropening)', 'oleaf') : null,
       h('div', { class: 'grid2' },
         field('Breedte (cm)', inp(o.width, (v) => set(() => { o.width = Math.max(10, v || 80); }), { type: 'number', key: 'ow' })),
         field('Hoogte (cm)', inp(o.height, (v) => set(() => { o.height = v; }), { type: 'number', key: 'oh' }))),
       h('div', { class: 'btnrow' },
-        h('button', { onclick: () => set(() => { o.side = o.side === -1 ? 1 : -1; }) }, '⇅ Draairichting'),
-        h('button', { onclick: () => set(() => { o.hinge = o.hinge === 'r' ? 'l' : 'r'; }) }, '⇆ Scharnierzijde'),
+        leaf || o.type === 'garage' ? h('button', { onclick: () => set(() => { o.side = o.side === -1 ? 1 : -1; }) }, leaf ? '⇅ Draairichting' : '⇅ Binnenkant') : null,
+        leaf && o.type === 'door' ? h('button', { onclick: () => set(() => { o.hinge = o.hinge === 'r' ? 'l' : 'r'; }) }, '⇆ Scharnierzijde') : null,
         h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')),
-      h('p', { class: 'hint' }, 'Verslepen schuift de opening langs de muur.'))];
+      h('p', { class: 'hint' }, 'Verslepen schuift de opening langs de muur; sleep de blokjes aan de uiteinden om de breedte te wijzigen.'))];
   }
-  if (t === 'S') {
+  if (kind === 'S') {
     const st = f.stairs.find((x) => x.id === id);
     if (!st) return [];
-    return [section('Trap',
+    const num = (label, k, key, round) => field(label, inp(st[k], (v) => set(() => { if (v > 0 || v === 0) st[k] = round ? Math.round(v) : v; }), { type: 'number', key }));
+    const del = h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen');
+    if (st.kind === 'spiral') {
+      return [section('Wenteltrap',
+        h('div', { class: 'grid2' },
+          num('Straal (cm)', 'r', 'sr2'), num('Treden', 'steps', 'ss', true),
+          num('Draaihoek (°)', 'turn', 'sturn', true), num('Start (°)', 'rot', 'srot', true)),
+        h('div', { class: 'btnrow' }, h('button', { onclick: () => set(() => { st.dir = st.dir === -1 ? 1 : -1; }) }, '↻ Draairichting'), del),
+        h('p', { class: 'hint' }, 'Sleep het ronde blokje om de straal te wijzigen.'))];
+    }
+    return [section(st.kind === 'quarter' ? 'Kwartdraaitrap' : 'Trap',
+      field('Soort', sel(st.kind || 'straight', [['straight', 'Rechte trap'], ['quarter', 'Kwartdraaitrap']], (v) => set(() => {
+        if (v === 'quarter') { st.kind = 'quarter'; st.b ||= Math.min(90, Math.round(Math.min(st.w, st.h) / 2)); } else delete st.kind;
+      }), 'skind')),
       h('div', { class: 'grid2' },
-        field('Breedte (cm)', inp(st.w, (v) => set(() => { st.w = v; }), { type: 'number', key: 'sw' })),
-        field('Lengte (cm)', inp(st.h, (v) => set(() => { st.h = v; }), { type: 'number', key: 'sh' })),
-        field('Treden', inp(st.steps, (v) => set(() => { st.steps = Math.round(v); }), { type: 'number', key: 'ss' })),
-        field('Rotatie (°)', inp(st.rot || 0, (v) => set(() => { st.rot = v; }), { type: 'number', key: 'sr' }))),
-      h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')))];
+        num('Breedte (cm)', 'w', 'sw'), num('Lengte (cm)', 'h', 'sh'),
+        st.kind === 'quarter' ? num('Trapbreedte (cm)', 'b', 'sb') : null,
+        num('Treden', 'steps', 'ss', true), num('Rotatie (°)', 'rot', 'sr')),
+      h('div', { class: 'btnrow' },
+        st.kind === 'quarter' ? h('button', { onclick: () => set(() => { st.mirror = !st.mirror; }) }, '⇋ Spiegelen') : null,
+        h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del))];
   }
-  if (t === 'T') {
+  if (kind === 'D') {
+    const d = f.dims.find((x) => x.id === id);
+    if (!d) return [];
+    const { len } = dimGeom(d);
+    return [section('Maatlijn',
+      h('p', null, t('Gemeten lengte'), ': ', h('b', null, `${Math.round(len * 10) / 10} cm`)),
+      field('Tekst', inp(d.text, (v) => set(() => { if (v) d.text = v; else delete d.text; }), { key: 'dtext', placeholder: String(Math.round(len)) }), 'Leeg = gemeten lengte in cm.'),
+      h('div', { class: 'grid2' },
+        field('Afstand (cm)', inp(d.off || 0, (v) => set(() => { d.off = v || 0; }), { type: 'number', key: 'doff' })),
+        field('Tekstgrootte (mm)', inp(d.size || 2.5, (v) => set(() => { d.size = v || 2.5; }), { type: 'number', key: 'dsize' }))),
+      h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')),
+      h('p', { class: 'hint' }, 'Sleep de eindpunten of het ronde blokje in het midden.'))];
+  }
+  if (kind === 'P') {
+    const sh = f.shapes.find((x) => x.id === id);
+    if (!sh) return [];
+    const area = sh.type === 'area';
+    const style = (k, v) => set(() => {
+      sh[k] = v;
+      plan.lastStyle ||= {};
+      plan.lastStyle[sh.type] = { ...(plan.lastStyle[sh.type] || {}), [k]: v };
+    });
+    const cur = sh.color || (area ? '#93c5fd' : '#dc2626');
+    const PALETTE = ['#93c5fd', '#86efac', '#fde68a', '#fca5a5', '#d8b4fe', '#fdba74', '#cbd5e1', '#dc2626', '#2563eb', '#16a34a', '#000000'];
+    const free = h('input', { type: 'color', value: cur, title: 'Vrije kleur kiezen' });
+    free.addEventListener('change', () => style('color', free.value));
+    return [section(area ? 'Gekleurd vlak' : 'Lijn',
+      area ? h('p', null, t('Oppervlakte'), ': ', h('b', null, `${(polygonArea(sh.pts) / 10000).toFixed(2).replace('.', ',')} m²`)) : null,
+      field('Kleur', h('div', { class: 'chips colors' }, PALETTE.map((c) => h('button', {
+        class: 'cchip' + (c === cur ? ' active' : ''), style: { background: c }, title: c, onclick: () => style('color', c),
+      })), free)),
+      area ? field('Dekking (%)', inp(Math.round((sh.opacity ?? 0.35) * 100), (v) => style('opacity', Math.max(0, Math.min(100, v || 0)) / 100), { type: 'number', key: 'pop' })) : null,
+      field(area ? 'Randdikte (mm)' : 'Lijndikte (mm)', inp(sh.width || (area ? 0.18 : 0.5), (v) => style('width', Math.max(0.05, v || 0.25)), { type: 'number', key: 'pw', step: 0.05 })),
+      chk(sh.dash, (v) => style('dash', v), 'Gestreept', 'pdash'),
+      area ? chk(sh.stroke !== false, (v) => style('stroke', v), 'Rand tonen', 'pstroke') : null,
+      h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')),
+      h('p', { class: 'hint' }, 'Sleep de hoekpunten om de vorm aan te passen.'))];
+  }
+  if (kind === 'B') return backgroundSection(app, plan);
+  if (kind === 'T') {
     const tx = f.texts.find((x) => x.id === id);
     if (!tx) return [];
     return [section('Ruimte / tekst',
@@ -188,11 +285,11 @@ export function buildingProps(app, plan) {
       field('Grootte (mm)', inp(tx.size || 3, (v) => set(() => { tx.size = v || 3; }), { type: 'number', key: 'ts' })),
       h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')))];
   }
-  if (t === 'L') {
+  if (kind === 'L') {
     return [section('Koppeling', h('p', { class: 'hint' }, 'Stippellijn tussen bediening en toestel.'),
       h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Koppeling verwijderen'))];
   }
-  if (t === 'A') return symbolProps(app, plan, f.symbols.find((x) => x.id === id));
+  if (kind === 'A') return symbolProps(app, plan, f.symbols.find((x) => x.id === id));
   return [];
 }
 
@@ -300,9 +397,35 @@ function floorProps(app, plan) {
       h('div', { class: 'btnrow' },
         h('button', { onclick: () => circuitsDialog(app) }, 'Kringen & borden…'),
         h('button', { class: 'primary', onclick: () => generateDialog(app) }, 'Eendraadschema'))),
+    ...backgroundSection(app, plan),
     section('Sneltoetsen', h('p', { class: 'hint keys' },
-      'W muur (cijfers + Enter = lengte in cm) · D deur · N raam · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),
+      'W muur (cijfers + Enter = lengte in cm) · A gebogen muur · D deur · N raam · M maatlijn · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),
   ];
+}
+
+/** Background drawing of the floor: load, scale, opacity, lock, print. */
+function backgroundSection(app, plan) {
+  const f = app.floor;
+  const bg = f.bg;
+  const set = (fn) => app.mutate(fn);
+  if (!bg) {
+    return [section('Achtergrond',
+      h('p', { class: 'hint' }, 'Een afbeelding of PDF van een bestaand plan als onderlegger om over te tekenen.'),
+      h('button', { onclick: () => loadBackground(app) }, '🖼 Afbeelding / PDF laden…'))];
+  }
+  return [section('Achtergrond',
+    bg.name ? h('p', { class: 'hint' }, bg.name) : null,
+    h('div', { class: 'grid2' },
+      field('Breedte (cm)', inp(bg.w, (v) => set(() => { if (v > 0) { bg.h = Math.round((bg.h * v / bg.w) * 10) / 10; bg.w = v; } }), { type: 'number', key: 'bgw' })),
+      field('Dekking (%)', inp(Math.round((bg.opacity ?? 0.5) * 100), (v) => set(() => { bg.opacity = Math.max(5, Math.min(100, v || 50)) / 100; }), { type: 'number', key: 'bgo' }))),
+    chk(bg.show !== false, (v) => set(() => { bg.show = v; }), 'Tonen', 'bgshow'),
+    chk(bg.locked, (v) => set(() => { bg.locked = v; if (v) app.sel.delete('B:bg'); }), 'Vergrendelen (niet verschuiven / selecteren)', 'bglock'),
+    chk(bg.print, (v) => set(() => { bg.print = v; }), 'Mee afdrukken', 'bgprint'),
+    h('div', { class: 'btnrow' },
+      h('button', { class: 'primary', onclick: () => plan.setTool('calib', { key: 'calib' }), title: 'Klik twee punten op de achtergrond waarvan je de afstand kent' }, '📏 Schaal bepalen'),
+      h('button', { onclick: () => loadBackground(app) }, 'Vervangen…'),
+      h('button', { class: 'danger', onclick: () => { set(() => { f.bg = null; }); app.sel.delete('B:bg'); } }, 'Verwijderen')),
+    h('p', { class: 'hint' }, bg.locked ? 'Ontgrendel de achtergrond om hem te verschuiven.' : 'Sleep de achtergrond om hem te verschuiven.'))];
 }
 
 // ---------- circuits dialog: distribution tree ----------
@@ -318,11 +441,11 @@ export async function circuitsDialog(app) {
 
   const f = (label, el) => h('label', { class: 'tf' }, h('span', null, label), el);
   const add = (type, parent) => {
-    const t = temp();
+    const tmp = temp();
     let n;
     if (type === 'rcd') { n = newRcd(parent, t('Differentieel {n}', { n: draft.rcds.length + 1 })); draft.rcds.push(n); }
     else if (type === 'board') { n = newBoard(t('Verdeelbord {n}', { n: draft.boards.length + 1 }), parent); draft.boards.push(n); }
-    else { n = newCircuit(nextCircuitName(t), parent); draft.circuits.push(n); }
+    else { n = newCircuit(nextCircuitName(tmp), parent); draft.circuits.push(n); }
     n.pos = nextPos(temp(), parent);
     if (type === 'circuit' && n.parent) collapsed.delete(parent);
     render();

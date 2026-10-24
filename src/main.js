@@ -12,7 +12,7 @@ import {
   exportProjectFile, importProjectFile, openProjectFile, openDialog, printDialog, projectDialog, renumberDialog, settingsDialog,
 } from './ui/project.js';
 import { startNewProject, startScreen } from './ui/start.js';
-import { prompt } from './ui/dialogs.js';
+import { prompt, toast } from './ui/dialogs.js';
 import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
 import { locate } from './model.js';
@@ -106,11 +106,10 @@ schemTools.append(
 
 // plan toolbar (building mode)
 const planTools = [
-  ['select', '⬚', 'Selecteren (V)'], ['wall', '▬', 'Muur tekenen (W) – typ een lengte + Enter'],
-  ['door', '🚪', 'Deur (D)', { type: 'door' }], ['window', '⊟', 'Raam (N)', { type: 'window' }],
-  ['slide', '⇆', 'Schuifraam / -deur', { type: 'slide' }], ['door2', '⇿', 'Dubbele deur', { type: 'door2' }],
-  ['stair', '☰', 'Trap (sleep een rechthoek)'], ['text', 'T', 'Ruimtenaam (T)'], ['link', '🔗', 'Koppelen (L): klik bron, dan doelen'],
-  ['pan', '✋', 'Pannen (H)'],
+  ['select', '⬚', 'Selecteren (V)'], ['wall', '▬', 'Muur tekenen (W) – typ een lengte + Enter'], ['arcwall', '◠', 'Gebogen muur (A): begin, einde, punt op de boog'],
+  ['door', '🚪', 'Deur (D)', 'opening', { type: 'door' }], ['window', '⊟', 'Raam (N)', 'opening', { type: 'window' }],
+  ['stair', '☰', 'Trap (sleep een rechthoek)', 'stair', { stair: 'straight' }], ['text', 'T', 'Ruimtenaam (T)'], ['dim', '↔', 'Maatlijn (M)'],
+  ['link', '🔗', 'Koppelen (L): klik bron, dan doelen'], ['pan', '✋', 'Pannen (H)'],
 ];
 const planBtns = new Map();
 const wallSel = h('select', { title: 'Muurtype voor nieuwe muren', onchange: (e) => { const [k, t] = e.target.value.split(':'); plan.wallKind = k; plan.wallT = +t; } },
@@ -124,8 +123,8 @@ const fillCircuits = () => {
 };
 const floorLbl = h('select', { class: 'pagesel', title: 'Verdieping kiezen', onchange: (e) => app.setFloor(+e.target.value) });
 $('#toolbar').append(h('span', { class: 'tgroup view-plan' },
-  ...planTools.map(([k, icon, title, o]) => {
-    const b = btn(icon, title, () => plan.setTool(o ? 'opening' : k, o), 'tool');
+  ...planTools.map(([k, icon, title, tool, o]) => {
+    const b = btn(icon, title, () => plan.setTool(tool || k, { ...(o || {}), key: k }), 'tool');
     planBtns.set(k, b);
     return b;
   }),
@@ -157,7 +156,13 @@ const PLAN_HINTS = {
   select: 'Klik = selecteren · slepen = verplaatsen (muurhoeken schuiven mee, deuren / ramen langs de muur) · dubbelklik = eigenschappen',
   wall: 'Klik punten om muren te tekenen · typ een lengte in cm + Enter · klik op het beginpunt of dubbelklik / Esc = einde · Alt = vrij',
   opening: 'Klik op een muur om de opening te plaatsen · kant van de muis = draairichting',
-  stair: 'Sleep een rechthoek voor de trap',
+  stair: 'Sleep een rechthoek voor de trap · klik = standaardmaat',
+  spiral: 'Sleep van het midden naar buiten voor de wenteltrap · klik = straal 100 cm',
+  arcwall: 'Klik het beginpunt, dan het eindpunt, dan een punt op de boog · Esc = stoppen',
+  dim: 'Klik twee meetpunten (vangt muurhoeken), dan de plaats van de maatlijn · Alt = vrij',
+  area: 'Klik de hoekpunten van het vlak · klik het eerste punt, dubbelklik of Enter = sluiten · Backspace = punt terug · Esc',
+  line: 'Klik de punten van de lijn · dubbelklik, Enter of rechtermuisknop = einde · Backspace = punt terug · Esc',
+  calib: 'Klik twee punten op de achtergrond waarvan je de werkelijke afstand kent',
   text: 'Klik in een ruimte om een naam te plaatsen',
   place: 'Klik om te plaatsen (tegen de dichtstbijzijnde muur) · R draaien · Alt = vrij plaatsen · Esc = stoppen',
   link: 'Klik de symbolen na elkaar: 1 → 2 → 3 … (bv. schakelaar → lamp → lamp) · opnieuw klikken op een gekoppeld paar = ontkoppelen · Esc = stoppen',
@@ -209,8 +214,14 @@ app.on('mode', (m) => {
   fillCircuits();
 });
 app.on('planTool', (t) => {
-  for (const [k, b] of planBtns) b.classList.toggle('active', t === 'opening' ? k === plan.openingType : k === t);
+  for (const [k, b] of planBtns) b.classList.toggle('active', k === plan.toolKey);
   if (app.mode === 'building') hintEl.textContent = PLAN_HINTS[t] || '';
+});
+app.on('planToast', (msg) => toast(msg));
+app.on('planCalibrate', async ({ a, b, len }) => {
+  const v = await prompt('Werkelijke afstand (cm)', '', { label: t('Gemeten op de achtergrond: {n} cm. Geef de echte afstand tussen beide punten.', { n: Math.round(len * 10) / 10 }) });
+  const real = parseFloat(String(v || '').replace(',', '.'));
+  if (real > 0) { plan.calibrate(a, b, real); toast(t('Schaal ingesteld.')); }
 });
 app.on('planCursor', ([x, y]) => { cursorEl.textContent = `x ${Math.round(x)} cm  y ${Math.round(y)} cm`; });
 app.on('planCircuits', fillCircuits);

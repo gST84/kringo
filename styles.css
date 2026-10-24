@@ -254,7 +254,7 @@ body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:no
 .pagelist h4 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
 
 /* ---------- plan ---------- */
-.plancanvas[data-tool=wall], .plancanvas[data-tool=opening], .plancanvas[data-tool=stair], .plancanvas[data-tool=text], .plancanvas[data-tool=place], .plancanvas[data-tool=link] { cursor: crosshair; }
+.plancanvas[data-tool=wall], .plancanvas[data-tool=arcwall], .plancanvas[data-tool=opening], .plancanvas[data-tool=stair], .plancanvas[data-tool=spiral], .plancanvas[data-tool=text], .plancanvas[data-tool=place], .plancanvas[data-tool=link], .plancanvas[data-tool=dim], .plancanvas[data-tool=area], .plancanvas[data-tool=line], .plancanvas[data-tool=calib] { cursor: crosshair; }
 .plangrid { fill: url(#pgp); }
 .plan .wall { fill: #3d3d3d; stroke: none; }
 .plan .wall.inner { fill: #7a7a7a; }
@@ -262,6 +262,8 @@ body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:no
 .plan .wall.sel { fill: var(--sel) !important; }
 .plan .gap { fill: #fff; stroke: none; }
 .plan .stairbox { fill: #fff; }
+.plan polygon.ol { stroke: #000; }
+.plan .sel polygon.ol { stroke: var(--sel); }
 .plan .plink { fill: none; }
 .plan .opening:hover line, .plan .opening:hover path { stroke: #4b8af0; }
 .plan .psym:hover .hit { fill: rgba(31, 111, 235, .1); }
@@ -370,3 +372,21 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 #top select.langsel { width: auto; font-size: 12px; padding: 3px 4px; }
 .startscreen .langs { display: flex; gap: 6px; justify-content: flex-end; margin: -4px 0 10px; }
 .startscreen .langs button { font-size: 12px; padding: 3px 10px; }
+
+/* floor plan: background, dimension lines, coloured areas / lines */
+.plan image.pbg { cursor: move; }
+.plan image.pbg.locked { pointer-events: none; }
+.plan .bgsel { fill: none; stroke: var(--sel); stroke-dasharray: 6 3; }
+.plan .pshape.sel, .plan .parea.sel { stroke: var(--sel) !important; }
+.plan .pshape.sel .pline { stroke: var(--sel) !important; }
+.plan .parea:hover { stroke: #4b8af0 !important; }
+.plan .pdim:hover line { stroke: #4b8af0; }
+.plan .dimtx { font-weight: normal; }
+.plan .stair:hover line, .plan .stair:hover polyline { stroke: #4b8af0; }
+.ink .handle.round { fill: #e8f0fe; }
+.overlay .ghostarea { fill: rgba(31, 111, 235, .2); stroke: var(--sel); stroke-dasharray: 2 1; }
+.overlay .ghostline { stroke: var(--sel); stroke-dasharray: 2 1; fill: none; }
+.overlay .ghostdim line, .overlay .ghostdim polyline { stroke: var(--sel); }
+.overlay .ghostdim text { fill: var(--sel); }
+.symgrid.tools .sym svg { color: #334155; }
+.symgrid.tools .sym.active svg { color: var(--sel); }

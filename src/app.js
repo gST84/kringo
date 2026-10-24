@@ -75,7 +75,7 @@ export class App {
 
   /** Records an undo point. Call once before a (possibly multi-step) modification. */
   checkpoint() {
-    this.undoStack.push(JSON.stringify(this.project));
+    this.undoStack.push(this.snapshot());
     if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift();
     this.redoStack = [];
   }
@@ -96,8 +96,16 @@ export class App {
     return r;
   }
 
+  /** Project as JSON without the (large, never undone) background images. */
+  snapshot() {
+    const p = this.project;
+    return JSON.stringify(p, function (k, v) { return this === p && k === 'images' ? undefined : v; });
+  }
+
   restore(json) {
+    const images = this.project.images;
     this.project = JSON.parse(json);
+    this.project.images = images;
     this.lib.project = this.project;
     this.pageIdx = Math.max(0, Math.min(this.pageIdx, this.project.pages.length - 1));
     this.floorIdx = Math.min(this.floorIdx, this.project.building.floors.length - 1);
@@ -109,13 +117,13 @@ export class App {
 
   undo() {
     if (!this.undoStack.length) return;
-    this.redoStack.push(JSON.stringify(this.project));
+    this.redoStack.push(this.snapshot());
     this.restore(this.undoStack.pop());
   }
 
   redo() {
     if (!this.redoStack.length) return;
-    this.undoStack.push(JSON.stringify(this.project));
+    this.undoStack.push(this.snapshot());
     this.restore(this.redoStack.pop());
   }
 
@@ -136,7 +144,7 @@ export class App {
   pruneSelection() {
     if (this.mode === 'building') {
       const f = this.floor;
-      const lists = { W: f.walls, O: f.openings, S: f.stairs, T: f.texts, A: f.symbols, L: f.links };
+      const lists = { W: f.walls, O: f.openings, S: f.stairs, T: f.texts, A: f.symbols, L: f.links, D: f.dims, P: f.shapes, B: f.bg ? [{ id: 'bg' }] : [] };
       for (const k of [...this.sel]) { const [t, id] = k.split(':'); if (!lists[t]?.some((o) => o.id === id)) this.sel.delete(k); }
       return;
     }
