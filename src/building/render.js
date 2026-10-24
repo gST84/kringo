@@ -301,7 +301,7 @@ function stripSvg(sym, k, building, sel, opts) {
   const step = 2.2 * mm; // one LED every 2.2 mm on paper
   let next = step / 2, acc = 0, dot = 0;
   // white strips warm yellow; RGB / RGBW strips red, green, blue (and white) in turn
-  const colors = { r: '#ef4444', g: '#22c55e', b: '#3b82f6', w: '#fff4d6' };
+  const colors = { r: '#ef4444', g: '#22c55e', b: '#3b82f6', w: '#f6b73c' };
   const cycle = (colorChannels(sym) || []).map((c) => colors[c]);
   for (let i = 1; i < P.length; i++) {
     const [ax, ay] = P[i - 1], [bx, by] = P[i];
