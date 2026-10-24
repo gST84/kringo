@@ -826,4 +826,7 @@ export const DICT = [
   ["Komt in het eendraadschema bij het toestel.", "Apparaît dans le schéma unifilaire près de l’appareil.", "Shown in the single-line diagram next to the device."],
   ["Batterij", "Batterie", "Battery"],
   ["Handleiding met voorbeelden", "Manuel avec exemples", "Manual with examples"],
+  ["Kanaal {color}", "Canal {color}", "{color} channel"],
+  ["Gestuurd door domotica (dimmer per kleur)", "Commandé par la domotique (variateur par couleur)", "Driven by home automation (dimmer per colour)"],
+  ["Kies het kanaal voor rood: de andere kleuren krijgen de volgende vrije kanalen.", "Choisissez le canal du rouge : les autres couleurs reçoivent les canaux libres suivants.", "Choose the red channel: the other colours get the next free channels."],
 ];

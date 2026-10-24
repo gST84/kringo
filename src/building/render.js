@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { domAddress, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, wallGeom, wallPath } from './model.js';
 
 /** Sheet millimetres per plan centimetre. */
 export const planK = (b) => 10 / (b.scale || 50);
@@ -299,20 +299,24 @@ function stripSvg(sym, k, building, sel, opts) {
   s += `<polyline points="${d}" class="strip-o" style="stroke-width:${r2(2 * mm)}"/>`;
   s += `<polyline points="${d}" class="strip-i" style="stroke-width:${r2(1.4 * mm)}"/>`;
   const step = 2.2 * mm; // one LED every 2.2 mm on paper
-  let next = step / 2, acc = 0;
+  let next = step / 2, acc = 0, dot = 0;
+  // white strips warm yellow; RGB / RGBW strips red, green, blue (and white) in turn
+  const colors = { r: '#ef4444', g: '#22c55e', b: '#3b82f6', w: '#fff4d6' };
+  const cycle = (colorChannels(sym) || []).map((c) => colors[c]);
   for (let i = 1; i < P.length; i++) {
     const [ax, ay] = P[i - 1], [bx, by] = P[i];
     const len = Math.hypot(bx - ax, by - ay);
     for (; next <= acc + len; next += step) {
       const f = (next - acc) / len;
-      s += `<circle class="strip-led" cx="${r2(ax + (bx - ax) * f)}" cy="${r2(ay + (by - ay) * f)}" r="${r2(0.42 * mm)}" style="stroke-width:${r2(0.12 * mm)}"/>`;
+      const fill = cycle.length ? `;fill:${cycle[dot++ % cycle.length]};stroke:#6b7280` : '';
+      s += `<circle class="strip-led" cx="${r2(ax + (bx - ax) * f)}" cy="${r2(ay + (by - ay) * f)}" r="${r2(0.42 * mm)}" style="stroke-width:${r2(0.12 * mm)}${fill}"/>`;
     }
     acc += len;
   }
   s += `<circle class="strip-feed" cx="${r2(P[0][0])}" cy="${r2(P[0][1])}" r="${r2(0.75 * mm)}"/>`;
   const c = building.circuits.find((x) => x.id === sym.circuit);
   const label = c ? `${c.name}${sym.n ?? ''}` : '';
-  if (label || (opts.showRooms && sym.props?.room) || sym.dom) {
+  if (label || (opts.showRooms && sym.props?.room) || domKey(sym)) {
     s += `<g transform="translate(${r2(P[0][0])} ${r2(P[0][1])}) scale(${r2(mm)})">`;
     if (label) s += textSvg(1.8, -2.4, label, 2, 'start', 'tx clabel');
     if (opts.showRooms && sym.props?.room) s += textSvg(1.8, -4.5, sym.props.room, 1.5, 'start', 'tx croom');

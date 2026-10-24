@@ -432,3 +432,5 @@ button .icon svg { display: block; }
 .domotics .dmassign { max-width: 220px; }
 
 .linked .cablein { display: block; width: 100%; margin: 3px 0 6px; font-size: 12px; }
+
+.psec h4.subhead { margin: 8px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }

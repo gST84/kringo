@@ -61,20 +61,59 @@ export function newModule(b, type = 'switch') {
   return { id: uid('dm'), name: 'M' + i, type, channels: MODULE_TYPES[type].channels, board: rootBoards(b)[0]?.id || '', circuit: '', desc: '' };
 }
 
-/** 'M1.4' for a symbol driven by (or wired to) a domotics channel, '' otherwise. */
-export function domAddress(b, s) {
-  if (!s?.dom) return '';
-  const [mid, ch] = s.dom.split(':');
+// LED strips can be white, RGB or RGBW; a colour strip has one dimmer channel per colour
+// (symbol.domColors = {r, g, b, w: 'moduleId:channel'}) instead of symbol.dom.
+export const LED_TYPES = { '': 'Wit', rgb: 'RGB', rgbw: 'RGBW' };
+const STRIP_COLORS = { rgb: ['r', 'g', 'b'], rgbw: ['r', 'g', 'b', 'w'] };
+export const COLOR_NAMES = { r: 'Rood', g: 'Groen', b: 'Blauw', w: 'Wit' };
+/** The colour channels of a symbol (['r', 'g', 'b'(, 'w')]) or null for a single channel. */
+export const colorChannels = (s) => (s?.pts && STRIP_COLORS[s?.props?.ledType]) || null;
+
+const channelAddress = (b, key) => {
+  if (!key) return null;
+  const [mid, ch] = key.split(':');
   const m = b.domotics?.modules.find((x) => x.id === mid);
-  return m && +ch <= m.channels ? `${m.name}.${ch}` : '';
+  return m && +ch <= m.channels ? { m, ch: +ch } : null;
+};
+
+/** 'M1.4' for a symbol driven by (or wired to) a domotics channel; 'M2.1–4' for a colour strip; '' otherwise. */
+export function domAddress(b, s) {
+  const colors = colorChannels(s);
+  if (!colors) {
+    const a = channelAddress(b, s?.dom);
+    return a ? `${a.m.name}.${a.ch}` : '';
+  }
+  const parts = colors.map((c) => channelAddress(b, s.domColors?.[c]));
+  if (!parts.some(Boolean)) return '';
+  const consecutive = parts.every((p, i) => p && p.m === parts[0].m && p.ch === parts[0].ch + i);
+  if (consecutive) return `${parts[0].m.name}.${parts[0].ch}–${parts[parts.length - 1].ch}`;
+  return parts.map((p) => (p ? `${p.m.name}.${p.ch}` : '–')).join(' ');
 }
 
-/** Symbols on a channel, over all floors: [{s, floor}]. */
+/** Key that is equal for symbols on the same channel(s), '' when not on domotics. */
+export const domKey = (s) => {
+  const colors = colorChannels(s);
+  return colors ? colors.map((c) => s.domColors?.[c] || '').join('|').replace(/^\|+$/, '') : s?.dom || '';
+};
+
+/** Symbols on a channel, over all floors: [{s, floor, color}] (color for a colour strip). */
 export function channelUsers(b, moduleId, ch) {
   const key = `${moduleId}:${ch}`;
   const out = [];
-  for (const f of b.floors) for (const s of f.symbols) if (s.dom === key) out.push({ s, floor: f });
+  for (const f of b.floors) for (const s of f.symbols) {
+    const colors = colorChannels(s);
+    if (!colors) { if (s.dom === key) out.push({ s, floor: f }); continue; }
+    for (const c of colors) if (s.domColors?.[c] === key) out.push({ s, floor: f, color: c });
+  }
   return out;
+}
+
+/** Removes every assignment to a module (when the module is deleted). */
+export function clearModule(b, moduleId) {
+  for (const f of b.floors) for (const s of f.symbols) {
+    if (s.dom?.startsWith(moduleId + ':')) delete s.dom;
+    for (const c of Object.keys(s.domColors || {})) if (s.domColors[c]?.startsWith(moduleId + ':')) delete s.domColors[c];
+  }
 }
 
 export function normalizeBuilding(b) {

@@ -11,7 +11,7 @@
 import { t } from '../i18n.js';
 import { newPage } from '../model.js';
 import { uid } from '../util.js';
-import { circuitSymbols, domAddress, treeChildren, treeNode, rootBoards } from './model.js';
+import { circuitSymbols, colorChannels, domAddress, domKey, treeChildren, treeNode, rootBoards } from './model.js';
 
 const MAIN_Y = 222; // main busbar
 const SUB_DY = 40; // main busbar → busbar of a residual current device
@@ -49,7 +49,8 @@ export function buildBranches(building, lib, circuit) {
   const kindOf = (s) => lib.get(s.sym)?.kind;
   // domotics push buttons / sensors are on the bus, not on the 230 V single-line diagram
   const isControl = (s) => ['switch', 'push'].includes(kindOf(s));
-  const addr = (s) => domAddress(building, s);
+  // a colour LED strip carries its type with the address: "M2.1–4 RGBW"
+  const addr = (s) => { const a = domAddress(building, s); return a && colorChannels(s) ? `${a} ${s.props.ledType.toUpperCase()}` : a; };
   const branchOf = (s, def, relay) => {
     const kind = def?.kind;
     if (kind === 'socket' || (kind === 'appliance' && !def.box)) return { type: 'sockets', sym: s.sym, qty: Math.max(1, parseInt(s.props?.qty, 10) || 1), units: def.units || 1, relay };
@@ -98,7 +99,7 @@ export function buildBranches(building, lib, circuit) {
     const relay = addr(s);
     if (relay && !isControl(s)) {
       // everything on this domotics channel in this circuit: the relay contact, then the loads
-      const same = items.map(({ s: o }) => o).filter((o) => !used.has(o.id) && o.dom === s.dom);
+      const same = items.map(({ s: o }) => o).filter((o) => !used.has(o.id) && domKey(o) === domKey(s));
       const groups = new Map();
       for (const o of same) {
         used.add(o.id);

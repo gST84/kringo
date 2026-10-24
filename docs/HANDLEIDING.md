@@ -145,6 +145,10 @@ Doel: een ledstrip van 4,5 m onder een keukenkast, bediend met een schakelaar.
 
 In de voorbeeldwoning hangt de ledstrip niet aan een schakelaar maar aan domotica-kanaal **M2.1** (zie [voorbeeld E](#e-domotica)).
 
+**RGB / RGBW**: kies bij *Type* **RGB** of **RGBW**. De leds op het plan kleuren dan rood, groen, blauw (en wit). Op domotica krijgt elke kleur een eigen **dimmerkanaal**: kies het kanaal voor rood en de andere kleuren krijgen automatisch de volgende vrije kanalen (aan te passen). In het eendraadschema staat het relaiscontact met het hele bereik, bv. **M2.1–4 RGBW**; in het venster Domotica zie je per kanaal de kleur (*LED-strip (Rood)* …).
+
+![Een RGBW-ledstrip met een dimmerkanaal per kleur](img/ledstrip-rgbw.png)
+
 ### C. Zonnepanelen met omvormer
 
 Doel: 10 panelen op één omvormer, op een eigen kring.

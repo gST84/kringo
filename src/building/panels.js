@@ -4,7 +4,7 @@ import { clone, download, h, natCmp, safeName, toCsv } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { channelUsers, circuitSymbols, domAddress, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, wallGeom } from './model.js';
+import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
@@ -333,7 +333,9 @@ function symbolProps(app, plan, s) {
     extra.push(
       h('p', null, t('Lengte'), ': ', h('b', null, `${len.toFixed(2).replace('.', ',')} m`), ' · ', t('Vermogen'), ': ', h('b', null, `${String(total(s.props.wpm)).replace('.', ',')} W`)),
       field('Vermogen per meter (W/m)', inp(s.props.wpm, (v) => set(() => { s.props.wpm = v; s.props.power = total(v); }), { type: 'number', key: 'wpm' })),
-      field('Spanning', sel(s.props.volt || '24', [['24', '24 V DC'], ['12', '12 V DC'], ['230', '230 V AC']], setProp('volt'), 'volt')));
+      h('div', { class: 'grid2' },
+        field('Type', sel(s.props.ledType || '', Object.entries(LED_TYPES).map(([k, v]) => [k, v]), setProp('ledType'), 'ledtype')),
+        field('Spanning', sel(s.props.volt || '24', [['24', '24 V DC'], ['12', '12 V DC'], ['230', '230 V AC']], setProp('volt'), 'volt'))));
   } else if (kind === 'light' || kind === 'appliance' || kind === 'other') extra.push(field('Vermogen (W)', inp(s.props.power, setProp('power'), { type: 'number', key: 'pw' })));
   if (kind === 'socket' || kind === 'appliance') extra.push(field('Aantal dozen op dit punt', inp(s.props.qty || 1, setProp('qty'), { type: 'number', key: 'qty' }), 'In het eendraadschema herhaald op dezelfde aftakking.'));
   if (PV_KINDS.includes(kind)) extra.push(
@@ -531,15 +533,43 @@ function domChannelSelect(app, s) {
   if (!mods.length) {
     return field(input ? 'Domotica-ingang' : 'Gestuurd door domotica', h('button', { onclick: () => domoticsDialog(app) }, '＋ Domotica-module toevoegen…'));
   }
-  const el = h('select', { 'data-key': 'dom' },
+  /** Channel list of the given modules; `current` is selected, `color` = the colour of a strip being edited. */
+  const select = (list, current, key, color) => h('select', { 'data-key': key },
     h('option', { value: '' }, '— geen —'),
-    mods.map((m) => h('optgroup', { label: `${m.name} – ${t(MODULE_TYPES[m.type].label)}${m.desc ? ' – ' + m.desc : ''}` },
+    list.map((m) => h('optgroup', { label: `${m.name} – ${t(MODULE_TYPES[m.type].label)}${m.desc ? ' – ' + m.desc : ''}` },
       Array.from({ length: m.channels }, (_, i) => {
-        const key = `${m.id}:${i + 1}`;
-        const users = channelUsers(b, m.id, i + 1).filter(({ s: o }) => o !== s);
-        return h('option', { value: key, selected: s.dom === key },
-          `${m.name}.${i + 1}${users.length ? ' · ' + users.map(({ s: o }) => symLabel(app, o)).join(', ') : s.dom === key ? '' : ' ' + t('(vrij)')}`);
+        const k = `${m.id}:${i + 1}`;
+        const users = channelUsers(b, m.id, i + 1).filter((u) => u.s !== s || u.color !== color);
+        return h('option', { value: k, selected: current === k },
+          `${m.name}.${i + 1}${users.length ? ' · ' + users.map((u) => symLabel(app, u.s) + (u.color ? ` (${t(COLOR_NAMES[u.color])})` : '')).join(', ') : current === k ? '' : ' ' + t('(vrij)')}`);
       }))));
+  const colors = colorChannels(s);
+  if (colors) {
+    // one dimmer channel per colour; choosing red fills the other colours with the next free channels
+    const dims = mods.filter((m) => m.type === 'dimmer');
+    const list = dims.length ? dims : mods;
+    const free = (m, ch) => ch <= m.channels && !channelUsers(b, m.id, ch).some((u) => u.s !== s);
+    const fields = colors.map((c, i) => {
+      const el = select(list, s.domColors?.[c] || '', 'dom-' + c, c);
+      el.addEventListener('change', () => app.mutate(() => {
+        s.domColors ||= {};
+        if (el.value) s.domColors[c] = el.value; else delete s.domColors[c];
+        if (i === 0 && el.value && colors.slice(1).every((o) => !s.domColors[o])) {
+          const [mid, ch] = el.value.split(':');
+          const m = b.domotics.modules.find((x) => x.id === mid);
+          let next = +ch + 1;
+          for (const o of colors.slice(1)) {
+            while (next <= m.channels && !free(m, next)) next++;
+            if (next <= m.channels) s.domColors[o] = `${m.id}:${next++}`;
+          }
+        }
+      }));
+      return field(t('Kanaal {color}', { color: t(COLOR_NAMES[c]).toLowerCase() }), el);
+    });
+    return h('div', null, h('h4', { class: 'subhead' }, 'Gestuurd door domotica (dimmer per kleur)'), h('div', { class: 'grid2' }, fields),
+      h('p', { class: 'hint' }, 'Kies het kanaal voor rood: de andere kleuren krijgen de volgende vrije kanalen.'));
+  }
+  const el = select(mods, s.dom || '', 'dom');
   el.addEventListener('change', () => app.mutate(() => { if (el.value) s.dom = el.value; else delete s.dom; }));
   return field(input ? 'Domotica-ingang' : 'Gestuurd door domotica', el, input ? 'Kanaal van een ingangsmodule.' : 'Het relaiscontact komt in de aftakking van het eendraadschema.');
 }
@@ -596,31 +626,42 @@ export function domoticsDialog(app) {
             if (!(await confirmDlg('Module verwijderen', t('{name} verwijderen? De toegewezen symbolen worden losgekoppeld.', { name: m.name }), 'Verwijderen', true))) return;
             set(() => {
               b.domotics.modules = b.domotics.modules.filter((x) => x !== m);
-              for (const { s } of allSyms) if (s.dom?.startsWith(m.id + ':')) delete s.dom;
+              clearModule(b, m.id);
             });
           },
         }, '🗑'));
       if (!open) return h('div', { class: 'dmod' }, head);
-      const candidates = allSyms.filter(({ s }) => !s.dom && (mt.out ? isLoad(app.lib.get(s.sym)) : isInput(app.lib.get(s.sym))));
+      // what can still be assigned: free loads / inputs, and the colours of colour strips without a channel
+      const candidates = [];
+      for (const { s, floor } of allSyms) {
+        const colors = colorChannels(s);
+        if (colors && mt.out) { for (const c of colors) if (!s.domColors?.[c]) candidates.push({ s, floor, color: c }); continue; }
+        if (!s.dom && (mt.out ? isLoad(app.lib.get(s.sym)) : isInput(app.lib.get(s.sym)))) candidates.push({ s, floor });
+      }
+      const label = (x) => symLabel(app, x.s, x.floor) + (x.color ? ` (${t(COLOR_NAMES[x.color])})` : '');
       const rows = Array.from({ length: m.channels }, (_, i) => {
         const ch = i + 1;
         const users = channelUsers(b, m.id, ch);
         const assign = h('select', { class: 'dmassign' },
           h('option', { value: '' }, '＋ toewijzen…'),
-          candidates.map(({ s, floor }) => h('option', { value: s.id }, symLabel(app, s, floor))));
+          candidates.map((x, i) => h('option', { value: i }, label(x))));
         assign.addEventListener('change', () => {
-          const hit = allSyms.find(({ s }) => s.id === assign.value);
-          if (hit) set(() => { hit.s.dom = `${m.id}:${ch}`; });
+          const hit = candidates[+assign.value];
+          if (!hit) return;
+          set(() => {
+            if (hit.color) { hit.s.domColors ||= {}; hit.s.domColors[hit.color] = `${m.id}:${ch}`; } else hit.s.dom = `${m.id}:${ch}`;
+          });
         });
         const buttons = mt.out ? linkedButtons(users) : [];
         return h('tr', null,
           h('td', { class: 'dmaddr' }, `${m.name}.${ch}`),
-          h('td', null, users.length ? users.map(({ s, floor }) => h('span', { class: 'dmchip' }, symLabel(app, s, floor),
-            h('button', { class: 'link', title: 'Loskoppelen', onclick: () => set(() => { delete s.dom; }) }, '✕'))) : h('span', { class: 'hint' }, 'vrij')),
+          h('td', null, users.length ? users.map((u) => h('span', { class: 'dmchip' }, label(u),
+            h('button', { class: 'link', title: 'Loskoppelen', onclick: () => set(() => { if (u.color) delete u.s.domColors[u.color]; else delete u.s.dom; }) }, '✕'))) : h('span', { class: 'hint' }, 'vrij')),
           mt.out ? h('td', { class: 'hint' }, buttons.map(({ s, floor }) => symLabel(app, s, floor)).join(', ')) : null,
           h('td', null, candidates.length ? assign : null));
       });
-      const beyond = allSyms.filter(({ s }) => s.dom?.startsWith(m.id + ':') && +s.dom.split(':')[1] > m.channels).length;
+      const keys = ({ s }) => [s.dom, ...Object.values(s.domColors || {})].filter(Boolean);
+      const beyond = allSyms.filter((x) => keys(x).some((k) => k.startsWith(m.id + ':') && +k.split(':')[1] > m.channels)).length;
       return h('div', { class: 'dmod' }, head,
         h('table', { class: 'list dmtable' },
           h('thead', null, h('tr', null, h('th', null, 'Kanaal'), h('th', null, mt.out ? 'Stuurt' : 'Ingang'), mt.out ? h('th', null, 'Bediening') : null, h('th', null, ''))),
@@ -640,9 +681,9 @@ export function domoticsDialog(app) {
       const users = channelUsers(b, m.id, ch);
       const board = b.boards.find((x) => x.id === m.board)?.name || '';
       if (!users.length) rows.push([`${m.name}.${ch}`, m.desc || m.name, t(MODULE_TYPES[m.type]?.label || ''), board, '', '', '']);
-      for (const { s, floor } of users) {
+      for (const { s, floor, color } of users) {
         const c = b.circuits.find((x) => x.id === s.circuit);
-        rows.push([`${m.name}.${ch}`, m.desc || m.name, t(MODULE_TYPES[m.type]?.label || ''), board, t(app.lib.get(s.sym)?.name || ''), c ? c.name + (s.n ?? '') : '', [s.props?.room, floor.name].filter(Boolean).join(' – ')]);
+        rows.push([`${m.name}.${ch}`, m.desc || m.name, t(MODULE_TYPES[m.type]?.label || ''), board, t(app.lib.get(s.sym)?.name || '') + (color ? ` (${t(COLOR_NAMES[color])})` : ''), c ? c.name + (s.n ?? '') : '', [s.props?.room, floor.name].filter(Boolean).join(' – ')]);
       }
     }
     download(`${safeName(app.project.name)} - ${t('Domotica')}.csv`, '\ufeff' + toCsv(rows.map((r) => r.map((x) => t(x)))), 'text/csv;charset=utf-8');
