@@ -201,12 +201,13 @@ app.on('change', () => {
   const onPlan = app.mode === 'building';
   const floorOpts = () => floors.map((f, i) => h('option', { value: 'f:' + i, selected: onPlan && i === app.floorIdx }, `${f.name} (${i + 1}/${floors.length})`));
   const pages = app.project.pages;
-  const pageOpts = () => pages.map((pg, i) => h('option', { value: 'p:' + i, selected: !onPlan && i === app.pageIdx }, `${i + 1} / ${pages.length}  ${pg.title}`));
+  const pageOpts = (after) => pages.map((pg, i) => h('option', { value: 'p:' + i, selected: !onPlan && i === app.pageIdx },
+    after ? `${pg.title} (${i + 1}/${pages.length})` : `${i + 1} / ${pages.length}  ${pg.title}`));
   if (app.project.kind === 'building') {
     // floor plans and single-line sheets in one list, grouped
     const grouped = () => [
       h('optgroup', { label: t('Plattegronden') }, floorOpts()),
-      pages.length ? h('optgroup', { label: t('Eendraadschema') }, pageOpts()) : null,
+      pages.length ? h('optgroup', { label: t('Eendraadschema') }, pageOpts(true)) : null,
     ];
     floorLbl.replaceChildren(...grouped());
     pageLbl.replaceChildren(...grouped());
