@@ -235,7 +235,8 @@ export function buildingProps(app, plan) {
         num('Treden', 'steps', 'ss', true), num('Rotatie (°)', 'rot', 'sr')),
       h('div', { class: 'btnrow' },
         st.kind === 'quarter' ? h('button', { onclick: () => set(() => { st.mirror = !st.mirror; }) }, '⇋ Spiegelen') : null,
-        h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del))];
+        h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
+      h('p', { class: 'hint' }, 'Sleep de blokjes om de trap groter of kleiner te maken.'))];
   }
   if (kind === 'D') {
     const d = f.dims.find((x) => x.id === id);

@@ -754,4 +754,5 @@ export const DICT = [
   ["Vervangen…", "Remplacer…", "Replace…"],
   ["Ontgrendel de achtergrond om hem te verschuiven.", "Déverrouillez l’arrière-plan pour le déplacer.", "Unlock the background to move it."],
   ["Sleep de achtergrond om hem te verschuiven.", "Faites glisser l’arrière-plan pour le déplacer.", "Drag the background to move it."],
+  ["Sleep de blokjes om de trap groter of kleiner te maken.", "Faites glisser les poignées pour agrandir ou réduire l’escalier.", "Drag the handles to make the stairs larger or smaller."],
 ];

@@ -259,6 +259,15 @@ export class PlanEditor {
     } else if (type === 'S') {
       const st = f.stairs.find((x) => x.id === id);
       if (st?.kind === 'spiral') s += dot(st.x + (st.r || 100), st.y, `SH:${id}:r`, 'Sleep om de straal te wijzigen');
+      else if (st) {
+        // corner and edge handles in the stair's own (rotated) frame
+        const a = ((st.rot || 0) * Math.PI) / 180, c = Math.cos(a), si = Math.sin(a);
+        const P = (lx, ly) => [st.x + lx * c - ly * si, st.y + lx * si + ly * c];
+        for (const [which, lx, ly] of [['wh', st.w, st.h], ['w', st.w, st.h / 2], ['h', st.w / 2, st.h]]) {
+          const [x, y] = P(lx, ly);
+          s += sq(x, y, `SH:${id}:${which}`);
+        }
+      }
     }
     return s;
   }
@@ -675,6 +684,19 @@ export class PlanEditor {
     } else if (type === 'SH') {
       const st = f.stairs.find((x) => x.id === id);
       if (!st) return;
+      if (which !== 'r') {
+        const a = ((st.rot || 0) * Math.PI) / 180, c = Math.cos(a), si = Math.sin(a);
+        const dx = raw[0] - st.x, dy = raw[1] - st.y;
+        const lx = dx * c + dy * si, ly = -dx * si + dy * c; // pointer in the stair's frame
+        const min = st.kind === 'quarter' ? (st.b || 90) + 20 : 30;
+        const fit = (v) => r2(Math.max(min, g ? snap(v, g) : v));
+        const w = which === 'h' ? st.w : fit(lx), h = which === 'w' ? st.h : fit(ly);
+        if (w === st.w && h === st.h) return;
+        begin();
+        st.w = w; st.h = h;
+        this.app.touched();
+        return;
+      }
       const r = r2(Math.max(30, g ? snap(dist([st.x, st.y], raw), g) : dist([st.x, st.y], raw)));
       if (r === st.r) return;
       begin();
