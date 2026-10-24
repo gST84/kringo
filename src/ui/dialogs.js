@@ -16,9 +16,16 @@ export function modal({ title, body, buttons = [{ label: 'Sluiten', value: undef
     const onKey = (e) => {
       if ([...document.querySelectorAll('.modal-back')].pop() !== back) return; // only the topmost dialog
       if (e.key === 'Escape') { e.stopPropagation(); close(undefined); }
-      if (e.key === 'Enter' && e.target.tagName === 'INPUT' && buttons.some((b) => b.primary)) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        const t = e.target;
+        if (t.tagName === 'TEXTAREA') return; // new line
+        if (back.contains(t) && (t.tagName === 'BUTTON' || t.tagName === 'SELECT')) return; // that control itself
+        // Enter = the primary button; never the (still focused) button behind the dialog
         e.preventDefault();
-        click(buttons.find((b) => b.primary).value);
+        e.stopPropagation();
+        if (e.repeat) return;
+        const primary = buttons.find((b) => b.primary);
+        if (primary) click(primary.value);
       }
     };
     const click = async (v) => {
@@ -31,6 +38,7 @@ export function modal({ title, body, buttons = [{ label: 'Sluiten', value: undef
         h('div', { class: 'modal-body' }, body),
         buttons.length ? h('div', { class: 'modal-foot' }, buttons.map((b) =>
           h('button', { class: (b.primary ? 'primary' : '') + (b.danger ? ' danger' : ''), onclick: () => click(b.value) }, b.label))) : null));
+    if (document.activeElement && !back.contains(document.activeElement)) document.activeElement.blur?.();
     document.body.append(back);
     document.addEventListener('keydown', onKey, true);
     bind?.(close); // lets content inside the body close the dialog with a value
