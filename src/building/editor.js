@@ -5,7 +5,7 @@ import { clone, r2, snap, uid } from '../util.js';
 import { geometry } from '../symbols/geom.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
 import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
-import { nearestWall, nextNumber, projectOnWall, wallGeom } from './model.js';
+import { nearestWall, nextNumber, projectOnWall, rotateStair, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -891,7 +891,7 @@ export class PlanEditor {
     if (!syms.length && !stairs.length) return;
     this.app.mutate(() => {
       for (const s of syms) s.rot = ((s.rot || 0) + 90) % 360;
-      for (const s of stairs) s.rot = ((s.rot || 0) + 90) % 360;
+      for (const s of stairs) rotateStair(s, (s.rot || 0) + 90);
     });
   }
 

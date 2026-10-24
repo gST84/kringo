@@ -218,6 +218,19 @@ export function wallPath(w, t0, t1, off, g = wallGeom(w)) {
   return out;
 }
 
+/** Sets a stair's rotation (degrees, clockwise); rectangular stairs turn around their centre. */
+export function rotateStair(st, deg) {
+  deg = ((Math.round(deg) % 360) + 360) % 360;
+  if (st.kind !== 'spiral') {
+    const R = (a, lx, ly) => [lx * Math.cos(a) - ly * Math.sin(a), lx * Math.sin(a) + ly * Math.cos(a)];
+    const [cx, cy] = R(((st.rot || 0) * Math.PI) / 180, st.w / 2, st.h / 2);
+    const [nx, ny] = R((deg * Math.PI) / 180, st.w / 2, st.h / 2);
+    st.x = Math.round((st.x + cx - nx) * 100) / 100;
+    st.y = Math.round((st.y + cy - ny) * 100) / 100;
+  }
+  st.rot = deg;
+}
+
 /** Area of a polygon (cm²). */
 export function polygonArea(pts) {
   let a = 0;

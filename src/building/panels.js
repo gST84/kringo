@@ -4,7 +4,7 @@ import { clone, h, natCmp } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, polygonArea, removeNode, rootBoards, treeChildren, wallGeom } from './model.js';
+import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, polygonArea, removeNode, rotateStair, rootBoards, treeChildren, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
@@ -221,8 +221,11 @@ export function buildingProps(app, plan) {
       return [section('Wenteltrap',
         h('div', { class: 'grid2' },
           num('Straal (cm)', 'r', 'sr2'), num('Treden', 'steps', 'ss', true),
-          num('Draaihoek (°)', 'turn', 'sturn', true), num('Start (°)', 'rot', 'srot', true)),
-        h('div', { class: 'btnrow' }, h('button', { onclick: () => set(() => { st.dir = st.dir === -1 ? 1 : -1; }) }, '↻ Draairichting'), del),
+          num('Draaihoek (°)', 'turn', 'sturn', true)),
+        rotationDial(st.rot || 0, (deg) => set(() => rotateStair(st, deg))),
+        h('div', { class: 'btnrow' },
+          h('button', { onclick: () => set(() => { st.dir = st.dir === -1 ? 1 : -1; }) }, '↻ Draairichting'),
+          h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
         h('p', { class: 'hint' }, 'Sleep het ronde blokje om de straal te wijzigen.'))];
     }
     return [section(st.kind === 'quarter' ? 'Kwartdraaitrap' : 'Trap',
@@ -232,7 +235,8 @@ export function buildingProps(app, plan) {
       h('div', { class: 'grid2' },
         num('Breedte (cm)', 'w', 'sw'), num('Lengte (cm)', 'h', 'sh'),
         st.kind === 'quarter' ? num('Trapbreedte (cm)', 'b', 'sb') : null,
-        num('Treden', 'steps', 'ss', true), num('Rotatie (°)', 'rot', 'sr')),
+        num('Treden', 'steps', 'ss', true)),
+      rotationDial(st.rot || 0, (deg) => set(() => rotateStair(st, deg))),
       h('div', { class: 'btnrow' },
         st.kind === 'quarter' ? h('button', { onclick: () => set(() => { st.mirror = !st.mirror; }) }, '⇋ Spiegelen') : null,
         h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
@@ -377,7 +381,7 @@ function rotationDial(rot, pick) {
     const d = e.target.closest?.('[data-deg]')?.dataset.deg;
     if (d !== undefined) pick(+d);
   });
-  return h('div', { class: 'dialwrap', title: 'Klik op een bolletje om het symbool te draaien (per 15°)' }, svg);
+  return h('div', { class: 'dialwrap', title: 'Klik op een bolletje om te draaien (per 15°)' }, svg);
 }
 
 function floorProps(app, plan) {
