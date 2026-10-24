@@ -39,7 +39,7 @@ export const circuitOptions = (b, withNone = true) => [
 export function buildingLeftPanel(app, el, { plan, editor }) {
   let tab = 'symbols';
   let filter = '';
-  const open = new Set(['Grondplan', 'AREI', 'AREI/Verlichting']);
+  const open = new Set(['Grondplan', 'Aantekeningen', 'AREI', 'AREI/Verlichting']);
   const render = () => {
     const tabs = h('div', { class: 'tabs inner' },
       h('button', { class: tab === 'symbols' ? 'active' : '', onclick: () => { tab = 'symbols'; render(); } }, 'Symbolen'),
@@ -55,25 +55,28 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
   };
   const paletteNodes = () => {
     const q = filter.trim().toLowerCase();
-    const items = PLAN_PALETTE.filter((p) => !q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q));
-    if (!items.length) return [];
-    const isOpen = q || open.has('Grondplan');
-    const out = [h('div', { class: 'folder' + (isOpen ? ' open' : ''), onclick: () => { toggleFolder(open, 'Grondplan'); render(); } },
-      h('span', { class: 'caret' }, isOpen ? '▾' : '▸'), ' ', 'Grondplan')];
-    if (isOpen) out.push(h('div', { class: 'symgrid tools' }, items.map((p) => {
-      const item = h('div', {
-        class: 'sym' + (app.mode === 'building' && !p.action && plan.tool !== 'place' && plan.toolKey === p.key ? ' active' : ''),
-        title: p.label,
-        onclick: () => {
-          if (app.mode !== 'building') app.setMode('building');
-          if (p.action === 'background') loadBackground(app);
-          else plan.setTool(p.tool, { ...(p.opts || {}), key: p.key });
-        },
-      });
-      item.innerHTML = p.icon;
-      item.append(h('span', null, p.label));
-      return item;
-    })));
+    const out = [];
+    for (const group of ['Grondplan', 'Aantekeningen']) {
+      const items = PLAN_PALETTE.filter((p) => (p.group || 'Grondplan') === group && (!q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q)));
+      if (!items.length) continue;
+      const isOpen = q || open.has(group);
+      out.push(h('div', { class: 'folder' + (isOpen ? ' open' : ''), onclick: () => { toggleFolder(open, group); render(); } },
+        h('span', { class: 'caret' }, isOpen ? '▾' : '▸'), ' ', group));
+      if (isOpen) out.push(h('div', { class: 'symgrid tools' }, items.map((p) => {
+        const item = h('div', {
+          class: 'sym' + (app.mode === 'building' && !p.action && plan.tool !== 'place' && plan.toolKey === p.key ? ' active' : ''),
+          title: p.label,
+          onclick: () => {
+            if (app.mode !== 'building') app.setMode('building');
+            if (p.action === 'background') loadBackground(app);
+            else plan.setTool(p.tool, { ...(p.opts || {}), key: p.key });
+          },
+        });
+        item.innerHTML = p.icon;
+        item.append(h('span', null, p.label));
+        return item;
+      })));
+    }
     return out;
   };
   const treeNodes = () => {
@@ -258,6 +261,7 @@ export function buildingProps(app, plan) {
   if (kind === 'P') {
     const sh = f.shapes.find((x) => x.id === id);
     if (!sh) return [];
+    if (sh.type === 'callout') return calloutProps(app, plan, sh);
     const area = sh.type === 'area';
     const style = (k, v) => set(() => {
       sh[k] = v;
@@ -268,13 +272,14 @@ export function buildingProps(app, plan) {
     const PALETTE = ['#93c5fd', '#86efac', '#fde68a', '#fca5a5', '#d8b4fe', '#fdba74', '#cbd5e1', '#dc2626', '#2563eb', '#16a34a', '#000000'];
     const free = h('input', { type: 'color', value: cur, title: 'Vrije kleur kiezen' });
     free.addEventListener('change', () => style('color', free.value));
-    return [section(area ? 'Gekleurd vlak' : 'Lijn',
+    return [section(area ? 'Gekleurd vlak' : sh.arrow ? 'Pijl' : 'Lijn',
       area ? h('p', null, t('Oppervlakte'), ': ', h('b', null, `${(polygonArea(sh.pts) / 10000).toFixed(2).replace('.', ',')} m²`)) : null,
       field('Kleur', h('div', { class: 'chips colors' }, PALETTE.map((c) => h('button', {
         class: 'cchip' + (c === cur ? ' active' : ''), style: { background: c }, title: c, onclick: () => style('color', c),
       })), free)),
       area ? field('Dekking (%)', inp(Math.round((sh.opacity ?? 0.35) * 100), (v) => style('opacity', Math.max(0, Math.min(100, v || 0)) / 100), { type: 'number', key: 'pop' })) : null,
       field(area ? 'Randdikte (mm)' : 'Lijndikte (mm)', inp(sh.width || (area ? 0.18 : 0.5), (v) => style('width', Math.max(0.05, v || 0.25)), { type: 'number', key: 'pw', step: 0.05 })),
+      area ? null : field('Pijlpunten', sel(sh.arrow || '', [['', 'Geen'], ['end', 'Op het einde'], ['start', 'Aan het begin'], ['both', 'Aan beide kanten']], (v) => set(() => { if (v) sh.arrow = v; else delete sh.arrow; }), 'parrow')),
       chk(sh.dash, (v) => style('dash', v), 'Gestreept', 'pdash'),
       area ? chk(sh.stroke !== false, (v) => style('stroke', v), 'Rand tonen', 'pstroke') : null,
       h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')),
@@ -446,6 +451,40 @@ function floorProps(app, plan) {
     section('Sneltoetsen', h('p', { class: 'hint keys' },
       'W muur (cijfers + Enter = lengte in cm) · A gebogen muur · D deur · N raam · M maatlijn · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),
   ];
+}
+
+const NOTE_COLORS = ['#1f2937', '#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed'];
+
+/** Text balloon / text box: text, size, shape, colour, leader. */
+function calloutProps(app, plan, sh) {
+  const set = (fn) => app.mutate(fn);
+  const style = (k, v) => set(() => {
+    sh[k] = v;
+    plan.lastStyle ||= {};
+    plan.lastStyle.callout = { ...(plan.lastStyle.callout || {}), [k]: v };
+  });
+  const cur = sh.color || '#1f2937';
+  const ta = h('textarea', { rows: 3, 'data-key': 'ctext' }, sh.text || '');
+  ta.addEventListener('change', () => set(() => { sh.text = ta.value; }));
+  const free = h('input', { type: 'color', value: cur, title: 'Vrije kleur kiezen' });
+  free.addEventListener('change', () => style('color', free.value));
+  const leader = sh.pts.length > 1;
+  return [section(leader ? 'Tekstballon' : 'Tekstvak',
+    field('Tekst', ta),
+    h('div', { class: 'grid2' },
+      field('Tekstgrootte (mm)', inp(sh.size || 3, (v) => style('size', Math.max(1, v || 3)), { type: 'number', key: 'csize' })),
+      field('Vorm', sel(sh.shape || 'round', [['round', 'Afgerond'], ['rect', 'Rechthoek'], ['ellipse', 'Ovaal']], (v) => style('shape', v), 'cshape'))),
+    field('Kleur', h('div', { class: 'chips colors' }, NOTE_COLORS.map((c) => h('button', {
+      class: 'cchip' + (c === cur ? ' active' : ''), style: { background: c }, title: c, onclick: () => style('color', c),
+    })), free)),
+    chk(sh.border !== false, (v) => style('border', v), 'Kader tonen', 'cborder'),
+    chk(sh.fill !== false, (v) => style('fill', v), 'Witte achtergrond', 'cfill'),
+    chk(leader, (v) => set(() => {
+      const B = sh.pts[sh.pts.length - 1];
+      sh.pts = v ? [[B[0] - 100, B[1] + 100], B] : [B];
+    }), 'Met aanwijspijl', 'cleader'),
+    h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')),
+    h('p', { class: 'hint' }, 'Sleep de punten om de ballon of de pijlpunt te verplaatsen · dubbelklik = tekst bewerken.'))];
 }
 
 /** Background drawing of the floor: load, scale, opacity, lock, print. */

@@ -159,6 +159,7 @@ const PLAN_HINTS = {
   area: 'Klik de hoekpunten van het vlak · klik het eerste punt, dubbelklik of Enter = sluiten · Backspace = punt terug · Esc',
   line: 'Klik de punten van de lijn · dubbelklik, Enter of rechtermuisknop = einde · Backspace = punt terug · Esc',
   calib: 'Klik twee punten op de achtergrond waarvan je de werkelijke afstand kent',
+  callout: 'Tekstballon: klik het punt waarnaar hij wijst, dan de plaats van de ballon · tekstvak: klik de plaats · Esc',
   text: 'Klik in een ruimte om een naam te plaatsen',
   place: 'Klik om te plaatsen (tegen de dichtstbijzijnde muur) · R draaien · Alt = vrij plaatsen · Esc = stoppen',
   link: 'Klik de symbolen na elkaar: 1 → 2 → 3 … (bv. schakelaar → lamp → lamp) · opnieuw klikken op een gekoppeld paar = ontkoppelen · Esc = stoppen',
@@ -214,6 +215,16 @@ app.on('planTool', (t) => {
   if (app.mode === 'building') hintEl.textContent = PLAN_HINTS[t] || '';
 });
 app.on('planToast', (msg) => toast(msg));
+app.on('planRequestCallout', async (pts) => {
+  const v = await prompt('Tekst', '', { multiline: true });
+  if (v) plan.addCallout(pts, v);
+});
+app.on('planEditCallout', async (id) => {
+  const sh = app.floor.shapes.find((x) => x.id === id);
+  if (!sh) return;
+  const v = await prompt('Tekst bewerken', sh.text, { multiline: true });
+  if (v !== null) app.mutate(() => { sh.text = v; });
+});
 app.on('planCalibrate', async ({ a, b, len }) => {
   const v = await prompt('Werkelijke afstand (cm)', '', { label: t('Gemeten op de achtergrond: {n} cm. Geef de echte afstand tussen beide punten.', { n: Math.round(len * 10) / 10 }) });
   const real = parseFloat(String(v || '').replace(',', '.'));

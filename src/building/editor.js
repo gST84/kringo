@@ -13,7 +13,7 @@ const near = (a, b, tol = 0.5) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] 
 const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
 /** Tools that draw several points before they create something. */
-const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'calib']);
+const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'calib', 'callout']);
 
 const ico = (inner) => `<svg viewBox="0 0 40 40" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 
@@ -35,6 +35,10 @@ export const PLAN_PALETTE = [
   { key: 'area', label: 'Gekleurd vlak', tool: 'area', icon: ico('<path d="M6 30 10 8l20 4 4 18z" fill="#93c5fd" fill-opacity=".7" stroke="#3b82f6"/>') },
   { key: 'line', label: 'Lijn', tool: 'line', icon: ico('<path d="M5 32 16 12l9 14 10-18" stroke="#dc2626" stroke-width="2.5"/>') },
   { key: 'link', label: 'Koppelen', tool: 'link', icon: ico('<circle cx="9" cy="28" r="4"/><circle cx="31" cy="12" r="4"/><path d="M12 25q4-14 16-11" stroke-dasharray="3 2"/>') },
+  { key: 'arrow', group: 'Aantekeningen', label: 'Pijl', tool: 'line', opts: { arrow: 'end' }, icon: ico('<path d="M6 32 32 8"/><path d="M33 7 21 11l8 8z" fill="currentColor"/>') },
+  { key: 'arrow2', group: 'Aantekeningen', label: 'Dubbele pijl', tool: 'line', opts: { arrow: 'both' }, icon: ico('<path d="M9 31 31 9"/><path d="M33 7 21 11l8 8zM7 33l12-4-8-8z" fill="currentColor"/>') },
+  { key: 'callout', group: 'Aantekeningen', label: 'Tekstballon', tool: 'callout', opts: { leader: true }, icon: ico('<rect x="14" y="4" width="23" height="15" rx="3"/><path d="M18 19 5 34" /><path d="M18 10h14M18 14h10" stroke-width="1.3"/>') },
+  { key: 'textbox', group: 'Aantekeningen', label: 'Tekstvak', tool: 'callout', opts: { leader: false }, icon: ico('<rect x="4" y="10" width="32" height="20" rx="2"/><path d="M9 17h22M9 23h16" stroke-width="1.3"/>') },
   { key: 'bg', label: 'Achtergrond (afbeelding / PDF)', action: 'background', icon: ico('<rect x="4" y="7" width="32" height="26" rx="2" stroke-width="1.6"/><path d="m6 29 9-10 7 7 4-4 8 7" stroke-width="1.4"/><circle cx="27" cy="14" r="3" stroke-width="1.4"/>') },
   { key: 'calib', label: 'Schaal bepalen', tool: 'calib', icon: ico('<path d="M4 30 36 10" stroke-width="1.6"/><circle cx="4" cy="30" r="3"/><circle cx="36" cy="10" r="3"/><path d="M14 33l3-5M24 27l3-5" stroke-width="1.2"/>') },
 ];
@@ -205,6 +209,8 @@ export class PlanEditor {
     this.placing = tool === 'place' ? { sym: opts.sym, rot: 0 } : null;
     if (tool === 'opening') { this.openingType = opts.type || 'door'; this.openingLeaf = opts.leaf !== false; }
     if (tool === 'stair') this.stairKind = opts.stair || 'straight';
+    this.lineArrow = tool === 'line' ? opts.arrow || null : null;
+    this.calloutLeader = opts.leader !== false;
     this.svg.dataset.tool = tool;
     this.app.emit('planTool', tool);
     this.renderOverlay();
@@ -249,7 +255,9 @@ export class PlanEditor {
     } else if (type === 'P') {
       const sh = f.shapes.find((x) => x.id === id);
       if (!sh) return '';
-      sh.pts.forEach(([x, y], i) => { s += sq(x, y, `PH:${id}:${i}`); });
+      // a balloon is moved by dragging it; only the tip of its arrow gets a handle
+      const list = sh.type === 'callout' ? sh.pts.slice(0, sh.pts.length - 1) : sh.pts;
+      list.forEach(([x, y], i) => { s += sq(x, y, `PH:${id}:${i}`); });
     } else if (type === 'D') {
       const d = f.dims.find((x) => x.id === id);
       if (!d) return '';
@@ -317,6 +325,10 @@ export class PlanEditor {
       s += label(m, r2(dist(this.pts[this.pts.length - 1], m)) + ' cm');
     }
     if (this.tool === 'area' || this.tool === 'line') s += cursor();
+    if (this.tool === 'callout' && this.pts.length) {
+      const [a] = this.pts;
+      s += `<line class="ghostline" x1="${a[0]}" y1="${a[1]}" x2="${m[0]}" y2="${m[1]}" style="stroke-width:${sw}"/>`;
+    }
     if (this.tool === 'calib') {
       const [a] = this.pts;
       if (a) s += `<line class="ghostline" x1="${a[0]}" y1="${a[1]}" x2="${m[0]}" y2="${m[1]}" style="stroke-width:${sw}"/>` + label(m, r2(dist(a, m)) + ' cm');
@@ -446,6 +458,7 @@ export class PlanEditor {
       case 'dim': return this.dimClick(p);
       case 'area': case 'line': return this.shapeClick(p);
       case 'calib': return this.calibClick(p);
+      case 'callout': return this.calloutClick(p);
       case 'opening': return this.addOpening();
       case 'stair': this.drag = { type: 'stair', start: p, cur: p }; return;
       case 'spiral': this.drag = { type: 'spiral', start: p, cur: p }; return;
@@ -509,7 +522,7 @@ export class PlanEditor {
         if (it.cx != null) { it.o.cx = r2(it.cx + dx); it.o.cy = r2(it.cy + dy); }
       }
       for (const it of d.dims) { it.o.x1 = r2(it.x1 + dx); it.o.y1 = r2(it.y1 + dy); it.o.x2 = r2(it.x2 + dx); it.o.y2 = r2(it.y2 + dy); }
-      for (const it of d.shapes) it.o.pts = it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
+      for (const it of d.shapes) it.o.pts = it.pts.map(([x, y], i) => (it.only < 0 || i === it.only ? [r2(x + dx), r2(y + dy)] : [x, y]));
       for (const [w, i, x, y] of d.attached) { if (i === 1) { w.x1 = r2(x + dx); w.y1 = r2(y + dy); } else { w.x2 = r2(x + dx); w.y2 = r2(y + dy); } }
       this.app.touched();
     }
@@ -565,6 +578,7 @@ export class PlanEditor {
     if (this.tool !== 'select') return;
     const key = this.hitKey(e.target);
     if (key?.startsWith('T:')) this.app.emit('planEditText', key.slice(2));
+    else if (key?.startsWith('P:') && this.floor.shapes.find((x) => 'P:' + x.id === key)?.type === 'callout') this.app.emit('planEditCallout', key.slice(2));
     else if (key && !key.includes('H:')) this.app.emit('focusProps', key);
   }
 
@@ -770,8 +784,9 @@ export class PlanEditor {
     if (type === 'area' && list.length > 3 && near(list[0], list[list.length - 1], 0.01)) list.pop();
     this.pts = [];
     if (list.length < (type === 'area' ? 3 : 2)) { this.renderOverlay(); return; }
-    const last = this.lastStyle?.[type] || {};
+    const last = this.lastStyle?.[type === 'line' && this.lineArrow ? 'arrow' : type] || {};
     const sh = { id: uid('sh'), type, pts: list, ...last };
+    if (type === 'line') { if (this.lineArrow) sh.arrow = this.lineArrow; else delete sh.arrow; }
     this.app.mutate(() => this.floor.shapes.push(sh));
     this.app.select(['P:' + sh.id]);
     this.renderOverlay();
@@ -785,6 +800,22 @@ export class PlanEditor {
     this.renderOverlay();
     if (dist(a, p) < 1) return;
     this.app.emit('planCalibrate', { a, b: p, len: dist(a, p) });
+  }
+
+  /** Text balloon: first the point it points at, then the place of the balloon (a text box: one click). */
+  calloutClick(p) {
+    if (this.calloutLeader && !this.pts.length) { this.pts.push(p); this.ptsFresh = true; this.renderOverlay(); return; }
+    const pts = this.calloutLeader ? [this.pts[0], p] : [p];
+    this.pts = [];
+    this.renderOverlay();
+    this.app.emit('planRequestCallout', pts);
+  }
+
+  addCallout(pts, text) {
+    if (!text) return;
+    const sh = { id: uid('sh'), type: 'callout', pts, text, ...(this.lastStyle?.callout || {}) };
+    this.app.mutate(() => this.floor.shapes.push(sh));
+    this.app.select(['P:' + sh.id]);
   }
 
   /** Scales the background so that the distance between a and b becomes `real` cm. */
@@ -879,7 +910,11 @@ export class PlanEditor {
       type: 'move', start, items, attached, moved: false, dx: 0, dy: 0,
       walls: walls.map((w) => ({ o: w, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, cx: w.cx, cy: w.cy })),
       dims: f.dims.filter((d) => sel.has('D:' + d.id)).map((d) => ({ o: d, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 })),
-      shapes: f.shapes.filter((s) => sel.has('P:' + s.id)).map((s) => ({ o: s, pts: s.pts.map((p) => [...p]) })),
+      shapes: f.shapes.filter((s) => sel.has('P:' + s.id)).map((s) => ({
+        o: s, pts: s.pts.map((p) => [...p]),
+        // dragging a single balloon moves the balloon, its arrow keeps pointing at the same spot
+        only: sel.size === 1 && s.type === 'callout' && s.pts.length > 1 ? s.pts.length - 1 : -1,
+      })),
     };
   }
 

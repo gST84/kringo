@@ -2,7 +2,7 @@
 // Plans are stored in centimetres and drawn to scale (default 1:50) on the A3 sheet; symbols and
 // texts keep a fixed paper size.
 import { t } from '../i18n.js';
-import { r2 } from '../util.js';
+import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
@@ -222,9 +222,61 @@ export function planShapeSvg(sh, k, sel, opts = {}) {
   if (sh.type === 'area') {
     return `<polygon class="${cls} parea" data-k="P:${sh.id}" points="${pts(sh.pts)}" style="fill:${color};fill-opacity:${sh.opacity ?? 0.35};stroke:${sh.stroke === false ? 'none' : color};stroke-width:${sw}"${dash}/>`;
   }
+  if (sh.type === 'callout') return calloutSvg(sh, k, cls, opts);
   let s = `<g class="${cls}" data-k="P:${sh.id}"><polyline class="pline" points="${pts(sh.pts)}" style="fill:none;stroke:${color};stroke-width:${sw};stroke-linecap:round;stroke-linejoin:round"${dash}/>`;
+  const n = sh.pts.length;
+  const size = Math.max(2.2, wmm * 4) / k;
+  if (n >= 2 && (sh.arrow === 'end' || sh.arrow === 'both')) s += arrowTip(sh.pts[n - 1], sh.pts[n - 2], size, color);
+  if (n >= 2 && (sh.arrow === 'start' || sh.arrow === 'both')) s += arrowTip(sh.pts[0], sh.pts[1], size, color);
   if (!opts.print) s += `<polyline class="hit" points="${pts(sh.pts)}" style="fill:none;stroke-width:${Math.max(sw, 3 / k)}"/>`;
   return s + '</g>';
+}
+
+/** Filled arrow head at `tip`, pointing away from `from`. */
+function arrowTip(tip, from, size, color) {
+  const d = Math.hypot(tip[0] - from[0], tip[1] - from[1]) || 1;
+  const ux = (tip[0] - from[0]) / d, uy = (tip[1] - from[1]) / d;
+  const b = [tip[0] - ux * size, tip[1] - uy * size];
+  const w = size * 0.38;
+  return `<polygon class="ahead" points="${pts([tip, [b[0] - uy * w, b[1] + ux * w], [b[0] + uy * w, b[1] - ux * w]])}" style="fill:${color};stroke:none"/>`;
+}
+
+/** Text balloon (with a leader to the point it explains) or text box, at paper size. */
+function calloutSvg(sh, k, cls, opts) {
+  const color = sh.color || '#1f2937';
+  const size = sh.size || 3; // mm on paper
+  const lines = String(sh.text || '').split('\n');
+  const lh = size * 1.25, pad = size * 0.55;
+  const w = Math.max(size * 2, Math.max(...lines.map((l) => l.length)) * size * 0.56) + pad * 2;
+  const h = lines.length * lh + pad * 1.2;
+  const shape = sh.shape || 'round';
+  const ex = shape === 'ellipse' ? 1.3 : 1, ey = shape === 'ellipse' ? 1.45 : 1;
+  const B = sh.pts[sh.pts.length - 1];
+  const mm = 1 / k;
+  const swmm = sh.width || 0.25;
+  let s = `<g class="${cls}" data-k="P:${sh.id}">`;
+  if (sh.pts.length > 1) {
+    const T = sh.pts[0];
+    const dx = T[0] - B[0], dy = T[1] - B[1];
+    const hw = (w * ex * mm) / 2, hh = (h * ey * mm) / 2;
+    const f = shape === 'ellipse' ? 1 / Math.hypot(dx / hw, dy / hh) : Math.min(hw / Math.abs(dx || 1e-9), hh / Math.abs(dy || 1e-9));
+    if (f < 1) {
+      const E = [B[0] + dx * f, B[1] + dy * f];
+      s += `<line class="pline" x1="${r2(E[0])}" y1="${r2(E[1])}" x2="${r2(T[0])}" y2="${r2(T[1])}" style="stroke:${color};stroke-width:${swmm * mm}"/>`;
+      s += arrowTip(T, E, 2.2 * mm, color);
+      if (!opts.print) s += `<polyline class="hit" points="${pts([E, T])}" style="fill:none;stroke-width:${3 * mm}"/>`;
+    }
+  }
+  s += `<g transform="translate(${r2(B[0])} ${r2(B[1])}) scale(${r2(mm)})">`;
+  const fill = sh.fill === false ? 'none' : '#fff';
+  const box = `style="fill:${fill};fill-opacity:.92;stroke:${sh.border === false ? 'none' : color};stroke-width:${swmm}"`;
+  if (shape === 'ellipse') s += `<ellipse class="cbox" cx="0" cy="0" rx="${r2((w * ex) / 2)}" ry="${r2((h * ey) / 2)}" ${box}/>`;
+  else s += `<rect class="cbox" x="${r2(-w / 2)}" y="${r2(-h / 2)}" width="${r2(w)}" height="${r2(h)}" rx="${shape === 'rect' ? 0 : r2(size * 0.6)}" ${box}/>`;
+  lines.forEach((l, i) => {
+    s += `<text x="0" y="${r2(-((lines.length - 1) * lh) / 2 + i * lh)}" font-size="${size}" text-anchor="middle" class="tx ctext" style="fill:${color}">${esc(l)}</text>`;
+  });
+  if (!opts.print) s += `<rect class="hit" x="${r2((-w * ex) / 2)}" y="${r2((-h * ey) / 2)}" width="${r2(w * ex)}" height="${r2(h * ey)}"/>`;
+  return s + '</g></g>';
 }
 
 export function linkKind(defA, defB) {
@@ -290,7 +342,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     if (w) s += openingSvg(o, w, sw, sel.has('O:' + o.id));
   }
   for (const st of floor.stairs) s += stairSvg(st, sw, sel.has('S:' + st.id));
-  for (const sh of floor.shapes || []) if (sh.type !== 'area') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
+  for (const sh of floor.shapes || []) if (sh.type === 'line') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   for (const d of floor.dims || []) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
   // room names
   for (const t of floor.texts) {
@@ -317,6 +369,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     const def = lib.get(sym.sym);
     if (def) s += symbolSvg(sym, def, k, b, sel.has('A:' + sym.id), opts);
   }
+  for (const sh of floor.shapes || []) if (sh.type === 'callout') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   s += '</g>';
   return s;
 }

@@ -381,7 +381,9 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .plan image.pbg.locked { pointer-events: none; }
 .plan .bgsel { fill: none; stroke: var(--sel); stroke-dasharray: 6 3; }
 .plan .pshape.sel, .plan .parea.sel { stroke: var(--sel) !important; }
-.plan .pshape.sel .pline { stroke: var(--sel) !important; }
+.plan .pshape.sel .pline, .plan .pshape.sel .cbox { stroke: var(--sel) !important; }
+.plan .pshape.sel .ahead { fill: var(--sel) !important; }
+.plan .pshape .ctext { font-weight: normal; }
 .plan .parea:hover { stroke: #4b8af0 !important; }
 .plan .pdim:hover line { stroke: #4b8af0; }
 .plan .dimtx { font-weight: normal; }
