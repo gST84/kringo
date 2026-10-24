@@ -1,5 +1,6 @@
 // Project data model. All coordinates are millimetres on an A3 landscape sheet.
 import { uid } from './util.js';
+import { t } from './i18n.js';
 import { newBuilding, normalizeBuilding } from './building/model.js';
 
 export const FORMAT = 'kringo-project';
@@ -49,7 +50,7 @@ export function newRail(name, y) {
   return { id: uid('r'), name, y, x0: FRAME.area.x0, x1: FRAME.area.x1, color: RAIL_PRESETS[name] || '#444444' };
 }
 
-export function newPage(title = 'Nieuwe pagina', template = 'empty') {
+export function newPage(title = t('Nieuwe pagina'), template = 'empty') {
   const t = PAGE_TEMPLATES[template] || PAGE_TEMPLATES.empty;
   return {
     id: uid('p'),
@@ -83,7 +84,7 @@ export function newProject(name = 'Nieuw project', kind = 'schematic') {
       showWireNumbers: kind !== 'building',
       colorWires: true, // wires take the colour of their supply rail
     },
-    pages: kind === 'building' ? [] : [newPage('Voorblad'), newPage('Stuurstroom', 'control')],
+    pages: kind === 'building' ? [] : [newPage(t('Voorblad')), newPage(t('Stuurstroom'), 'control')],
     symbols: {}, // embedded copies of non-builtin symbol definitions
     building: newBuilding(),
     created: Date.now(),

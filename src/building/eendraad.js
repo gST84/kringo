@@ -8,6 +8,7 @@
 //    written vertically, cable along the line ("VOB Eca 3G2,5²")
 //  - numbered branches to the right: switches in a row on the line followed by the light points
 //    they control (×n), socket boxes, appliances; a circuit with a single appliance carries it on top
+import { t } from '../i18n.js';
 import { newPage } from '../model.js';
 import { uid } from '../util.js';
 import { circuitSymbols, treeChildren, treeNode, rootBoards } from './model.js';
@@ -124,7 +125,7 @@ function builder(project, lib, board, title) {
     page.board = board.id;
     page.noDots = true;
     pages.push(page);
-    text(20, 22, `Eendraadschema – ${board.name}${pages.length > 1 ? ' (vervolg)' : ''}`, 4, { bold: true });
+    text(20, 22, t('Eendraadschema – {name}', { name: board.name }) + (pages.length > 1 ? t(' (vervolg)') : ''), 4, { bold: true });
     x = X_START;
     page.busFrom = 18;
     if (first) {
@@ -132,7 +133,7 @@ function builder(project, lib, board, title) {
       const feed = board.parent && treeNode(b, board.parent);
       if (feed) {
         const fb = feed.type === 'board' ? feed.node : null;
-        text(20, MAIN_Y + 22, `Voeding vanuit ${feed.type === 'circuit' ? 'kring ' + feed.node.name : fb ? fb.name : feed.node.name}`, 2.4, { bold: true });
+        text(20, MAIN_Y + 22, t('Voeding vanuit {name}', { name: feed.type === 'circuit' ? t('kring {name}', { name: feed.node.name }) : fb ? fb.name : feed.node.name }), 2.4, { bold: true });
       }
       if (!feed) comp('arei/earth', 22, MAIN_Y);
       const sy = MAIN_Y + 15;
@@ -144,13 +145,13 @@ function builder(project, lib, board, title) {
       const rx = sx + 26;
       comp('arei/mcb-v', rx, sy, 90);
       const cx = rx + 6;
-      text(cx, sy + 4, m.rcd > 0 ? `Type ${m.type || 'A'} - Δ${m.rcd}mA` : 'Hoofdschakelaar', 2.2, { anchor: 'middle' });
+      text(cx, sy + 4, m.rcd > 0 ? `Type ${m.type || 'A'} - Δ${m.rcd}mA` : t('Hoofdschakelaar'), 2.2, { anchor: 'middle' });
       text(cx, sy + 7.6, icn(m.kA), 2.2, { anchor: 'middle', box: true });
       text(cx, sy + 11.2, `${m.poles || 2}P - ${m.In || 40}A`, 2.2, { anchor: 'middle' });
       wire([rx + 12, sy], [rx + 22, sy], [rx + 22, MAIN_Y]);
       x = Math.max(X_START, rx + 8);
     } else {
-      text(15, MAIN_Y - 2, '← vervolg', 2.2);
+      text(15, MAIN_Y - 2, t('← vervolg'), 2.2);
     }
   };
   const closePage = () => { if (page) bus(page.busFrom, Math.max(x - 4, page.busFrom + 10), MAIN_Y); };
@@ -222,7 +223,7 @@ function builder(project, lib, board, title) {
     const fed = treeChildren(b, c.id).filter((t) => t.type === 'board').map((t) => t.node.name);
     if (!branches.length) {
       wire([x, top], [x, top - 8]);
-      vtext(x + 1, top - 10, fed.length ? `→ ${fed.join(', ')}` : label || 'Reserve', 2.3, { bold: true });
+      vtext(x + 1, top - 10, fed.length ? `→ ${fed.join(', ')}` : label || t('Reserve'), 2.3, { bold: true });
       if (fed.length) { vtext(x + 2.6, top - 3, cableText(c), 2.1); installMarks(c, top); }
       return w;
     }
@@ -338,7 +339,7 @@ export function generateEendraad(project, lib) {
   const b = project.building;
   const all = [];
   for (const board of boardsInOrder(b)) {
-    const bld = builder(project, lib, board, `Eendraadschema ${board.name}`);
+    const bld = builder(project, lib, board, t('Eendraadschema {name}', { name: board.name }));
     bld.start();
     bld.tree();
     all.push(...bld.finish());

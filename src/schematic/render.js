@@ -1,4 +1,5 @@
 // SVG markup for symbols and complete schematic pages (screen and print).
+import { t } from '../i18n.js';
 import { esc, r2 } from '../util.js';
 import { FRAME, SHEET, pageGrid, wireColor } from '../model.js';
 import { bbox, geometry, placeAnchor, svgTransform, worldBox, xf } from '../symbols/geom.js';
@@ -223,20 +224,20 @@ export function frameSvg(project, page, pageIdx, total = project.pages.length) {
   if (m.logo) s += `<image href="${esc(m.logo)}" x="${x0 + 2}" y="${ty + 2}" width="${60 - x0 - 4}" height="${y1 - ty - 4}" preserveAspectRatio="xMidYMid meet"/>`;
   s += textSvg(62, ty + 5, m.company || '', 3.5, 'start', 'tx tb-b');
   (m.address || '').split('\n').slice(0, 4).forEach((l, i) => (s += textSvg(62, ty + 11 + i * 4, l, 2.4, 'start', 'tx')));
-  s += textSvg(142, ty + 3.2, 'Project', 1.8, 'start', 'tx tb-l');
+  s += textSvg(142, ty + 3.2, t('Project'), 1.8, 'start', 'tx tb-l');
   s += textSvg(142, ty + 8, project.name || '', 3.5, 'start', 'tx tb-b');
   (m.description || '').split('\n').slice(0, 2).forEach((l, i) => (s += textSvg(142, ty + 14 + i * 4, l, 2.4, 'start', 'tx')));
-  if (m.customer) s += textSvg(142, ty + 26.5, 'Klant: ' + m.customer, 2.4, 'start', 'tx');
-  const kv = [['Getekend', m.drawer], ['Datum', m.date], ['Revisie', m.revision]];
+  if (m.customer) s += textSvg(142, ty + 26.5, t('Klant: {name}', { name: m.customer }), 2.4, 'start', 'tx');
+  const kv = [[t('Getekend'), m.drawer], [t('Datum'), m.date], [t('Revisie'), m.revision]];
   kv.forEach(([k, v], i) => {
     s += textSvg(242, ty + 5 + i * 9, k, 1.8, 'start', 'tx tb-l');
     s += textSvg(242, ty + 9 + i * 9, v || '', 2.6, 'start', 'tx');
   });
-  s += textSvg(302, ty + 3.2, 'Paginatitel', 1.8, 'start', 'tx tb-l');
+  s += textSvg(302, ty + 3.2, t('Paginatitel'), 1.8, 'start', 'tx tb-l');
   s += textSvg(302, ty + 12, page.title || '', 4, 'start', 'tx tb-b');
-  s += textSvg(400, ty + 3.2, 'Blad', 1.8, 'middle', 'tx tb-l');
+  s += textSvg(400, ty + 3.2, t('Blad'), 1.8, 'middle', 'tx tb-l');
   s += textSvg(400, ty + 13, String(pageIdx + 1), 6, 'middle', 'tx tb-b');
-  s += textSvg(400, ty + 24, `van ${total}`, 2.4, 'middle', 'tx');
+  s += textSvg(400, ty + 24, t("van {n}", { n: total }), 2.4, 'middle', 'tx');
   return s + '</g>';
 }
 

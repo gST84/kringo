@@ -1,13 +1,13 @@
 // Service worker: makes Kringo installable and usable offline.
 // Strategy: network first (always the newest version when online), cache as fallback.
 // Bump VERSION when files are added or removed; add new source files to SHELL.
-const VERSION = 'kringo-v27';
+const VERSION = 'kringo-v29';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
   'src/building/arei.js', 'src/building/editor.js', 'src/building/eendraad.js', 'src/building/model.js',
   'src/building/panels.js', 'src/building/render.js', 'src/building/rules.js',
-  'src/app.js', 'src/demo.js', 'src/import/qet.js', 'src/main.js', 'src/model.js', 'src/pwa.js', 'src/touch.js',
+  'src/app.js', 'src/demo.js', 'src/import/qet.js', 'src/i18n.js', 'src/i18n-dict.js', 'src/main.js', 'src/model.js', 'src/pwa.js', 'src/touch.js',
   'src/schematic/analyze.js', 'src/schematic/editor.js', 'src/schematic/render.js', 'src/schematic/tags.js',
   'src/storage.js', 'src/symbols/builtin.js', 'src/symbols/geom.js', 'src/symbols/library.js',
   'src/ui/dialogs.js', 'src/ui/lists.js', 'src/ui/panels.js', 'src/ui/project.js', 'src/ui/start.js', 'src/ui/symbolEditor.js', 'src/util.js',

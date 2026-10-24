@@ -1,4 +1,5 @@
 // Project dialogs: properties, settings, open / new, file import / export, printing.
+import { t } from '../i18n.js';
 import { h, download, pickFiles, readDataURL, safeName, shrinkImage, uid } from '../util.js';
 import { FORMAT, LEGACY_FORMATS, newProject, SHEET } from '../model.js';
 import { deleteProject, listProjects, loadProject } from '../storage.js';
@@ -74,10 +75,10 @@ export async function settingsDialog(app) {
   const showW = h('input', { type: 'checkbox', checked: s.showWireNumbers !== false });
   const body = h('div', { class: 'form' },
     h('h3', null, 'Componentnummering'),
-    field('Formaat', tagFmt, 'Tokens: {prefix} letter (K, S, Q …), {page} pagina, {col} kolom, {row} rij-letter, {n} volgnummer. Voorbeelden: -{page}{prefix}{col} → -2K4 · -{prefix}{page}.{col}{row} → -K2.4C · -{prefix}{n} → -K1'),
+    field('Formaat', tagFmt, t('Tokens: {prefix} letter (K, S, Q …), {page} pagina, {col} kolom, {row} rij-letter, {n} volgnummer. Voorbeelden: -{page}{prefix}{col} → -2K4 · -{prefix}{page}.{col}{row} → -K2.4C · -{prefix}{n} → -K1')),
     h('datalist', { id: 'tagfmts' }, ['-{page}{prefix}{col}', '-{prefix}{page}.{col}', '-{prefix}{page}.{col}{row}', '-{prefix}{page}{col}{n}', '-{prefix}{n}'].map((x) => h('option', { value: x }))),
     h('h3', null, 'Draadnummering'),
-    field('Formaat', wireFmt, 'Tokens: {page}, {col}, {row}, {n}. Voedingslijnen krijgen hun naam (L1, N, +24V …). Voorbeelden: {n} → 1, 2, 3 · {page}.{col}{n} → 2.41 · leeg = geen automatische nummers'),
+    field('Formaat', wireFmt, t('Tokens: {page}, {col}, {row}, {n}. Voedingslijnen krijgen hun naam (L1, N, +24V …). Voorbeelden: {n} → 1, 2, 3 · {page}.{col}{n} → 2.41 · leeg = geen automatische nummers')),
     h('datalist', { id: 'wirefmts' }, ['{n}', '{page}.{col}', '{page}{col}{n}', '{page}.{col}.{n}'].map((x) => h('option', { value: x }))),
     h('label', { class: 'check' }, showW, 'Draadnummers tonen op het schema'),
     h('h3', null, 'Bladindeling'),
@@ -144,7 +145,7 @@ export async function openDialog(app) {
           class: 'icon danger', title: 'Verwijderen',
           onclick: async () => {
             if (it.id === app.project?.id) return toast('Het geopende project kan niet verwijderd worden.');
-            if (!(await confirmDlg('Project verwijderen', `"${it.name}" definitief verwijderen uit de browser?`, 'Verwijderen', true))) return;
+            if (!(await confirmDlg('Project verwijderen', t('"{name}" definitief verwijderen uit de browser?', { name: it.name }), 'Verwijderen', true))) return;
             await deleteProject(it.id);
             render(await listProjects());
           },
@@ -175,16 +176,16 @@ export async function openProjectFile(app, f) {
       app.setProject(project);
       await app.save();
       alertDlg('QElectroTech geïmporteerd',
-        `${report.pages} pagina's, ${report.comps} symbolen, ${report.wires} draden` +
-        (report.routed ? ` (${report.routed} draden zonder vast verloop opnieuw gerouteerd)` : '') +
-        (report.skipped ? `, ${report.skipped} elementen overgeslagen` : '') + '.');
+        t('{pages} pagina\'s, {comps} symbolen, {wires} draden', report) +
+        (report.routed ? t(' ({n} draden zonder vast verloop opnieuw gerouteerd)', { n: report.routed }) : '') +
+        (report.skipped ? t(', {n} elementen overgeslagen', { n: report.skipped }) : '') + '.');
       return;
     }
     const p = JSON.parse(await f.text());
     if ((p.format !== FORMAT && !LEGACY_FORMATS.includes(p.format)) || !Array.isArray(p.pages)) throw new Error('Geen Kringo-projectbestand.');
     p.format = FORMAT;
     const existing = await loadProject(p.id);
-    if (existing && !(await confirmDlg('Project bestaat al', `"${existing.name}" staat al in deze browser. Overschrijven met het bestand? (Annuleren = als kopie openen)`, 'Overschrijven'))) {
+    if (existing && !(await confirmDlg('Project bestaat al', t('"{name}" staat al in deze browser. Overschrijven met het bestand? (Annuleren = als kopie openen)', { name: existing.name }), 'Overschrijven'))) {
       p.id = uid('prj');
       p.name += ' (kopie)';
     }
@@ -243,9 +244,9 @@ export async function printDialog(app) {
   const ok = await modal({
     title: 'Afdrukken / PDF',
     body: h('div', { class: 'form' },
-      h('label', { class: 'check' }, all, `Alle pagina's (${app.project.pages.length})`),
-      h('label', { class: 'check' }, cur, `Huidige pagina (${app.pageIdx + 1})`),
-      h('p', { class: 'hint' }, `Formaat A3 liggend (${SHEET.w} × ${SHEET.h} mm). Kies "Opslaan als PDF" in het afdrukvenster voor een PDF; zet marges op "Geen".`)),
+      h('label', { class: 'check' }, all, t('Alle pagina\'s ({n})', { n: app.project.pages.length })),
+      h('label', { class: 'check' }, cur, t('Huidige pagina ({n})', { n: app.pageIdx + 1 })),
+      h('p', { class: 'hint' }, t('Formaat A3 liggend ({w} × {h} mm). Kies "Opslaan als PDF" in het afdrukvenster voor een PDF; zet marges op "Geen".', SHEET))),
     buttons: [{ label: 'Annuleren', value: false }, { label: 'SVG van pagina', value: 'svg' }, { label: 'Afdrukken', value: 'print', primary: true }],
   });
   if (ok === 'svg') exportPageSvg(app);
@@ -256,17 +257,17 @@ async function printPlansDialog(app) {
   const b = app.project.building;
   const sheets = app.project.pages.length;
   const opts = [
-    ['all', `Alles: plattegronden (${b.floors.length}) + eendraadschema (${sheets})`],
-    ['plans', `Alle plattegronden (${b.floors.length})`],
-    ['floor', `Huidige plattegrond (${app.floor.name})`],
-    ...(sheets ? [['sheets', `Eendraadschema (${sheets} blad${sheets > 1 ? 'en' : ''})`]] : []),
+    ['all', t('Alles: plattegronden ({floors}) + eendraadschema ({sheets})', { floors: b.floors.length, sheets })],
+    ['plans', t('Alle plattegronden ({n})', { n: b.floors.length })],
+    ['floor', t('Huidige plattegrond ({name})', { name: app.floor.name })],
+    ...(sheets ? [['sheets', t('Eendraadschema ({n} bladen)', { n: sheets })]] : []),
   ];
   const radios = opts.map(([v, l], i) => [v, h('input', { type: 'radio', name: 'pp', value: v, checked: i === 0 }), l]);
   const ok = await modal({
     title: 'Afdrukken / PDF',
     body: h('div', { class: 'form' },
       ...radios.map(([, r, l]) => h('label', { class: 'check' }, r, l)),
-      h('p', { class: 'hint' }, `A3 liggend, plattegronden op schaal 1:${b.scale}. Kies "Opslaan als PDF" in het afdrukvenster; marges op "Geen".`)),
+      h('p', { class: 'hint' }, t('A3 liggend, plattegronden op schaal 1:{scale}. Kies "Opslaan als PDF" in het afdrukvenster; marges op "Geen".', { scale: b.scale }))),
     buttons: [{ label: 'Annuleren', value: false }, { label: 'SVG van plattegrond', value: 'svg' }, { label: 'Afdrukken', value: 'print', primary: true }],
   });
   if (ok === 'svg') { download(`${safeName(app.project.name)} - ${safeName(app.floor.name)}.svg`, standalonePlanSvg(app.project, app.floorIdx, app.lib), 'image/svg+xml'); return; }

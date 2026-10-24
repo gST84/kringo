@@ -2,6 +2,10 @@
 
 CAD-programma in de browser voor elektrische schema's. Geen installatie en geen build-stap: plain JavaScript (ES-modules) + SVG.
 
+## Taal
+
+Nederlands, Français en English. Kies de taal op het welkomscherm of met 🌐 rechtsboven; de vaste teksten in de tekeningen (titelblok, eendraadschema) volgen mee, je eigen namen en teksten niet. Vertalingen staan in `src/i18n-dict.js` (Nederlandse tekst = sleutel).
+
 ## Steun Kringo
 
 Kringo is gratis. Wil je de verdere ontwikkeling steunen, dan kan dat via [Ko-fi](https://ko-fi.com/gst84). ♥

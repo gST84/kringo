@@ -1,4 +1,5 @@
 // Reports: device list, terminal list, wire (connection) list, PLC list.
+import { t } from '../i18n.js';
 import { h, download, toCsv, natCmp, esc, safeName } from '../util.js';
 import { analyze, refText } from '../schematic/analyze.js';
 import { needsTag } from '../schematic/tags.js';
@@ -112,7 +113,7 @@ export function listsDialog(app, initial = 'devices') {
   const table = h('div', { class: 'tablewrap' });
   const show = () => {
     tabs.replaceChildren(...Object.entries(lists).map(([k, l]) =>
-      h('button', { class: k === current ? 'active' : '', onclick: () => { current = k; show(); } }, `${l.title} (${l.rows.length})`)));
+      h('button', { class: k === current ? 'active' : '', onclick: () => { current = k; show(); } }, `${t(l.title)} (${l.rows.length})`)));
     const l = lists[current];
     table.replaceChildren(h('table', { class: 'list' },
       h('thead', null, h('tr', null, l.head.map((x) => h('th', null, x)))),

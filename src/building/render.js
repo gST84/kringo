@@ -1,6 +1,7 @@
 // SVG of floor plans: walls, openings, stairs, room names, installation symbols and their links.
 // Plans are stored in centimetres and drawn to scale (default 1:50) on the A3 sheet; symbols and
 // texts keep a fixed paper size.
+import { t } from '../i18n.js';
 import { r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
@@ -106,7 +107,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   if (opts.grid) s += `<rect class="plangrid" x="${FRAME.area.x0}" y="${FRAME.area.y0}" width="${FRAME.area.x1 - FRAME.area.x0}" height="${FRAME.area.y1 - FRAME.area.y0}"/>`;
   s += frameSvg(project, { title: floor.name }, floorIdx, b.floors.length);
   // scale note
-  s += textSvg(FRAME.area.x1 - 3, FRAME.area.y1 - 4, `Schaal 1:${b.scale}`, 2.5, 'end', 'tx');
+  s += textSvg(FRAME.area.x1 - 3, FRAME.area.y1 - 4, t('Schaal 1:{n}', { n: b.scale }), 2.5, 'end', 'tx');
   s += `<g class="plan ink" transform="translate(${ox} ${oy}) scale(${k})">`;
   // walls
   s += '<g class="walls">';

@@ -1,4 +1,5 @@
 // Panels and dialogs of the building mode: floors, AREI symbol library, properties, circuits.
+import { t } from '../i18n.js';
 import { clone, h, natCmp } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
@@ -58,7 +59,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
       out.push(h('div', { class: 'symgrid' }, f.symbols.map((d) => {
         const item = h('div', {
           class: 'sym' + ((app.mode === 'building' ? plan.placing?.sym : editor.placing?.sym) === d.id ? ' active' : ''),
-          title: `${d.name}\nKlik: plaatsen · sleep naar het blad`, draggable: 'true',
+          title: t('{name}\nKlik: plaatsen · sleep naar het blad', { name: t(d.name) }), draggable: 'true',
           onclick: () => { (app.mode === 'building' ? plan : editor).setTool('place', { sym: d.id }); render(); },
           ondragstart: (e) => e.dataTransfer.setData('text/x-kringo-symbol', d.id),
         });
@@ -83,7 +84,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
       h('div', { class: 'panel-tools' },
         h('button', {
           onclick: async () => {
-            const name = await prompt('Nieuwe verdieping', ['Gelijkvloers', 'Verdieping 1', 'Verdieping 2', 'Zolder', 'Kelder'][b.floors.length] || `Verdieping ${b.floors.length}`);
+            const name = await prompt('Nieuwe verdieping', ['Gelijkvloers', 'Verdieping 1', 'Verdieping 2', 'Zolder', 'Kelder'].map((x) => t(x))[b.floors.length] || t('Verdieping {n}', { n: b.floors.length }));
             if (name === null) return;
             app.mutate(() => b.floors.push(newFloor(name)));
             app.setFloor(b.floors.length - 1);
@@ -95,7 +96,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
           class: 'danger', title: 'Verdieping verwijderen',
           onclick: async () => {
             if (b.floors.length < 2) return toast('Er moet minstens één verdieping zijn.');
-            if (!(await confirmDlg('Verdieping verwijderen', `"${app.floor.name}" met alle muren en symbolen verwijderen?`, 'Verwijderen', true))) return;
+            if (!(await confirmDlg('Verdieping verwijderen', t('"{name}" met alle muren en symbolen verwijderen?', { name: app.floor.name }), 'Verwijderen', true))) return;
             app.mutate(() => b.floors.splice(app.floorIdx, 1));
             app.floorIdx = Math.max(0, app.floorIdx - 1);
             app.sel.clear();
@@ -131,8 +132,8 @@ export function buildingProps(app, plan) {
   if (!keys.length) return floorProps(app, plan);
   if (keys.length > 1) {
     const syms = f.symbols.filter((s) => app.sel.has('A:' + s.id));
-    return [section(`${keys.length} elementen geselecteerd`,
-      syms.length ? field(`Kring voor ${syms.length} symbool/symbolen`, sel('', [['', '— kies —'], ...circuitOptions(b, false)], (v) => set(() => {
+    return [section(t('{n} elementen geselecteerd', { n: keys.length }),
+      syms.length ? field(t('Kring voor {n} symbool/symbolen', { n: syms.length }), sel('', [['', '— kies —'], ...circuitOptions(b, false)], (v) => set(() => {
         for (const s of syms) { s.circuit = v; s.n = nextNumber(b, v); }
       }), 'mcirc')) : null,
       h('div', { class: 'btnrow' },
@@ -294,8 +295,8 @@ function floorProps(app, plan) {
         field('Schaal 1:', sel(b.scale, [[20, '20'], [50, '50'], [75, '75'], [100, '100']], (v) => set(() => { b.scale = +v; }), 'scale')),
         field('Raster (cm)', sel(b.grid, [[1, '1'], [5, '5'], [10, '10'], [25, '25']], (v) => set(() => { b.grid = +v; }), 'grid')))),
     section('Kringen',
-      h('p', null, `${b.circuits.length} kring(en), ${b.boards.length} verdeelbord(en).`),
-      checks.length ? h('p', { class: errors ? 'warn' : 'hint' }, `${errors ? '⚠ ' : ''}${checks.length} opmerking(en) bij de AREI-controle.`) : h('p', { class: 'hint' }, '✓ Geen opmerkingen.'),
+      h('p', null, t('{c} kring(en), {b} verdeelbord(en).', { c: b.circuits.length, b: b.boards.length })),
+      checks.length ? h('p', { class: errors ? 'warn' : 'hint' }, (errors ? '⚠ ' : '') + t('{n} opmerking(en) bij de AREI-controle.', { n: checks.length })) : h('p', { class: 'hint' }, '✓ Geen opmerkingen.'),
       h('div', { class: 'btnrow' },
         h('button', { onclick: () => circuitsDialog(app) }, 'Kringen & borden…'),
         h('button', { class: 'primary', onclick: () => generateDialog(app) }, 'Eendraadschema'))),
@@ -319,8 +320,8 @@ export async function circuitsDialog(app) {
   const add = (type, parent) => {
     const t = temp();
     let n;
-    if (type === 'rcd') { n = newRcd(parent, `Differentieel ${draft.rcds.length + 1}`); draft.rcds.push(n); }
-    else if (type === 'board') { n = newBoard(`Verdeelbord ${draft.boards.length + 1}`, parent); draft.boards.push(n); }
+    if (type === 'rcd') { n = newRcd(parent, t('Differentieel {n}', { n: draft.rcds.length + 1 })); draft.rcds.push(n); }
+    else if (type === 'board') { n = newBoard(t('Verdeelbord {n}', { n: draft.boards.length + 1 }), parent); draft.boards.push(n); }
     else { n = newCircuit(nextCircuitName(t), parent); draft.circuits.push(n); }
     n.pos = nextPos(temp(), parent);
     if (type === 'circuit' && n.parent) collapsed.delete(parent);
@@ -417,7 +418,7 @@ export async function circuitsDialog(app) {
             removeNode(draft, node.id); render();
           },
         }, '✕'),
-        type === 'circuit' ? h('span', { class: 'pts', title: 'Punten op de plattegronden' }, `${circuitSymbols(temp(), node.id).length} punten`) : null);
+        type === 'circuit' ? h('span', { class: 'pts', title: 'Punten op de plattegronden' }, t('{n} punten', { n: circuitSymbols(temp(), node.id).length })) : null);
       const warns = byCircuit.get(node.id) || [];
       const tint = hue === null ? {} : {
         background: `hsla(${hue}, 75%, 55%, ${type === 'rcd' ? 0.2 : 0.09})`,
@@ -440,7 +441,7 @@ export async function circuitsDialog(app) {
       h('p', { class: 'hint' }, 'Bouw de verdeling als boom: verdeelbord → differentieel → kringen, differentiëlen in differentiëlen, onderverdeelborden gevoed door een kring of differentieel. De volgorde (↑ ↓) is die van het eendraadschema.'),
       h('datalist', { id: 'cables' }, ['XVB', 'XGB', 'VOB', 'EXVB', 'XFVB'].map((x) => h('option', { value: x }))),
       ...rows,
-      h('div', { class: 'btnrow' }, h('button', { onclick: () => { const n = newBoard(`Verdeelbord ${draft.boards.length + 1}`); n.pos = draft.boards.length; draft.boards.push(n); render(); } }, '＋ Apart verdeelbord')),
+      h('div', { class: 'btnrow' }, h('button', { onclick: () => { const n = newBoard(t('Verdeelbord {n}', { n: draft.boards.length + 1 })); n.pos = draft.boards.length; draft.boards.push(n); render(); } }, '＋ Apart verdeelbord')),
       general.length ? h('div', null, general.map((w) => h('div', { class: 'chk ' + w.level }, 'ℹ ' + w.text))) : null,
     ].filter(Boolean));
   };
@@ -467,7 +468,7 @@ export async function generateDialog(app) {
   const ok = await modal({
     title: 'Eendraadschema genereren',
     body: h('div', null,
-      h('p', null, `Per verdeelbord wordt een eendraadschema gemaakt (bladen onder "Bladen"): voeding, differentiëlen met hun rail, automaten en per kring de aftakkingen – schakelaars met hun lichtpunten (×n), stopcontactdozen en toestellen (${b.circuits.length} kringen). Nadien kan je de bladen nog aanpassen.`),
+      h('p', null, t('Per verdeelbord wordt een eendraadschema gemaakt (bladen onder "Bladen"): voeding, differentiëlen met hun rail, automaten en per kring de aftakkingen – schakelaars met hun lichtpunten (×n), stopcontactdozen en toestellen ({n} kringen). Nadien kan je de bladen nog aanpassen.', { n: b.circuits.length })),
       has ? h('p', { class: 'warn' }, 'Eerder gegenereerde eendraadschema-pagina\'s worden vervangen (handmatige wijzigingen daarop gaan verloren).') : null,
       checks.length ? h('div', null, h('p', { class: 'warn' }, `⚠ ${checks.length} AREI-fout(en):`), checks.slice(0, 8).map((c) => h('div', { class: 'chk error' }, `${c.name ? 'Kring ' + c.name + ': ' : ''}${c.text}`))) : null),
     buttons: [{ label: 'Annuleren', value: false }, { label: 'Genereren', value: true, primary: true }],

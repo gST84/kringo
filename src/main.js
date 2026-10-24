@@ -18,6 +18,8 @@ import { demoProject } from './demo.js';
 import { locate } from './model.js';
 import { DONATE_URL, h } from './util.js';
 
+import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
+startAutoTranslate();
 const lib = new Library();
 await lib.init();
 const app = new App(lib);
@@ -62,6 +64,8 @@ $('#top').append(
     undoBtn, redoBtn, saveEl),
   setupPwa({ onFile: async (f) => { await app.save(); openProjectFile(app, f); } }),
   kindEl,
+  h('select', { class: 'langsel', title: 'Taal', onchange: (e) => setLang(e.target.value) },
+    Object.entries(LANGS).map(([k, name]) => h('option', { value: k, selected: k === lang }, `🌐 ${k.toUpperCase()} – ${name}`))),
   btn('♥ Steun', 'Kringo is gratis – steun de ontwikkeling via Ko-fi', () => window.open(DONATE_URL, '_blank', 'noopener'), 'donatebtn'));
 
 // tools bar
@@ -71,7 +75,7 @@ const tools = [
 ];
 const toolBtns = new Map();
 const gridSel = h('select', { title: 'Raster', onchange: (e) => { editor.grid = +e.target.value; } },
-  [5, 2.5, 1].map((g) => h('option', { value: g, selected: g === 5 }, `raster ${g}`)));
+  [5, 2.5, 1].map((g) => h('option', { value: g, selected: g === 5 }, t('raster {g}', { g }))));
 const pageLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => app.setPage(+e.target.value) });
 const panelBtn = (side, label, title) => h('button', {
   class: 'paneltoggle', title,
@@ -115,7 +119,7 @@ const wallSel = h('select', { title: 'Muurtype voor nieuwe muren', onchange: (e)
 const circSel = h('select', { title: 'Actieve kring: nieuwe symbolen komen in deze kring', onchange: (e) => { plan.activeCircuit = e.target.value; } });
 const fillCircuits = () => {
   if (!app.project) return;
-  circSel.replaceChildren(...[['', 'Kring: —'], ...circuitOptions(app.project.building, false).map(([v, l]) => [v, 'Kring ' + l])]
+  circSel.replaceChildren(...[['', 'Kring: —'], ...circuitOptions(app.project.building, false).map(([v, l]) => [v, t('Kring') + ' ' + l])]
     .map(([v, l]) => h('option', { value: v, selected: v === plan.activeCircuit }, l)));
 };
 const floorLbl = h('select', { class: 'pagesel', title: 'Verdieping kiezen', onchange: (e) => app.setFloor(+e.target.value) });
@@ -206,7 +210,7 @@ app.on('mode', (m) => {
 });
 app.on('planTool', (t) => {
   for (const [k, b] of planBtns) b.classList.toggle('active', t === 'opening' ? k === plan.openingType : k === t);
-  hintEl.textContent = PLAN_HINTS[t] || '';
+  if (app.mode === 'building') hintEl.textContent = PLAN_HINTS[t] || '';
 });
 app.on('planCursor', ([x, y]) => { cursorEl.textContent = `x ${Math.round(x)} cm  y ${Math.round(y)} cm`; });
 app.on('planCircuits', fillCircuits);
@@ -224,11 +228,11 @@ app.on('planEditText', async (id) => {
 app.on('page', () => editor.render());
 app.on('tool', (t) => {
   for (const [k, b] of toolBtns) b.classList.toggle('active', k === t);
-  hintEl.textContent = HINTS[t] || '';
+  if (app.mode !== 'building') hintEl.textContent = HINTS[t] || '';
 });
 app.on('cursor', ([x, y]) => {
   const l = locate(app.project, x, y, app.page);
-  cursorEl.textContent = `x ${x}  y ${y}  ·  kolom ${l.col}${l.row}`;
+  cursorEl.textContent = t('x {x}  y {y}  ·  kolom {col}', { x, y, col: l.col + l.row });
 });
 app.on('saved', () => {
   saveEl.textContent = { saved: '✓ opgeslagen', saving: '… opslaan', dirty: '● gewijzigd', error: '⚠ opslaan mislukt' }[app.saveState];

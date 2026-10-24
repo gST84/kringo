@@ -1,4 +1,5 @@
 // Symbol editor: draw your own symbols (lines, rectangles, circles, arcs, polylines, text, pins).
+import { t } from '../i18n.js';
 import { h, clone, r2, snap } from '../util.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
 import { USER_ROOT } from '../symbols/library.js';
@@ -361,7 +362,7 @@ export async function openSymbolEditor(app, source) {
   ro.observe(svg);
 
   const result = await modal({
-    title: source?.id ? `Symbool bewerken – ${source.name}` : 'Nieuw symbool',
+    title: source?.id ? t('Symbool bewerken – {name}', { name: t(source.name) }) : 'Nieuw symbool',
     body, full: true,
     buttons: [{ label: 'Annuleren', value: false }, { label: 'Opslaan', value: true, primary: true }],
     onButton: async (v) => {
@@ -378,7 +379,7 @@ export async function openSymbolEditor(app, source) {
         await lib.save(def);
         toast('Symbool opgeslagen');
       } catch (e) {
-        toast('Opslaan mislukt: ' + e.message);
+        toast(t('Opslaan mislukt: {msg}', { msg: e.message }));
         return false;
       }
       return true;

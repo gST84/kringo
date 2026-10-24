@@ -1,4 +1,5 @@
 // Side panels: pages, symbol library and properties.
+import { t } from '../i18n.js';
 import { h, natCmp, pickFiles, uid } from '../util.js';
 import { newPage, newRail, PAGE_TEMPLATES, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
@@ -56,10 +57,10 @@ function wireColorPicker(value, pick, autoColor) {
       }, 'A'),
       Object.entries(WIRE_COLORS).map(([code, [name, hex]]) => h('button', {
         class: 'cchip' + (cur === code ? ' active' : '') + (code === 'GNYE' ? ' gnye' : ''),
-        title: `${name} (${code})`, style: { background: hex }, onclick: () => pick(code),
+        title: `${t(name)} (${code})`, style: { background: hex }, onclick: () => pick(code),
       })),
       free),
-    h('small', { class: 'hint' }, value ? `Kleur: ${WIRE_COLORS[cur]?.[0] || value}${WIRE_COLORS[cur] ? ` (${cur})` : ''}` : 'Automatisch' + (autoColor ? ' – kleur van de voedingslijn' : ' – zwart')));
+    h('small', { class: 'hint' }, value ? `${t('Kleur')}: ${WIRE_COLORS[cur] ? t(WIRE_COLORS[cur][0]) : value}${WIRE_COLORS[cur] ? ` (${cur})` : ''}` : t(autoColor ? 'Automatisch – kleur van de voedingslijn' : 'Automatisch – zwart')));
 }
 
 /** Accordion: opening a folder closes every other folder except its parents. */
@@ -103,7 +104,7 @@ export function pagesPanel(app, el) {
           title: 'Pagina verwijderen', class: 'danger',
           onclick: async () => {
             if (p.pages.length < 2) return toast('Een project heeft minstens één pagina.');
-            if (!(await confirmDlg('Pagina verwijderen', `Pagina ${app.pageIdx + 1} "${app.page.title}" verwijderen?`, 'Verwijderen', true))) return;
+            if (!(await confirmDlg('Pagina verwijderen', t('Pagina {n} "{title}" verwijderen?', { n: app.pageIdx + 1, title: app.page.title }), 'Verwijderen', true))) return;
             app.mutate(() => {
               const removed = new Set(app.page.comps.map((c) => c.id));
               p.pages.splice(app.pageIdx, 1);
@@ -182,7 +183,7 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
     }]);
     items.push(['Exporteren (.ksym)', () => lib.exportSymbol(def)]);
     if (lib.isEditable(def)) items.push(['Verwijderen', async () => {
-      if (await confirmDlg('Symbool verwijderen', `"${def.name}" verwijderen uit de bibliotheek?`, 'Verwijderen', true)) await lib.remove(def);
+      if (await confirmDlg('Symbool verwijderen', t('"{name}" verwijderen uit de bibliotheek?', { name: t(def.name) }), 'Verwijderen', true)) await lib.remove(def);
     }]);
     popupMenu(ev.clientX, ev.clientY, items);
   };
@@ -201,7 +202,7 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
       out.push(h('div', { class: 'symgrid', style: { paddingLeft: depth * 12 + 4 + 'px' } },
         n.symbols.sort((a, b) => natCmp(a.name, b.name)).map((d) => {
           const item = h('div', {
-            class: 'sym' + (editor.placing?.sym === d.id ? ' active' : ''), title: `${d.name}${d.prefix ? ' (' + d.prefix + ')' : ''}\nKlik: plaatsen · sleep naar blad`,
+            class: 'sym' + (editor.placing?.sym === d.id ? ' active' : ''), title: t('{name}\nKlik: plaatsen · sleep naar het blad', { name: t(d.name) + (d.prefix ? ' (' + d.prefix + ')' : '') }),
             draggable: 'true',
             onclick: () => { editor.setTool('place', { sym: d.id }); renderTree(); },
             oncontextmenu: (e) => { e.preventDefault(); itemMenu(d, e); },
@@ -240,14 +241,14 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
         title: 'Symbolen importeren (.ksym / bibliotheek .json)',
         onclick: async () => {
           const files = await pickFiles({ accept: '.ksym,.elsym,.json', multiple: true });
-          if (files.length) toast(`${await lib.importFiles(files)} symbool/symbolen geïmporteerd`);
+          if (files.length) toast(t('{n} symbool/symbolen geïmporteerd', { n: await lib.importFiles(files) }));
         },
       }, 'Import'),
       h('button', {
         title: 'Een map met symbolen importeren (submappen worden mappen in de bibliotheek)',
         onclick: async () => {
           const files = await pickFiles({ directory: true });
-          if (files.length) toast(`${await lib.importFiles(files.filter((f) => /\.(ksym|elsym|json)$/i.test(f.name)))} symbool/symbolen geïmporteerd`);
+          if (files.length) toast(t('{n} symbool/symbolen geïmporteerd', { n: await lib.importFiles(files.filter((f) => /\.(ksym|elsym|json)$/i.test(f.name))) }));
         },
       }, 'Map…'),
       h('button', { title: 'Eigen symbolen exporteren als bibliotheek', onclick: () => lib.exportLibrary() }, 'Export')),
@@ -300,7 +301,7 @@ function pageProps(app) {
   const pg = app.page;
   const set = (fn) => app.mutate(fn);
   return [
-    section(`Pagina ${app.pageIdx + 1}`,
+    section(t('Pagina {n}', { n: app.pageIdx + 1 }),
       field('Titel', inp(pg.title, (v) => set(() => { pg.title = v; }), { key: 'ptitle' }))),
     section('Voedingslijnen',
       ...pg.rails.map((r) => h('div', { class: 'railrow' },
@@ -326,11 +327,11 @@ function pageProps(app) {
 
 function multiProps(app, editor, keys) {
   const wires = app.page.wires.filter((w) => app.sel.has('w:' + w.id));
-  const colorSec = wires.length ? section(`Kleur van ${wires.length} draad/draden`,
+  const colorSec = wires.length ? section(t('Kleur van {n} draad/draden', { n: wires.length }),
     wireColorPicker(wires.every((w) => w.color === wires[0].color) ? wires[0].color : '', (v) => app.mutate(() => {
       for (const w of wires) { if (v) w.color = v; else delete w.color; }
     }))) : null;
-  return [colorSec, section(`${keys.length} elementen geselecteerd`,
+  return [colorSec, section(t('{n} elementen geselecteerd', { n: keys.length }),
     h('div', { class: 'btnrow' },
       h('button', { onclick: () => editor.rotate() }, '⟳ Draaien'),
       h('button', { onclick: () => editor.mirror() }, '⇋ Spiegelen'),
@@ -348,7 +349,7 @@ function compProps(app, editor, c) {
   const out = [];
   const head = h('div', { class: 'comphead' });
   if (def) head.innerHTML = symbolPreviewSvg(def, 40);
-  head.append(h('div', null, h('b', null, def?.name || 'Onbekend symbool'), h('small', null, `${def?.folder || ''} · ${info.loc.page}.${info.loc.col}${info.loc.row}`)));
+  head.append(h('div', null, h('b', null, def?.name || 'Onbekend symbool'), h('small', null, `${(def?.folder || '').split('/').map((x) => t(x)).join(' / ')} · ${info.loc.page}.${info.loc.col}${info.loc.row}`)));
   out.push(head);
 
   const s = [];
@@ -373,7 +374,7 @@ function compProps(app, editor, c) {
     cands.sort((a, b) => (b.def?.role === 'main') - (a.def?.role === 'main') || natCmp(a.comp.tag, b.comp.tag));
     if (!info.linked.length) {
       s.push(field('Koppelen aan toestel', sel(c.link || '', [['', '— niet gekoppeld —'], ...cands.map((i2) =>
-        [i2.comp.id, `${i2.comp.tag}  ${i2.def?.name || ''}${i2.comp.props?.desc ? ' – ' + i2.comp.props.desc : ''}  /${refText(i2.loc)}`])],
+        [i2.comp.id, `${i2.comp.tag}  ${t(i2.def?.name || '')}${i2.comp.props?.desc ? ' – ' + i2.comp.props.desc : ''}  /${refText(i2.loc)}`])],
       (v) => set((p) => {
         if (v) { c.link = v; numberContact(p, app.lib, c); } else { delete c.link; if (c.autoTag !== false) c.tag = autoTag(p, app.lib, c, app.pageIdx); }
       }), 'link'), 'Contacten, PLC-punten … van hetzelfde toestel delen de tag.'));

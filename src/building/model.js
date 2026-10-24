@@ -1,7 +1,8 @@
 // Building data model: floors (plans in centimetres), boards with residual current devices and circuits.
 import { uid } from '../util.js';
+import { t } from '../i18n.js';
 
-export function newFloor(name = 'Gelijkvloers') {
+export function newFloor(name = t('Gelijkvloers')) {
   return { id: uid('f'), name, walls: [], openings: [], stairs: [], texts: [], symbols: [], links: [] };
 }
 
@@ -12,14 +13,14 @@ export function newFloor(name = 'Gelijkvloers') {
 //   circuit → sub-board (the circuit's breaker feeds that board)
 // `pos` orders the children of one parent.
 
-export function newBoard(name = 'Hoofdverdeelbord', parent = null) {
+export function newBoard(name = t('Hoofdverdeelbord'), parent = null) {
   return {
     id: uid('bd'), name, parent, pos: 0,
     main: { In: 40, poles: 2, rcd: parent ? 0 : 300, type: 'A', kA: 3, cable: parent ? '' : 'XVB Cca 3G10²', meter: !parent },
   };
 }
 
-export function newRcd(parent, name = 'Differentieel 30 mA') {
+export function newRcd(parent, name = t('Differentieel 30 mA')) {
   return { id: uid('rc'), name, parent, pos: 0, sens: 30, In: 40, type: 'A', kA: 3, poles: 2 };
 }
 
@@ -33,7 +34,7 @@ export function newBuilding() {
   return {
     scale: 50, // 1:50
     grid: 5, // cm
-    floors: [newFloor('Gelijkvloers')],
+    floors: [newFloor()],
     boards: [board],
     rcds: [rcd],
     circuits: [newCircuit('A', rcd.id)],

@@ -365,3 +365,8 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .startscreen .donate { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .startscreen .donate a { color: #d6336c; font-weight: 600; text-decoration: none; }
 .startscreen .donate a:hover { text-decoration: underline; }
+
+/* ---------- language ---------- */
+#top select.langsel { width: auto; font-size: 12px; padding: 3px 4px; }
+.startscreen .langs { display: flex; gap: 6px; justify-content: flex-end; margin: -4px 0 10px; }
+.startscreen .langs button { font-size: 12px; padding: 3px 10px; }

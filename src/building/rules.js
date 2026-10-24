@@ -1,4 +1,5 @@
 // Basic AREI checks for circuits (Belgian rules for household installations).
+import { t } from '../i18n.js';
 import { boardOf, circuitSymbols, treeAncestors } from './model.js';
 
 /** Maximum breaker rating per copper section (mm²) for household circuits. */
@@ -12,18 +13,18 @@ export function checkCircuits(building, lib) {
     const syms = circuitSymbols(building, c.id).map(({ s }) => ({ s, def: lib.get(s.sym) }));
     const sockets = syms.filter((x) => x.def?.kind === 'socket').length;
     const max = MAX_IN[c.section];
-    if (!syms.length) warn(c, 'Kring zonder toestellen.', 'info');
-    if (max && c.In > max) warn(c, `Automaat ${c.In} A te groot voor ${c.section} mm² (max. ${max} A).`, 'error');
-    if (sockets > 8) warn(c, `${sockets} stopcontacten: max. 8 (enkel- of meervoudige) per kring.`, 'error');
-    if (sockets && c.section < 2.5) warn(c, 'Kringen met stopcontacten: min. 2,5 mm².', 'error');
-    if (sockets && c.In > 20) warn(c, 'Kringen met stopcontacten: automaat max. 20 A.', 'error');
+    if (!syms.length) warn(c, t('Kring zonder toestellen.'), 'info');
+    if (max && c.In > max) warn(c, t('Automaat {In} A te groot voor {s} mm² (max. {max} A).', { In: c.In, s: c.section, max }), 'error');
+    if (sockets > 8) warn(c, t('{n} stopcontacten: max. 8 (enkel- of meervoudige) per kring.', { n: sockets }), 'error');
+    if (sockets && c.section < 2.5) warn(c, t('Kringen met stopcontacten: min. 2,5 mm².'), 'error');
+    if (sockets && c.In > 20) warn(c, t('Kringen met stopcontacten: automaat max. 20 A.'), 'error');
     const dedicated = syms.filter((x) => DEDICATED.has(String(x.s.sym).replace('arei/', '')));
-    if (dedicated.length && syms.length > 1) warn(c, `${dedicated[0].def.name}: hoort op een aparte kring.`);
+    if (dedicated.length && syms.length > 1) warn(c, t('{name}: hoort op een aparte kring.', { name: t(dedicated[0].def.name) }));
     const board = boardOf(building, c.id);
     const has30 = treeAncestors(building, c.id).some((a) => (a.type === 'rcd' && a.node.sens <= 30) || (a.type === 'board' && a.node.main?.rcd > 0 && a.node.main.rcd <= 30));
-    if (!board) warn(c, 'Niet aangesloten op een verdeelbord.', 'error');
+    if (!board) warn(c, t('Niet aangesloten op een verdeelbord.'), 'error');
     else if (!has30) {
-      if (syms.some((x) => ['socket', 'appliance'].includes(x.def?.kind))) warn(c, 'Stopcontacten / toestellen zonder differentieel 30 mA (verplicht in natte ruimten).', 'info');
+      if (syms.some((x) => ['socket', 'appliance'].includes(x.def?.kind))) warn(c, t('Stopcontacten / toestellen zonder differentieel 30 mA (verplicht in natte ruimten).'), 'info');
     }
   }
   let loose = 0;
@@ -31,6 +32,6 @@ export function checkCircuits(building, lib) {
     const d = lib.get(s.sym);
     if (!s.circuit && d && !['switch', 'push', 'dom-in', 'board'].includes(d.kind)) loose++;
   }
-  if (loose) warn(null, `${loose} symbool/symbolen zonder kring.`, 'info');
+  if (loose) warn(null, t('{n} symbool/symbolen zonder kring.', { n: loose }), 'info');
   return out;
 }

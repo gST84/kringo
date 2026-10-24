@@ -1,5 +1,6 @@
 // Start screen and the "new project" dialog.
 import { DONATE_URL, h } from '../util.js';
+import { LANGS, lang, setLang, t } from '../i18n.js';
 import { modal } from './dialogs.js';
 import { createProject, importProjectFile } from './project.js';
 import { listProjects, loadProject } from '../storage.js';
@@ -7,7 +8,7 @@ import { demoProject } from '../demo.js';
 
 /** Asks for name and kind (building / control cabinet). */
 async function newProjectDialog() {
-  const name = h('input', { type: 'text', value: 'Nieuw project' });
+  const name = h('input', { type: 'text', value: t('Nieuw project') });
   let kind = 'building';
   const cards = h('div', { class: 'kinds' });
   const renderCards = () => cards.replaceChildren(
@@ -38,6 +39,8 @@ export async function startScreen(app) {
   let close;
   const choose = (fn) => () => close(fn);
   const body = h('div', { class: 'startscreen' },
+    h('div', { class: 'langs' }, Object.entries(LANGS).map(([k, label]) =>
+      h('button', { class: k === lang ? 'active' : '', onclick: () => { if (k !== lang) setLang(k); } }, label))),
     h('div', { class: 'startbig' },
       h('button', { class: 'primary', onclick: choose(() => startNewProject(app)) }, h('span', { class: 'kicon' }, '＋'), h('b', null, 'Nieuw project'), h('small', null, 'Gebouw (AREI) of stuurkast')),
       h('button', { onclick: choose(() => importProjectFile(app)) }, h('span', { class: 'kicon' }, '📂'), h('b', null, 'Bestand openen'), h('small', null, '.kringo, .elecad of QElectroTech (.qet)'))),
