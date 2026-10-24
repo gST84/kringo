@@ -8,7 +8,7 @@ import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
-import { dimGeom, hasLeaf, OPENING_TYPES } from './render.js';
+import { dimGeom, hasLeaf, OPENING_TYPES, pathLength } from './render.js';
 import { loadBackground } from './background.js';
 
 const inp = (value, commit, { type = 'text', key, placeholder, list, step } = {}) => {
@@ -91,9 +91,13 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
       if (!isOpen) continue;
       out.push(h('div', { class: 'symgrid' }, f.symbols.map((d) => {
         const item = h('div', {
-          class: 'sym' + ((app.mode === 'building' ? plan.placing?.sym : editor.placing?.sym) === d.id ? ' active' : ''),
+          class: 'sym' + ((app.mode === 'building' ? (plan.tool === 'strip' ? plan.stripSym : plan.placing?.sym) : editor.placing?.sym) === d.id ? ' active' : ''),
           title: t('{name}\nKlik: plaatsen · sleep naar het blad', { name: t(d.name) }), draggable: 'true',
-          onclick: () => { (app.mode === 'building' ? plan : editor).setTool('place', { sym: d.id }); render(); },
+          onclick: () => {
+            if (d.strip && app.mode === 'building') plan.setTool('strip', { sym: d.id, key: 'strip' });
+            else (app.mode === 'building' ? plan : editor).setTool('place', { sym: d.id });
+            render();
+          },
           ondragstart: (e) => e.dataTransfer.setData('text/x-kringo-symbol', d.id),
         });
         item.innerHTML = symbolPreviewSvg(d, 34);
@@ -315,7 +319,15 @@ function symbolProps(app, plan, s) {
   head.append(h('div', null, h('b', null, def?.name || 'Symbool'), h('small', null, (def?.folder || '').replace('AREI/', 'AREI · '))));
   const extra = [];
   const kind = def?.kind;
-  if (kind === 'light' || kind === 'appliance' || kind === 'other') extra.push(field('Vermogen (W)', inp(s.props.power, setProp('power'), { type: 'number', key: 'pw' })));
+  const strip = def?.strip && s.pts;
+  if (strip) {
+    const len = pathLength(s.pts) / 100;
+    const total = (wpm) => Math.round((wpm || 0) * len * 10) / 10;
+    extra.push(
+      h('p', null, t('Lengte'), ': ', h('b', null, `${len.toFixed(2).replace('.', ',')} m`), ' · ', t('Vermogen'), ': ', h('b', null, `${String(total(s.props.wpm)).replace('.', ',')} W`)),
+      field('Vermogen per meter (W/m)', inp(s.props.wpm, (v) => set(() => { s.props.wpm = v; s.props.power = total(v); }), { type: 'number', key: 'wpm' })),
+      field('Spanning', sel(s.props.volt || '24', [['24', '24 V DC'], ['12', '12 V DC'], ['230', '230 V AC']], setProp('volt'), 'volt')));
+  } else if (kind === 'light' || kind === 'appliance' || kind === 'other') extra.push(field('Vermogen (W)', inp(s.props.power, setProp('power'), { type: 'number', key: 'pw' })));
   if (kind === 'socket' || kind === 'appliance') extra.push(field('Aantal dozen op dit punt', inp(s.props.qty || 1, setProp('qty'), { type: 'number', key: 'qty' }), 'In het eendraadschema herhaald op dezelfde aftakking.'));
   if (kind === 'pv') extra.push(field('Piekvermogen (Wp)', inp(s.props.wp, setProp('wp'), { type: 'number', key: 'wp' })), field('Aantal panelen', inp(s.props.count, setProp('count'), { type: 'number', key: 'pc' })));
   if (kind === 'inverter') extra.push(field('Vermogen (kW)', inp(s.props.kw, setProp('kw'), { type: 'number', key: 'kw' })));
@@ -358,11 +370,14 @@ function symbolProps(app, plan, s) {
         onclick: () => { plan.setTool('link'); plan.linkFrom = s.id; plan.render(); },
         title: 'Klik daarna de volgende symbolen na elkaar aan: dit symbool → 2 → 3 … (bv. schakelaar → lamp → lamp). Esc = stoppen.',
       }, '🔗 Koppelen…')),
-    section('Plaatsing',
-      rotationDial(app, plan, s.rot || 0, (deg) => { s.rot = deg; }),
-      h('div', { class: 'btnrow' },
-        h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'),
-        h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen'))),
+    strip ? section('Plaatsing',
+      h('p', { class: 'hint' }, 'Sleep de punten om de strip aan te passen; het eerste punt (donker) is de voeding.'),
+      h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')))
+      : section('Plaatsing',
+        rotationDial(app, plan, s.rot || 0, (deg) => { s.rot = deg; }),
+        h('div', { class: 'btnrow' },
+          h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'),
+          h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen'))),
   ];
 }
 

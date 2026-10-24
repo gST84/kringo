@@ -402,3 +402,13 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 
 button .icon { display: inline-flex; vertical-align: middle; line-height: 0; }
 button .icon svg { display: block; }
+
+/* LED strip */
+.plan .strip-o { stroke: #8b939c; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.plan .strip-i { stroke: #eceff3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.plan .strip-led { fill: #f6b73c; stroke: #c98a0b; }
+.plan .strip-feed { fill: #374151; stroke: none; }
+.plan .pstrip:hover .strip-o { stroke: #4b8af0; }
+.plan .pstrip.sel .strip-o { stroke: var(--sel) !important; }
+.plan .pstrip.sel .strip-led { stroke: #c98a0b !important; }
+.plan .pstrip .hit { fill: none !important; }

@@ -775,4 +775,10 @@ export const DICT = [
   ["Witte achtergrond", "Fond blanc", "White background"],
   ["Met aanwijspijl", "Avec flèche", "With pointer arrow"],
   ["Sleep de punten om de ballon of de pijlpunt te verplaatsen · dubbelklik = tekst bewerken.", "Faites glisser les points pour déplacer la bulle ou la pointe · double-clic = modifier le texte.", "Drag the points to move the balloon or the arrow tip · double-click = edit text."],
+  ["LED-strip", "Ruban LED", "LED strip"],
+  ["Lengte", "Longueur", "Length"],
+  ["Vermogen per meter (W/m)", "Puissance par mètre (W/m)", "Power per metre (W/m)"],
+  ["Spanning", "Tension", "Voltage"],
+  ["Sleep de punten om de strip aan te passen; het eerste punt (donker) is de voeding.", "Faites glisser les points pour modifier le ruban ; le premier point (foncé) est l’alimentation.", "Drag the points to change the strip; the first (dark) point is the feed."],
+  ["LED-strip: klik de punten van de strip (het eerste punt is de voeding) · dubbelklik, Enter of rechtermuisknop = einde · Backspace = punt terug · Esc", "Ruban LED : cliquez les points du ruban (le premier point est l’alimentation) · double-clic, Entrée ou clic droit = fin · Retour arrière = point précédent · Échap", "LED strip: click the points of the strip (the first point is the feed) · double-click, Enter or right-click = finish · Backspace = undo point · Esc"],
 ];

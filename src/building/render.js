@@ -287,8 +287,44 @@ export function linkKind(defA, defB) {
   return 'other';
 }
 
+/** Length of a polyline (cm). */
+export const pathLength = (list) => list.reduce((sum, p, i) => (i ? sum + Math.hypot(p[0] - list[i - 1][0], p[1] - list[i - 1][1]) : 0), 0);
+
+/** LED strip: a light grey profile along its path with warm yellow LEDs; the feed point is the first point. */
+function stripSvg(sym, k, building, sel, opts) {
+  const mm = 1 / k;
+  const P = sym.pts;
+  const d = pts(P);
+  let s = `<g class="psym pstrip${sel ? ' sel' : ''}" data-k="A:${sym.id}">`;
+  s += `<polyline points="${d}" class="strip-o" style="stroke-width:${r2(2 * mm)}"/>`;
+  s += `<polyline points="${d}" class="strip-i" style="stroke-width:${r2(1.4 * mm)}"/>`;
+  const step = 2.2 * mm; // one LED every 2.2 mm on paper
+  let next = step / 2, acc = 0;
+  for (let i = 1; i < P.length; i++) {
+    const [ax, ay] = P[i - 1], [bx, by] = P[i];
+    const len = Math.hypot(bx - ax, by - ay);
+    for (; next <= acc + len; next += step) {
+      const f = (next - acc) / len;
+      s += `<circle class="strip-led" cx="${r2(ax + (bx - ax) * f)}" cy="${r2(ay + (by - ay) * f)}" r="${r2(0.42 * mm)}" style="stroke-width:${r2(0.12 * mm)}"/>`;
+    }
+    acc += len;
+  }
+  s += `<circle class="strip-feed" cx="${r2(P[0][0])}" cy="${r2(P[0][1])}" r="${r2(0.75 * mm)}"/>`;
+  const c = building.circuits.find((x) => x.id === sym.circuit);
+  const label = c ? `${c.name}${sym.n ?? ''}` : '';
+  if (label || (opts.showRooms && sym.props?.room)) {
+    s += `<g transform="translate(${r2(P[0][0])} ${r2(P[0][1])}) scale(${r2(mm)})">`;
+    if (label) s += textSvg(1.8, -2.4, label, 2, 'start', 'tx clabel');
+    if (opts.showRooms && sym.props?.room) s += textSvg(1.8, -0.2, sym.props.room, 1.5, 'start', 'tx croom');
+    s += '</g>';
+  }
+  if (!opts.print) s += `<polyline class="hit" points="${d}" style="fill:none;stroke-width:${r2(4 * mm)}"/>`;
+  return s + '</g>';
+}
+
 /** One installation symbol at plan position, drawn at paper size. */
 function symbolSvg(sym, def, k, building, sel, opts) {
+  if (def.strip && sym.pts?.length >= 2) return stripSvg(sym, k, building, sel, opts);
   const inv = 1 / k;
   const geom = geometry(def, sym);
   let shapes = '';
@@ -377,7 +413,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
 .plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
-.plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}
+.plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}
 `;
 
 export function standalonePlanSvg(project, floorIdx, lib) {

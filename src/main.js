@@ -159,6 +159,7 @@ const PLAN_HINTS = {
   area: 'Klik de hoekpunten van het vlak · klik het eerste punt, dubbelklik of Enter = sluiten · Backspace = punt terug · Esc',
   line: 'Klik de punten van de lijn · dubbelklik, Enter of rechtermuisknop = einde · Backspace = punt terug · Esc',
   calib: 'Klik twee punten op de achtergrond waarvan je de werkelijke afstand kent',
+  strip: 'LED-strip: klik de punten van de strip (het eerste punt is de voeding) · dubbelklik, Enter of rechtermuisknop = einde · Backspace = punt terug · Esc',
   callout: 'Tekstballon: klik het punt waarnaar hij wijst, dan de plaats van de ballon · tekstvak: klik de plaats · Esc',
   text: 'Klik in een ruimte om een naam te plaatsen',
   place: 'Klik om te plaatsen (tegen de dichtstbijzijnde muur) · R draaien · Alt = vrij plaatsen · Esc = stoppen',

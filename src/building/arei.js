@@ -76,6 +76,8 @@ export const AREI = [
   def('light-wall', 'Wandlichtpunt', 'Verlichting', 'light', [...lampX(2), P('M -2.3 2.3 A 3.25 3.25 0 0 0 2.3 2.3')], { pinY: 3.25, wall: true }),
   def('spot', 'Inbouwspot', 'Verlichting', 'light', [...lampX(1.8), C(0, 0, 0.5, INK)], { pinY: 1.8 }),
   def('tl', 'TL / LED-armatuur', 'Verlichting', 'light', [L(-5, 0, 5, 0, { w: 0.6 }), L(-5, -1.2, -5, 1.2), L(5, -1.2, 5, 1.2)], { pinY: 1.2 }),
+  // LED strip: drawn on the plan as a path (props: W/m); this is its symbol in legends / single-line diagrams
+  def('ledstrip', 'LED-strip', 'Verlichting', 'light', [R(-5, -0.9, 10, 1.8, WHITE), ...[-3.6, -1.8, 0, 1.8, 3.6].map((x) => C(x, 0, 0.42, INK))], { pinY: 0.9, extra: { strip: true } }),
   def('light-out', 'Buitenverlichting', 'Verlichting', 'light', [...lampX(), C(0, 0, 3.3)], { pinY: 3.3, wall: true }),
   def('emergency', 'Noodverlichting', 'Verlichting', 'light', [...lampX(), L(-3.4, 3.2, 3.4, 3.2, { w: 0.5 })], { pinY: 3.2 }),
 

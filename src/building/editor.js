@@ -13,7 +13,7 @@ const near = (a, b, tol = 0.5) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] 
 const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
 /** Tools that draw several points before they create something. */
-const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'calib', 'callout']);
+const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'strip', 'calib', 'callout']);
 
 const ico = (inner) => `<svg viewBox="0 0 40 40" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 
@@ -167,7 +167,7 @@ export class PlanEditor {
       if (best) return best.q.map(r2);
     }
     for (const w of this.floor.walls) for (const q of [[w.x1, w.y1], [w.x2, w.y2]]) if (near(p, q, tol)) return [...q];
-    if (this.tool === 'area' || this.tool === 'line') {
+    if (this.tool === 'area' || this.tool === 'line' || this.tool === 'strip') {
       for (const sh of this.floor.shapes) for (const q of sh.pts) if (near(p, q, tol)) return [...q];
       if (this.pts.length && near(p, this.pts[0], tol)) return [...this.pts[0]];
     }
@@ -193,7 +193,7 @@ export class PlanEditor {
       case 'calib': return raw.map(r2);
       case 'arcwall': return this.snapPoint(raw, e, this.pts.length === 1 ? this.pts[0] : null);
       case 'dim': return this.pts.length === 2 ? raw.map(r2) : this.snapPoint(raw, e, this.pts[0]);
-      case 'area': case 'line': return this.snapPoint(raw, e, this.pts[this.pts.length - 1]);
+      case 'area': case 'line': case 'strip': return this.snapPoint(raw, e, this.pts[this.pts.length - 1]);
       default: return this.snapPoint(raw, e);
     }
   }
@@ -210,6 +210,7 @@ export class PlanEditor {
     if (tool === 'opening') { this.openingType = opts.type || 'door'; this.openingLeaf = opts.leaf !== false; }
     if (tool === 'stair') this.stairKind = opts.stair || 'straight';
     this.lineArrow = tool === 'line' ? opts.arrow || null : null;
+    if (tool === 'strip') this.stripSym = opts.sym || 'arei/ledstrip';
     this.calloutLeader = opts.leader !== false;
     this.svg.dataset.tool = tool;
     this.app.emit('planTool', tool);
@@ -252,6 +253,9 @@ export class PlanEditor {
       if (!w) return '';
       const g = wallGeom(w);
       for (const [i, tt] of [[1, o.pos - o.width / 2], [2, o.pos + o.width / 2]]) { const p = g.at(tt); s += sq(p.x, p.y, `OH:${id}:${i}`); }
+    } else if (type === 'A') {
+      const sym = f.symbols.find((x) => x.id === id);
+      if (sym?.pts) sym.pts.forEach(([x, y], i) => { s += sq(x, y, `AH:${id}:${i}`); });
     } else if (type === 'P') {
       const sh = f.shapes.find((x) => x.id === id);
       if (!sh) return '';
@@ -317,14 +321,14 @@ export class PlanEditor {
       }
       s += cursor();
     }
-    if ((this.tool === 'area' || this.tool === 'line') && this.pts.length) {
+    if ((this.tool === 'area' || this.tool === 'line' || this.tool === 'strip') && this.pts.length) {
       const list = [...this.pts, m];
       s += this.tool === 'area'
         ? `<polygon class="ghostarea" points="${list.map((p) => p.join(',')).join(' ')}" style="stroke-width:${sw}"/>`
         : `<polyline class="ghostline" points="${list.map((p) => p.join(',')).join(' ')}" style="fill:none;stroke-width:${sw}"/>`;
       s += label(m, r2(dist(this.pts[this.pts.length - 1], m)) + ' cm');
     }
-    if (this.tool === 'area' || this.tool === 'line') s += cursor();
+    if (this.tool === 'area' || this.tool === 'line' || this.tool === 'strip') s += cursor();
     if (this.tool === 'callout' && this.pts.length) {
       const [a] = this.pts;
       s += `<line class="ghostline" x1="${a[0]}" y1="${a[1]}" x2="${m[0]}" y2="${m[1]}" style="stroke-width:${sw}"/>`;
@@ -413,6 +417,11 @@ export class PlanEditor {
       e.preventDefault();
       const sym = e.dataTransfer.getData('text/x-kringo-symbol');
       if (!sym) return;
+      if (this.app.lib.get(sym)?.strip) {
+        const p = this.snapPoint(this.toPlan(e), e);
+        this.addStrip([p, [p[0] + 100, p[1]]], sym);
+        return;
+      }
       this.placing = { sym, rot: 0 };
       this.addSymbol(sym, this.toPlan(e), e);
       this.placing = null;
@@ -444,7 +453,7 @@ export class PlanEditor {
     }
     if (e.button === 2) {
       if (this.tool === 'wall' && this.chain) { this.chain = null; this.typed = ''; this.renderOverlay(); }
-      else if ((this.tool === 'area' && this.pts.length >= 3) || (this.tool === 'line' && this.pts.length >= 2)) this.finishShape();
+      else if ((this.tool === 'area' && this.pts.length >= 3) || ((this.tool === 'line' || this.tool === 'strip') && this.pts.length >= 2)) this.finishShape();
       else if (this.pts.length) { this.pts = []; this.renderOverlay(); }
       else if (this.tool !== 'select') this.setTool('select');
       return;
@@ -456,7 +465,7 @@ export class PlanEditor {
       case 'wall': return this.wallClick(p, e);
       case 'arcwall': return this.arcClick(p);
       case 'dim': return this.dimClick(p);
-      case 'area': case 'line': return this.shapeClick(p);
+      case 'area': case 'line': case 'strip': return this.shapeClick(p);
       case 'calib': return this.calibClick(p);
       case 'callout': return this.calloutClick(p);
       case 'opening': return this.addOpening();
@@ -468,7 +477,7 @@ export class PlanEditor {
     }
     // select
     const key = this.hitKey(e.target);
-    if (/^(WH|OH|PH|DH|SH):/.test(key || '')) { this.drag = { type: 'handle', key, moved: false, start: raw }; this.startHandle(this.drag); return; }
+    if (/^(WH|OH|PH|DH|SH|AH):/.test(key || '')) { this.drag = { type: 'handle', key, moved: false, start: raw }; this.startHandle(this.drag); return; }
     if (key) {
       if (e.shiftKey) {
         if (app.sel.has(key)) { app.sel.delete(key); app.emit('selection'); return; }
@@ -516,7 +525,10 @@ export class PlanEditor {
       if (dx === d.dx && dy === d.dy) return;
       if (!d.moved) { this.app.checkpoint(); d.moved = true; }
       d.dx = dx; d.dy = dy;
-      for (const it of d.items) { it.o.x = r2(it.x + dx); it.o.y = r2(it.y + dy); }
+      for (const it of d.items) {
+        it.o.x = r2(it.x + dx); it.o.y = r2(it.y + dy);
+        if (it.pts) it.o.pts = it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
+      }
       for (const it of d.walls) {
         it.o.x1 = r2(it.x1 + dx); it.o.y1 = r2(it.y1 + dy); it.o.x2 = r2(it.x2 + dx); it.o.y2 = r2(it.y2 + dy);
         if (it.cx != null) { it.o.cx = r2(it.cx + dx); it.o.cy = r2(it.cy + dy); }
@@ -574,7 +586,7 @@ export class PlanEditor {
 
   onDbl(e) {
     if (this.tool === 'wall') { this.chain = null; this.typed = ''; this.renderOverlay(); return; }
-    if (this.tool === 'area' || this.tool === 'line') { this.finishShape(); return; }
+    if (this.tool === 'area' || this.tool === 'line' || this.tool === 'strip') { this.finishShape(); return; }
     if (this.tool !== 'select') return;
     const key = this.hitKey(e.target);
     if (key?.startsWith('T:')) this.app.emit('planEditText', key.slice(2));
@@ -606,7 +618,7 @@ export class PlanEditor {
     }
     if (POINT_TOOLS.has(this.tool) && this.pts.length) {
       if (k === 'backspace') { e.preventDefault(); this.pts.pop(); this.renderOverlay(); return; }
-      if (k === 'enter' && (this.tool === 'area' || this.tool === 'line')) { this.finishShape(); return; }
+      if (k === 'enter' && (this.tool === 'area' || this.tool === 'line' || this.tool === 'strip')) { this.finishShape(); return; }
       if (k === 'escape') { this.pts = []; this.renderOverlay(); return; }
     }
     if (k === 'escape') {
@@ -673,6 +685,15 @@ export class PlanEditor {
       if (width === o.width && pos === o.pos) return;
       begin();
       o.width = width; o.pos = pos;
+    } else if (type === 'AH') {
+      const sym = f.symbols.find((x) => x.id === id);
+      if (!sym?.pts) return;
+      const p = this.snapPoint(raw, e);
+      const i = +which;
+      if (near(sym.pts[i], p, 0.01)) return;
+      begin();
+      sym.pts[i] = p;
+      if (i === 0) { sym.x = p[0]; sym.y = p[1]; }
     } else if (type === 'PH') {
       const sh = f.shapes.find((x) => x.id === id);
       if (!sh) return;
@@ -781,6 +802,7 @@ export class PlanEditor {
   finishShape() {
     const type = this.tool === 'area' ? 'area' : 'line';
     const list = this.pts.filter((p, i, a) => i === 0 || !near(p, a[i - 1], 0.01));
+    if (this.tool === 'strip') { this.pts = []; this.addStrip(list); this.renderOverlay(); return; }
     if (type === 'area' && list.length > 3 && near(list[0], list[list.length - 1], 0.01)) list.pop();
     this.pts = [];
     if (list.length < (type === 'area' ? 3 : 2)) { this.renderOverlay(); return; }
@@ -862,6 +884,17 @@ export class PlanEditor {
     this.app.select(['A:' + s.id]);
   }
 
+  /** LED strip: a light symbol with a path; the first point is the feed point. */
+  addStrip(list, sym = this.stripSym || 'arei/ledstrip') {
+    if (list.length < 2) return;
+    const s = { id: uid('a'), sym, x: list[0][0], y: list[0][1], rot: 0, pts: list, circuit: this.activeCircuit || '', props: { wpm: 10 } };
+    this.app.mutate(() => {
+      if (s.circuit) s.n = nextNumber(this.b, s.circuit);
+      this.floor.symbols.push(s);
+    });
+    this.app.select(['A:' + s.id]);
+  }
+
   linkClick(key) {
     if (!key?.startsWith('A:')) { this.linkFrom = null; this.render(); return; }
     const id = key.slice(2);
@@ -896,7 +929,7 @@ export class PlanEditor {
       return { type: 'move', start, opening: f.openings.find((o) => 'O:' + o.id === key), moved: false };
     }
     const items = [];
-    for (const s of f.symbols) if (sel.has('A:' + s.id)) items.push({ o: s, x: s.x, y: s.y });
+    for (const s of f.symbols) if (sel.has('A:' + s.id)) items.push({ o: s, x: s.x, y: s.y, pts: s.pts?.map((p) => [...p]) });
     for (const t of f.texts) if (sel.has('T:' + t.id)) items.push({ o: t, x: t.x, y: t.y });
     for (const s of f.stairs) if (sel.has('S:' + s.id)) items.push({ o: s, x: s.x, y: s.y });
     if (f.bg && sel.has('B:bg') && !f.bg.locked) items.push({ o: f.bg, x: f.bg.x, y: f.bg.y });
@@ -921,7 +954,7 @@ export class PlanEditor {
   rotate() {
     if (this.tool === 'place' && this.placing) { this.placing.rot = (this.placing.rot + 90) % 360; this.renderOverlay(); return; }
     const f = this.floor;
-    const syms = f.symbols.filter((s) => this.app.sel.has('A:' + s.id));
+    const syms = f.symbols.filter((s) => this.app.sel.has('A:' + s.id) && !s.pts);
     const stairs = f.stairs.filter((s) => this.app.sel.has('S:' + s.id));
     if (!syms.length && !stairs.length) return;
     this.app.mutate(() => {
@@ -958,6 +991,7 @@ export class PlanEditor {
     this.app.mutate(() => {
       for (const s of f.symbols.filter((x) => sel.has('A:' + x.id))) {
         const c = { ...clone(s), id: uid('a'), x: s.x + d, y: s.y + d };
+        if (c.pts) c.pts = c.pts.map(([x, y]) => [x + d, y + d]);
         if (c.circuit) c.n = nextNumber(this.b, c.circuit);
         f.symbols.push(c); keys.push('A:' + c.id);
       }
