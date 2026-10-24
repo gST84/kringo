@@ -222,7 +222,7 @@ export function buildingProps(app, plan) {
         h('div', { class: 'grid2' },
           num('Straal (cm)', 'r', 'sr2'), num('Treden', 'steps', 'ss', true),
           num('Draaihoek (°)', 'turn', 'sturn', true)),
-        rotationDial(st.rot || 0, (deg) => set(() => rotateStair(st, deg))),
+        rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
         h('div', { class: 'btnrow' },
           h('button', { onclick: () => set(() => { st.dir = st.dir === -1 ? 1 : -1; }) }, '↻ Draairichting'),
           h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
@@ -236,7 +236,7 @@ export function buildingProps(app, plan) {
         num('Breedte (cm)', 'w', 'sw'), num('Lengte (cm)', 'h', 'sh'),
         st.kind === 'quarter' ? num('Trapbreedte (cm)', 'b', 'sb') : null,
         num('Treden', 'steps', 'ss', true)),
-      rotationDial(st.rot || 0, (deg) => set(() => rotateStair(st, deg))),
+      rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
       h('div', { class: 'btnrow' },
         st.kind === 'quarter' ? h('button', { onclick: () => set(() => { st.mirror = !st.mirror; }) }, '⇋ Spiegelen') : null,
         h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
@@ -354,34 +354,74 @@ function symbolProps(app, plan, s) {
         title: 'Klik daarna de volgende symbolen na elkaar aan: dit symbool → 2 → 3 … (bv. schakelaar → lamp → lamp). Esc = stoppen.',
       }, '🔗 Koppelen…')),
     section('Plaatsing',
-      rotationDial(s.rot || 0, (deg) => set(() => { s.rot = deg; })),
+      rotationDial(app, plan, s.rot || 0, (deg) => { s.rot = deg; }),
       h('div', { class: 'btnrow' },
         h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'),
         h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen'))),
   ];
 }
 
-/** Rotation dial: 24 dots every 15°, 0° at the top, clockwise. Click a dot to rotate the symbol. */
-function rotationDial(rot, pick) {
+/**
+ * Rotation dial: 24 dots every 15°, 0° at the top, clockwise. Click a dot, or drag the hand:
+ * the element turns along live (steps of 15°, Shift / Alt = per degree). One drag = one undo step.
+ */
+function rotationDial(app, plan, rot, apply) {
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '-50 -50 100 100');
   svg.classList.add('dial');
-  const cur = ((Math.round(rot / 15) * 15) % 360 + 360) % 360;
   const pt = (deg, r) => [Math.sin((deg * Math.PI) / 180) * r, -Math.cos((deg * Math.PI) / 180) * r];
-  const [px, py] = pt(cur, 30);
-  let s = `<circle cx="0" cy="0" r="38" class="ring"/><line x1="0" y1="0" x2="${px}" y2="${py}" class="hand"/><circle cx="0" cy="0" r="3" class="hub"/>`;
+  let s = `<circle cx="0" cy="0" r="38" class="ring"/><line x1="0" y1="0" x2="0" y2="-30" class="hand"/><circle class="knob" cx="0" cy="-30" r="5"/><circle cx="0" cy="0" r="3" class="hub"/>`;
   for (let deg = 0; deg < 360; deg += 15) {
     const [x, y] = pt(deg, 38);
-    s += `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${deg % 90 === 0 ? 4.2 : 3}" class="dot${deg === cur ? ' on' : ''}" data-deg="${deg}"><title>${deg}°</title></circle>`;
+    s += `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${deg % 90 === 0 ? 4.2 : 3}" class="dot" data-deg="${deg}"><title>${deg}°</title></circle>`;
   }
-  s += `<text x="0" y="16" text-anchor="middle" class="deg">${cur}°</text>`;
+  s += `<text x="0" y="16" text-anchor="middle" class="deg"></text>`;
   svg.innerHTML = s;
-  svg.addEventListener('click', (e) => {
+  const hand = svg.querySelector('.hand'), knob = svg.querySelector('.knob'), label = svg.querySelector('.deg');
+  const show = (deg) => {
+    const [x, y] = pt(deg, 30);
+    hand.setAttribute('x2', x.toFixed(2)); hand.setAttribute('y2', y.toFixed(2));
+    knob.setAttribute('cx', x.toFixed(2)); knob.setAttribute('cy', y.toFixed(2));
+    label.textContent = `${deg}°`;
+    for (const d of svg.querySelectorAll('.dot')) d.classList.toggle('on', +d.dataset.deg === deg);
+  };
+  let cur = ((Math.round(rot) % 360) + 360) % 360;
+  show(cur);
+  const angleAt = (e) => {
+    const r = svg.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const raw = (Math.atan2(dx, -dy) * 180) / Math.PI;
+    const step = e.shiftKey || e.altKey ? 1 : 15;
+    return ((Math.round(raw / step) * step) % 360 + 360) % 360;
+  };
+  let drag = null;
+  const turn = (deg) => {
+    if (deg === cur) return;
+    if (!drag.moved) app.checkpoint();
+    cur = deg;
+    show(deg);
+    apply(deg);
+    plan.render(); // live, without rebuilding this panel
+    drag.moved = true;
+  };
+  svg.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    svg.setPointerCapture(e.pointerId);
+    drag = { moved: false };
     const d = e.target.closest?.('[data-deg]')?.dataset.deg;
-    if (d !== undefined) pick(+d);
+    turn(d !== undefined ? +d : angleAt(e));
   });
-  return h('div', { class: 'dialwrap', title: 'Klik op een bolletje om te draaien (per 15°)' }, svg);
+  svg.addEventListener('pointermove', (e) => { if (drag) turn(angleAt(e)); });
+  const end = () => {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    if (moved) app.touched();
+  };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+  return h('div', { class: 'dialwrap', title: 'Sleep de wijzer of klik op een bolletje om te draaien (per 15°, Shift = per graad)' }, svg);
 }
 
 function floorProps(app, plan) {

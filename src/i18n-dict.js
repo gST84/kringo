@@ -756,4 +756,5 @@ export const DICT = [
   ["Sleep de achtergrond om hem te verschuiven.", "Faites glisser l’arrière-plan pour le déplacer.", "Drag the background to move it."],
   ["Sleep de blokjes om de trap groter of kleiner te maken.", "Faites glisser les poignées pour agrandir ou réduire l’escalier.", "Drag the handles to make the stairs larger or smaller."],
   ["Klik op een bolletje om te draaien (per 15°)", "Cliquez sur un point pour tourner (par 15°)", "Click a dot to rotate (in steps of 15°)"],
+  ["Sleep de wijzer of klik op een bolletje om te draaien (per 15°, Shift = per graad)", "Faites glisser l’aiguille ou cliquez sur un point pour tourner (par 15°, Maj = par degré)", "Drag the hand or click a dot to rotate (15° steps, Shift = per degree)"],
 ];
