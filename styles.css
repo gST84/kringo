@@ -430,3 +430,5 @@ button .icon svg { display: block; }
 .domotics .dmaddr { font-weight: bold; white-space: nowrap; width: 1%; }
 .domotics .dmchip { display: inline-flex; gap: 4px; align-items: center; background: var(--panel2); border-radius: 10px; padding: 1px 8px; margin: 1px 4px 1px 0; }
 .domotics .dmassign { max-width: 220px; }
+
+.linked .cablein { display: block; width: 100%; margin: 3px 0 6px; font-size: 12px; }

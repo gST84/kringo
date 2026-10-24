@@ -305,7 +305,9 @@ export function buildingProps(app, plan) {
       h('div', { class: 'btnrow' }, h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')))];
   }
   if (kind === 'L') {
+    const l = f.links.find((x) => x.id === id);
     return [section('Koppeling', h('p', { class: 'hint' }, 'Stippellijn tussen bediening en toestel.'),
+      l ? field('Kabel (solar / DC)', cableInput(l, set), 'Komt in het eendraadschema bij het toestel.') : null,
       h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Koppeling verwijderen'))];
   }
   if (kind === 'A') return symbolProps(app, plan, f.symbols.find((x) => x.id === id));
@@ -334,9 +336,17 @@ function symbolProps(app, plan, s) {
       field('Spanning', sel(s.props.volt || '24', [['24', '24 V DC'], ['12', '12 V DC'], ['230', '230 V AC']], setProp('volt'), 'volt')));
   } else if (kind === 'light' || kind === 'appliance' || kind === 'other') extra.push(field('Vermogen (W)', inp(s.props.power, setProp('power'), { type: 'number', key: 'pw' })));
   if (kind === 'socket' || kind === 'appliance') extra.push(field('Aantal dozen op dit punt', inp(s.props.qty || 1, setProp('qty'), { type: 'number', key: 'qty' }), 'In het eendraadschema herhaald op dezelfde aftakking.'));
+  if (PV_KINDS.includes(kind)) extra.push(
+    field('Type / model', inp(s.props.model, setProp('model'), { key: 'model', placeholder: 'bv. SMA Sunny Tripower 5.0' })),
+    field('Serienummer', inp(s.props.serial, setProp('serial'), { key: 'serial' })));
   if (kind === 'pv') extra.push(field('Piekvermogen (Wp)', inp(s.props.wp, setProp('wp'), { type: 'number', key: 'wp' })), field('Aantal panelen', inp(s.props.count, setProp('count'), { type: 'number', key: 'pc' })));
   if (kind === 'inverter') extra.push(field('Vermogen (kW)', inp(s.props.kw, setProp('kw'), { type: 'number', key: 'kw' })));
-  if (kind === 'battery') extra.push(field('Capaciteit (kWh)', inp(s.props.kwh, setProp('kwh'), { type: 'number', key: 'kwh' })));
+  if (kind === 'mppt') extra.push(h('div', { class: 'grid2' },
+    field('Vermogen (W)', inp(s.props.power, setProp('power'), { type: 'number', key: 'mw' })),
+    field('Max. laadstroom (A)', inp(s.props.amp, setProp('amp'), { type: 'number', key: 'ma' }))));
+  if (kind === 'battery') extra.push(h('div', { class: 'grid2' },
+    field('Capaciteit (kWh)', inp(s.props.kwh, setProp('kwh'), { type: 'number', key: 'kwh' })),
+    field('Vermogen (kW)', inp(s.props.kw, setProp('kw'), { type: 'number', key: 'bkw' }))));
   if (kind === 'dom-out') extra.push(field('Domotica-adres / kanaal', inp(s.props.addr, setProp('addr'), { key: 'da', placeholder: 'bv. module 2 – kanaal 4' })));
   const domSel = domChannelSelect(app, s);
   if (domSel) extra.push(domSel);
@@ -371,7 +381,9 @@ function symbolProps(app, plan, s) {
     section('Koppelingen',
       links.length ? h('ul', { class: 'linked' }, links.map((l) => {
         const o = symById.get(l.a === s.id ? l.b : l.a);
-        return h('li', null, o ? label(o) : '?', ' ', h('button', { class: 'link', onclick: () => set(() => { f.links = f.links.filter((x) => x !== l); }) }, 'ontkoppelen'));
+        const dc = PV_KINDS.includes(kind) || PV_KINDS.includes(app.lib.get(o?.sym)?.kind);
+        return h('li', null, o ? label(o) : '?', ' ', h('button', { class: 'link', onclick: () => set(() => { f.links = f.links.filter((x) => x !== l); }) }, 'ontkoppelen'),
+          dc ? cableInput(l, set) : null);
       })) : h('p', { class: 'hint' }, 'Nog geen koppelingen.'),
       h('button', {
         onclick: () => { plan.setTool('link'); plan.linkFrom = s.id; plan.render(); },
@@ -473,6 +485,21 @@ function floorProps(app, plan) {
     section('Sneltoetsen', h('p', { class: 'hint keys' },
       'W muur (cijfers + Enter = lengte in cm) · A gebogen muur · D deur · N raam · M maatlijn · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),
   ];
+}
+
+// ---------- PV / DC ----------
+
+const PV_KINDS = ['pv', 'inverter', 'mppt', 'battery', 'dcbus'];
+const DC_CABLES = ['Solarkabel H1Z2Z2-K 1x4 mm²', 'Solarkabel H1Z2Z2-K 1x6 mm²', 'Solarkabel H1Z2Z2-K 1x10 mm²',
+  'DC-kabel 2x6 mm²', 'DC-kabel 2x10 mm²', 'DC-kabel 2x16 mm²', 'DC-kabel 2x25 mm²', 'DC-kabel 2x35 mm²', 'DC-kabel 2x50 mm²'];
+
+/** Cable type of a link (solar cable between panels and MPPT, DC cable to the busbar …). */
+function cableInput(l, set) {
+  if (!document.getElementById('dccables')) document.body.append(h('datalist', { id: 'dccables' }, DC_CABLES.map((c) => h('option', { value: c }))));
+  const el = h('input', { type: 'text', value: l.cable || '', list: 'dccables', class: 'cablein', placeholder: t('kabeltype'), 'data-key': 'cable' + l.id });
+  el.addEventListener('change', () => set(() => { if (el.value) l.cable = el.value; else delete l.cable; }));
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') el.blur(); });
+  return el;
 }
 
 // ---------- domotics ----------

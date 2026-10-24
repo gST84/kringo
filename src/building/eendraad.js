@@ -56,6 +56,31 @@ export function buildBranches(building, lib, circuit) {
     if (def?.box) return { type: 'box', sym: s.sym, relay };
     return { type: 'single', sym: s.sym, relay };
   };
+  // PV / DC devices: type, power, serial numbers and the cable towards the previous device
+  const linkObj = new Map();
+  for (const f of building.floors) for (const l of f.links) { linkObj.set(l.a + '|' + l.b, l); linkObj.set(l.b + '|' + l.a, l); }
+  const num = (v) => String(Math.round((parseFloat(v) || 0) * 100) / 100).replace('.', ',');
+  const deviceInfo = (it, prevIds) => {
+    const first = symById.get(it.ids[0]);
+    const kind = kindOf(first);
+    const p = first?.props || {};
+    const parts = [];
+    if (p.model) parts.push(p.model);
+    if (kind === 'pv' && p.wp) parts.push(it.count > 1 ? `${it.count} × ${num(p.wp)} Wp = ${num((it.count * p.wp) / 1000)} kWp` : `${num(p.wp)} Wp`);
+    if (kind === 'inverter' && p.kw) parts.push(`${num(p.kw)} kW`);
+    if (kind === 'mppt' && p.power) parts.push(`${num(p.power)} W`);
+    if (kind === 'mppt' && p.amp) parts.push(`${num(p.amp)} A`);
+    if (kind === 'battery' && p.kwh) parts.push(`${num(p.kwh)} kWh`);
+    if (kind === 'battery' && p.kw) parts.push(`${num(p.kw)} kW`);
+    const serials = it.ids.map((id) => symById.get(id)?.props?.serial).filter(Boolean);
+    if (serials.length) parts.push('SN ' + (serials.length > 3 ? serials.slice(0, 3).join(', ') + ' …' : serials.join(', ')));
+    let cable = '';
+    for (const a of it.ids) for (const b2 of prevIds) cable ||= linkObj.get(a + '|' + b2)?.cable || '';
+    if (cable) parts.push(cable);
+    if (!parts.length) return '';
+    const name = { inverter: t('Omvormer'), mppt: 'MPPT', pv: 'PV', battery: t('Batterij') }[kind] || t(lib.get(it.sym)?.name || '');
+    return `${name}: ${parts.join(' · ')}`;
+  };
   const branches = [];
   // switches first, so the lights they control (which may share their number) end up in their chain;
   // the branches are put back in the order of the numbers afterwards
@@ -126,10 +151,16 @@ export function buildBranches(building, lib, circuit) {
         }
       }
       const rank = (o) => ({ inverter: 0, board: 0, mppt: 1, pv: 2, battery: 3 })[kindOf(o)] ?? 4;
+      // equal devices together: {sym, count, ids}; a PV symbol can stand for several panels
       const countItems = (list) => {
-        const counts = new Map();
-        for (const o of [...list].sort((x, y) => rank(x) - rank(y))) counts.set(o.sym, (counts.get(o.sym) || 0) + 1);
-        return [...counts].map(([sym, count]) => ({ sym, count }));
+        const groups = new Map();
+        for (const o of [...list].sort((x, y) => rank(x) - rank(y))) {
+          const g = groups.get(o.sym) || { sym: o.sym, count: 0, ids: [] };
+          g.count += kindOf(o) === 'pv' ? Math.max(1, parseInt(o.props?.count, 10) || 1) : 1;
+          g.ids.push(o.id);
+          groups.set(o.sym, g);
+        }
+        return [...groups.values()];
       };
       const bus = group.find((o) => kindOf(o) === 'dcbus');
       if (bus) {
@@ -154,9 +185,14 @@ export function buildBranches(building, lib, circuit) {
         for (const o of group) if (!taken.has(o.id) && o !== bus) rows.push(rowOf(o));
         const hasPv = (row) => row.some((it) => kindOf({ sym: it.sym }) === 'pv');
         rows.sort((a, c) => hasPv(c) - hasPv(a));
-        branches.push({ type: 'dc', head: countItems(heads), rows: rows.length ? rows : [[]] });
+        const head = countItems(heads);
+        head.forEach((it) => { it.info = deviceInfo(it, [bus.id]); });
+        rows.forEach((row) => row.forEach((it, i) => { it.info = deviceInfo(it, i ? row[i - 1].ids : [bus.id]); }));
+        branches.push({ type: 'dc', head, rows: rows.length ? rows : [[]] });
       } else if (group.length > 1) {
-        branches.push({ type: 'group', items: countItems(group) });
+        const items = countItems(group);
+        items.forEach((it, i) => { it.info = deviceInfo(it, i ? items[i - 1].ids : []); });
+        branches.push({ type: 'group', items });
       } else {
         const { relay: _, ...br } = branchOf(s, def, '');
         branches.push(br);
@@ -179,8 +215,9 @@ function branchBody(br) {
   if (br.type === 'chain') return 4 + br.switches.length * SW + br.lights.length * 8 + 4;
   if (br.type === 'sockets') return 4 + br.qty * (socketLen(br.units) + 1.5);
   if (br.type === 'box') return 4 + 2 * 7;
-  if (br.type === 'group') return 4 + br.items.length * 11 + 5;
-  if (br.type === 'dc') return 4 + br.head.length * 11 + 6 + Math.max(0, ...br.rows.map((r) => r.length * 11)) + 5;
+  const infoW = (items) => Math.max(0, ...items.map((it) => (it.info || '').length * 1.05)) + 3;
+  if (br.type === 'group') return 4 + br.items.length * 11 + 5 + infoW(br.items);
+  if (br.type === 'dc') return 4 + br.head.length * 11 + 6 + Math.max(0, ...br.rows.map((r, i) => r.length * 11 + infoW(i ? r : [...br.head, ...r]))) + 5;
   return 4 + 8;
 }
 const circuitWidth = (branches) => Math.max(21, ...branches.map((br) => branchLength(br) + 9));
@@ -255,6 +292,13 @@ function builder(project, lib, board, title) {
     return from;
   };
 
+  /** Device data (type, power, serial numbers, cable) right of a row, one line per device. */
+  const infoBlock = (items, endX, y) => {
+    const lines = items.map((it) => it.info).filter(Boolean);
+    const lh = 2.2;
+    lines.forEach((l, i) => text(endX + 6, y - ((lines.length - 1) * lh) / 2 + i * lh, l, 1.7));
+  };
+
   const drawBranch = (br, lx, y) => {
     let px = lx + 4;
     if (br.relay) {
@@ -292,7 +336,7 @@ function builder(project, lib, board, title) {
       wire([lx, y], [starts[starts.length - 1], y]);
       for (const s of starts) comp(br.sym, s + pinY, y, 90);
     } else if (br.type === 'group') {
-      seq(br.items, lx, px, y);
+      infoBlock(br.items, seq(br.items, lx, px, y), y);
     } else if (br.type === 'dc') {
       // inverter on the circuit line, then a vertical DC busbar with one row per DC device
       const end = br.head.length ? seq(br.head, lx, px, y) : lx;
@@ -301,7 +345,10 @@ function builder(project, lib, board, title) {
       const last = y + (br.rows.length - 1) * ROW;
       page.wires.push({ id: uid('w'), points: [[bx, y - 2.5], [bx, last + 2.5]], w: 0.9 });
       text(bx, y - 4, 'DC', 1.8, { anchor: 'middle', bold: true });
-      br.rows.forEach((row, r) => { if (row.length) seq(row, bx, bx + 3, y + r * ROW); });
+      // the device data of all rows in one column, right of the longest row
+      const ends = br.rows.map((row, r) => (row.length ? seq(row, bx, bx + 3, y + r * ROW) : bx));
+      const col = Math.max(...ends) + (br.rows.some((row) => row.some((it) => it.count > 1)) ? 4 : 0);
+      br.rows.forEach((row, r) => infoBlock(r ? row : [...br.head, ...row], col, y + r * ROW));
     } else if (br.type === 'box') {
       wire([lx, y], [px, y]);
       comp(br.sym, px + (lib.get(br.sym)?.half || 3.5), y);

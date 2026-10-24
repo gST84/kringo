@@ -817,4 +817,12 @@ export const DICT = [
   ["Ruimte", "Pièce", "Room"],
   ["MPPT-laadregelaar", "Régulateur de charge MPPT", "MPPT charge controller"],
   ["DC-busbar", "Jeu de barres DC", "DC busbar"],
+  ["Type / model", "Type / modèle", "Type / model"],
+  ["bv. SMA Sunny Tripower 5.0", "p. ex. SMA Sunny Tripower 5.0", "e.g. SMA Sunny Tripower 5.0"],
+  ["Serienummer", "Numéro de série", "Serial number"],
+  ["Max. laadstroom (A)", "Courant de charge max. (A)", "Max. charge current (A)"],
+  ["kabeltype", "type de câble", "cable type"],
+  ["Kabel (solar / DC)", "Câble (solaire / DC)", "Cable (solar / DC)"],
+  ["Komt in het eendraadschema bij het toestel.", "Apparaît dans le schéma unifilaire près de l’appareil.", "Shown in the single-line diagram next to the device."],
+  ["Batterij", "Batterie", "Battery"],
 ];
