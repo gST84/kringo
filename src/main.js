@@ -105,12 +105,8 @@ schemTools.append(
   btn('▶', 'Volgende pagina (PgDn)', () => app.setPage(app.pageIdx + 1)));
 
 // plan toolbar (building mode)
-const planTools = [
-  ['select', '⬚', 'Selecteren (V)'], ['wall', '▬', 'Muur tekenen (W) – typ een lengte + Enter'], ['arcwall', '◠', 'Gebogen muur (A): begin, einde, punt op de boog'],
-  ['door', '🚪', 'Deur (D)', 'opening', { type: 'door' }], ['window', '⊟', 'Raam (N)', 'opening', { type: 'window' }],
-  ['stair', '☰', 'Trap (sleep een rechthoek)', 'stair', { stair: 'straight' }], ['text', 'T', 'Ruimtenaam (T)'], ['dim', '↔', 'Maatlijn (M)'],
-  ['link', '🔗', 'Koppelen (L): klik bron, dan doelen'], ['pan', '✋', 'Pannen (H)'],
-];
+// the drawing tools themselves are in the left panel ('Grondplan')
+const planTools = [['select', '⬚', 'Selecteren (V)'], ['pan', '✋', 'Pannen (H)']];
 const planBtns = new Map();
 const wallSel = h('select', { title: 'Muurtype voor nieuwe muren', onchange: (e) => { const [k, t] = e.target.value.split(':'); plan.wallKind = k; plan.wallT = +t; } },
   [['outer:30', 'Buitenmuur 30'], ['outer:40', 'Buitenmuur 40'], ['inner:14', 'Binnenmuur 14'], ['inner:10', 'Binnenmuur 10'], ['inner:7', 'Scheidingswand 7']]
