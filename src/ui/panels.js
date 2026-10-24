@@ -303,7 +303,8 @@ function pageProps(app) {
   return [
     section(t('Pagina {n}', { n: app.pageIdx + 1 }),
       field('Titel', inp(pg.title, (v) => set(() => { pg.title = v; }), { key: 'ptitle' }))),
-    section('Voedingslijnen',
+    // single-line sheets have no supply rails to manage
+    pg.gen === 'eendraad' ? null : section('Voedingslijnen',
       ...pg.rails.map((r) => h('div', { class: 'railrow' },
         inp(r.color, (v) => set(() => { r.color = v; }), { type: 'color', key: 'rc' + r.id }),
         inp(r.name, (v) => set(() => { r.name = v; if (RAIL_PRESETS[v]) r.color = RAIL_PRESETS[v]; }), { key: 'rn' + r.id }),
