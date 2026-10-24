@@ -112,8 +112,28 @@ export function buildBranches(building, lib, circuit) {
     } else if (kind === 'light') {
       branches.push({ type: 'chain', switches: [], lights: [{ sym: s.sym, count: 1 }] });
     } else {
-      const { relay: _, ...br } = branchOf(s, def, '');
-      branches.push(br);
+      // devices linked to each other in this circuit (inverter → PV panels → battery …): one branch
+      const inCircuit = new Set(items.map(({ s: o }) => o.id));
+      const group = [s];
+      const queue = [s.id];
+      while (queue.length) {
+        for (const id of linksOf.get(queue.shift()) || []) {
+          const o = symById.get(id);
+          if (!o || used.has(id) || !inCircuit.has(id) || isControl(o) || ['light', 'dom-in', 'dom-out'].includes(kindOf(o)) || addr(o)) continue;
+          used.add(id);
+          group.push(o);
+          queue.push(id);
+        }
+      }
+      if (group.length > 1) {
+        const rank = (o) => ({ inverter: 0, board: 0, pv: 1, battery: 2 })[kindOf(o)] ?? 3;
+        const counts = new Map();
+        for (const o of [...group].sort((x, y) => rank(x) - rank(y))) counts.set(o.sym, (counts.get(o.sym) || 0) + 1);
+        branches.push({ type: 'group', items: [...counts].map(([sym, count]) => ({ sym, count })) });
+      } else {
+        const { relay: _, ...br } = branchOf(s, def, '');
+        branches.push(br);
+      }
     }
     if (branches.length > at) branches[at].n = s.n || 0;
   }
@@ -132,6 +152,7 @@ function branchBody(br) {
   if (br.type === 'chain') return 4 + br.switches.length * SW + br.lights.length * 8 + 4;
   if (br.type === 'sockets') return 4 + br.qty * (socketLen(br.units) + 1.5);
   if (br.type === 'box') return 4 + 2 * 7;
+  if (br.type === 'group') return 4 + br.items.length * 11;
   return 4 + 8;
 }
 const circuitWidth = (branches) => Math.max(21, ...branches.map((br) => branchLength(br) + 9));
@@ -227,6 +248,18 @@ function builder(project, lib, board, title) {
       for (let k = 0, bx = px; k < br.qty; k++, bx += len + 1.5) starts.push(bx);
       wire([lx, y], [starts[starts.length - 1], y]);
       for (const s of starts) comp(br.sym, s + pinY, y, 90);
+    } else if (br.type === 'group') {
+      // devices one after the other on the line, each rotated with its connection to the left
+      let from = lx, at = px;
+      for (const it of br.items) {
+        const def = lib.get(it.sym);
+        const half = def?.box ? def.half || 3.5 : def?.pins?.[0]?.y ?? 2.5;
+        wire([from, y], [at, y]);
+        if (def?.box) comp(it.sym, at + half, y); else comp(it.sym, at + half, y, 90);
+        if (it.count > 1) text(at + half + 1, y - (def?.box ? half : 4) - 2.6, `x${it.count}`, 2.2);
+        from = at + 2 * half;
+        at = from + 3;
+      }
     } else if (br.type === 'box') {
       wire([lx, y], [px, y]);
       comp(br.sym, px + (lib.get(br.sym)?.half || 3.5), y);
