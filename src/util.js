@@ -24,6 +24,14 @@ export function h(tag, attrs, ...children) {
   return el;
 }
 
+/** Mouse pointer icon for the select tools (a new element per call). */
+export function cursorIcon() {
+  const span = document.createElement('span');
+  span.className = 'icon';
+  span.innerHTML = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M3.5 1.8v11.6l3-2.9 1.9 4.4 2-.9-1.9-4.3h4.2z" fill="currentColor" stroke="currentColor" stroke-width=".6" stroke-linejoin="round"/></svg>';
+  return span;
+}
+
 export function append(el, children) {
   for (const c of children.flat(Infinity)) {
     if (c === null || c === undefined || c === false) continue;

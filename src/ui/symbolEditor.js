@@ -1,13 +1,13 @@
 // Symbol editor: draw your own symbols (lines, rectangles, circles, arcs, polylines, text, pins).
 import { t } from '../i18n.js';
-import { h, clone, r2, snap } from '../util.js';
+import { cursorIcon, h, clone, r2, snap } from '../util.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
 import { USER_ROOT } from '../symbols/library.js';
 import { field, modal, prompt, toast } from './dialogs.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const TOOLS = [
-  ['select', '⬚', 'Selecteren / verplaatsen'], ['line', '╱', 'Lijn'], ['poly', '⌇', 'Polylijn (dubbelklik = einde)'],
+  ['select', cursorIcon, 'Selecteren / verplaatsen'], ['line', '╱', 'Lijn'], ['poly', '⌇', 'Polylijn (dubbelklik = einde)'],
   ['rect', '▭', 'Rechthoek'], ['circle', '◯', 'Cirkel'], ['arc', '◠', 'Boog (begin, punt op boog, einde)'],
   ['text', 'T', 'Tekst ({tag}, {desc} … mogelijk)'], ['pin', '⊙', 'Aansluiting (pin)'], ['tag', '🏷', 'Positie van de tag'],
 ];
@@ -76,7 +76,7 @@ export async function openSymbolEditor(app, source) {
   const elemEl = h('div', { class: 'se-elem' });
 
   const renderTools = () => toolbar.replaceChildren(
-    ...TOOLS.map(([k, icon, title]) => h('button', { class: tool === k ? 'active' : '', title, onclick: () => { tool = k; pending = []; renderTools(); draw(); } }, icon)),
+    ...TOOLS.map(([k, icon, title]) => h('button', { class: tool === k ? 'active' : '', title, onclick: () => { tool = k; pending = []; renderTools(); draw(); } }, typeof icon === 'function' ? icon() : icon)),
     h('hr'),
     h('label', { class: 'check small', title: 'Nieuwe lijnen gestreept' }, h('input', { type: 'checkbox', checked: style.dash, onchange: (e) => { style.dash = e.target.checked; } }), '- -'),
     h('select', { title: 'Vulling voor nieuwe vormen', onchange: (e) => { style.fill = e.target.value; } },

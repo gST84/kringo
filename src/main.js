@@ -16,7 +16,7 @@ import { prompt, toast } from './ui/dialogs.js';
 import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
 import { locate } from './model.js';
-import { DONATE_URL, h } from './util.js';
+import { cursorIcon, DONATE_URL, h } from './util.js';
 
 import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
 startAutoTranslate();
@@ -35,7 +35,7 @@ app.plan = plan;
 document.body.dataset.mode = 'schematic';
 document.body.dataset.kind = 'schematic';
 
-const btn = (label, title, onclick, cls = '') => h('button', { title, onclick, class: cls }, label);
+const btn = (label, title, onclick, cls = '') => h('button', { title, onclick, class: cls }, typeof label === 'function' ? label() : label);
 
 const saveEl = h('span', { class: 'savestate' });
 const kindEl = h('span', { class: 'kindbadge', title: 'Soort project' });
@@ -70,7 +70,7 @@ $('#top').append(
 
 // tools bar
 const tools = [
-  ['select', '⬚', 'Selecteren (V)'], ['wire', '╱', 'Draad tekenen (W)'], ['text', 'T', 'Tekst (T)'],
+  ['select', cursorIcon, 'Selecteren (V)'], ['wire', '╱', 'Draad tekenen (W)'], ['text', 'T', 'Tekst (T)'],
   ['box', '▭', 'Kader / toestelgrens (B)'], ['pan', '✋', 'Pannen (H)'],
 ];
 const toolBtns = new Map();
@@ -106,7 +106,7 @@ schemTools.append(
 
 // plan toolbar (building mode)
 // the drawing tools themselves are in the left panel ('Grondplan')
-const planTools = [['select', '⬚', 'Selecteren (V)'], ['pan', '✋', 'Pannen (H)']];
+const planTools = [['select', cursorIcon, 'Selecteren (V)'], ['pan', '✋', 'Pannen (H)']];
 const planBtns = new Map();
 const wallSel = h('select', { title: 'Muurtype voor nieuwe muren', onchange: (e) => { const [k, t] = e.target.value.split(':'); plan.wallKind = k; plan.wallT = +t; } },
   [['outer:30', 'Buitenmuur 30'], ['outer:40', 'Buitenmuur 40'], ['inner:14', 'Binnenmuur 14'], ['inner:10', 'Binnenmuur 10'], ['inner:7', 'Scheidingswand 7']]

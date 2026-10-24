@@ -399,3 +399,6 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 /* plan handles: round, light, with an outline */
 .plancanvas .phandle { fill: #bfdbfe; stroke: #2563eb; cursor: move; }
 .plancanvas .phandle:hover { fill: #93c5fd; }
+
+button .icon { display: inline-flex; vertical-align: middle; line-height: 0; }
+button .icon svg { display: block; }
