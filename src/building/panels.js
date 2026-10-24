@@ -490,8 +490,11 @@ function floorProps(app, plan) {
 // ---------- PV / DC ----------
 
 const PV_KINDS = ['pv', 'inverter', 'mppt', 'battery', 'dcbus'];
-const DC_CABLES = ['Solarkabel H1Z2Z2-K 1x4 mm²', 'Solarkabel H1Z2Z2-K 1x6 mm²', 'Solarkabel H1Z2Z2-K 1x10 mm²',
-  'DC-kabel 2x6 mm²', 'DC-kabel 2x10 mm²', 'DC-kabel 2x16 mm²', 'DC-kabel 2x25 mm²', 'DC-kabel 2x35 mm²', 'DC-kabel 2x50 mm²'];
+const DC_CABLES = [
+  ...[4, 6, 10].map((n) => `Solarkabel ${n} mm²`),
+  ...[6, 10, 16, 25, 35, 50].map((n) => `DC-kabel ${n} mm²`),
+  ...[16, 25, 35, 50, 70, 95].map((n) => `Accukabel ${n} mm²`),
+];
 
 /** Cable type of a link (solar cable between panels and MPPT, DC cable to the busbar …). */
 function cableInput(l, set) {
