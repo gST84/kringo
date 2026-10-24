@@ -315,9 +315,9 @@ function stripSvg(sym, k, building, sel, opts) {
   if (label || (opts.showRooms && sym.props?.room) || sym.dom) {
     s += `<g transform="translate(${r2(P[0][0])} ${r2(P[0][1])}) scale(${r2(mm)})">`;
     if (label) s += textSvg(1.8, -2.4, label, 2, 'start', 'tx clabel');
-    if (opts.showRooms && sym.props?.room) s += textSvg(1.8, -0.2, sym.props.room, 1.5, 'start', 'tx croom');
+    if (opts.showRooms && sym.props?.room) s += textSvg(1.8, -4.5, sym.props.room, 1.5, 'start', 'tx croom');
     const dom = domAddress(building, sym);
-    if (dom) s += textSvg(label ? 1.8 + label.length * 1.3 : 1.8, -2.4, dom, 1.7, 'start', 'tx cdom');
+    if (dom) s += textSvg(label ? 1.8 + label.length * 1.45 + 1 : 1.8, -2.4, dom, 1.7, 'start', 'tx cdom');
     s += '</g>';
   }
   if (!opts.print) s += `<polyline class="hit" points="${d}" style="fill:none;stroke-width:${r2(4 * mm)}"/>`;

@@ -2,6 +2,8 @@
 
 Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronden, AREI-symbolen, kringen en het eendraadschema) en **stuurkasten** (industriële schema's). Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
 
+> **Voorbeeldproject:** alle schermafbeeldingen komen uit het project [*Woning Voorbeeldstraat 1*](voorbeelden/Woning%20Voorbeeldstraat%201.kringo) – download het en open het in Kringo met **Open bestand**. Je vindt er alle voorbeelden uit deze handleiding in terug.
+
 **Inhoud**
 
 1. [Starten](#1-starten)
@@ -31,6 +33,8 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
 Bij een nieuw project kies je de soort: **Gebouw** of **Stuurkast**. Die ligt daarna vast.
 
 ## 2. Het scherm
+
+![Het scherm van Kringo met een plattegrond](img/overview.png)
 
 | Plaats | Wat |
 |---|---|
@@ -79,7 +83,9 @@ Zie [voorbeeld F](#f-een-bestaand-plan-overtekenen-pdf-als-achtergrond).
 
 ### Kringen en verdeelborden
 
-Open **Kringen** bovenaan. Je bouwt er de boom: *verdeelbord → differentieel → kringen*, met differentiëlen achter differentiëlen en onderverdeelborden. Per kring stel je in: automaat of smeltzekering, curve, In, polen, Icn, kabel, brandklasse, aders, doorsnede, plaatsing en of de geleiders getekend worden.
+Open **Kringen** bovenaan. Je bouwt er de boom: *verdeelbord → differentieel → kringen*, met differentiëlen achter differentiëlen en onderverdeelborden. Per kring stel je in: automaat of smeltzekering, curve, In, polen, Icn, kabel, brandklasse, aders, doorsnede, plaatsing en of de geleiders getekend worden. Opmerkingen van de AREI-controle staan meteen bij de kring.
+
+![Het venster Kringen & verdeelborden](img/circuits.png)
 
 ### Symbolen plaatsen
 
@@ -105,6 +111,8 @@ Klik bovenaan op **Eendraadschema** en daarna op *Genereren* (of Enter). Per ver
 - Het schema wordt **niet automatisch bijgewerkt**: genereer opnieuw na wijzigingen (eerder gegenereerde bladen worden vervangen).
 - De bladen staan in de paginakeuze onder *Eendraadschema* en kunnen achteraf nog aangepast worden.
 
+![Het eendraadschema van de voorbeeldwoning](img/eendraad.png)
+
 ## 6. Voorbeelden
 
 ### A. Schakelaar met lampen (wisselschakeling)
@@ -115,8 +123,11 @@ Doel: een gang met twee wisselschakelaars die samen twee lichtpunten bedienen.
 2. Kies in de werkbalk **Kring: B**.
 3. Plaats bij elke deur een **Enkelpolige wisselschakelaar** (map *Schakelaars*) en in het plafond twee **Lichtpunten** (map *Verlichting*).
 4. Kies **Koppelen** en klik: schakelaar 1 → lamp 1 → lamp 2 → schakelaar 2.
-5. Alle vier krijgen hetzelfde nummer, bv. **B1**.
-6. **Eendraadschema** → *Genereren*. In kring B staat één aftakking: wisselschakelaar – wisselschakelaar – lichtpunt **×2**.
+5. Alle vier krijgen hetzelfde nummer, bv. **B1**. In de eigenschappen van een lamp zie je de koppelingen en de melding *Geldt voor alle gekoppelde symbolen*.
+
+   ![Wisselschakeling in de living: gekoppelde schakelaars en lampen](img/switch.png)
+
+6. **Eendraadschema** → *Genereren*. In kring B staat één aftakking (1): wisselschakelaar – wisselschakelaar – lichtpunt **x2** (zie de afbeelding bij [voorbeeld E](#e-domotica)).
 
 > Tip: een kruisschakelaar komt tussen de twee wisselschakelaars: koppel hem gewoon mee in de ketting.
 
@@ -130,6 +141,10 @@ Doel: een ledstrip van 4,5 m onder een keukenkast, bediend met een schakelaar.
 4. Plaats een schakelaar en **koppel** schakelaar → ledstrip.
 5. In het eendraadschema: schakelaar → LED-strip in één aftakking.
 
+![Een ledstrip in de keuken, met lengte, vermogen en domotica-kanaal](img/ledstrip.png)
+
+In de voorbeeldwoning hangt de ledstrip niet aan een schakelaar maar aan domotica-kanaal **M2.1** (zie [voorbeeld E](#e-domotica)).
+
 ### C. Zonnepanelen met omvormer
 
 Doel: 10 panelen op één omvormer, op een eigen kring.
@@ -139,14 +154,7 @@ Doel: 10 panelen op één omvormer, op een eigen kring.
 3. **Koppel**: omvormer → paneel 1 → paneel 2 → …
 4. Vul bij de omvormer *Type / model*, *Serienummer* en *Vermogen (kW)* in, bij de panelen *Type*, *Piekvermogen (Wp)* en eventueel serienummers.
 5. Klik op het plan op de omvormer: onder **Koppelingen** staat bij het eerste paneel een veld *kabeltype*: kies bv. **Solarkabel 6 mm²**.
-6. Eendraadschema: één aftakking **omvormer → panelen ×10**, met de kabel boven de lijn en onder elk symbool de gegevens:
-
-```
- P ─┬─ [~/=] ──── Solarkabel ──── [▦] x10
-    │  Omvormer: SMA STP 5.0      PV: JA Solar JAM54S30
-    │  5 kW                       10 × 410 Wp = 4,1 kWp
-    │  SN 3010-123456
-```
+6. Eendraadschema: één aftakking **omvormer → panelen x10**, met de kabel boven de lijn en onder elk symbool de gegevens – zoals in [voorbeeld D](#d-zonnepanelen-met-dc-busbar-mppts-en-batterij), maar zonder busbar.
 
 ### D. Zonnepanelen met DC-busbar, MPPT's en batterij
 
@@ -175,26 +183,18 @@ Doel: een hybride installatie: een omvormer/lader, twee MPPT-laadregelaars met e
    | busbar → batterij | batterij ↔ busbar | Accukabel 25 mm² |
    | MPPT → panelen | MPPT ↔ eerste paneel | Solarkabel 6 mm² |
 
-**In het eendraadschema** wordt dat één aftakking: de omvormer op de kringlijn, dan de verticale **DC**-busbar, met per toestel een rij. De MPPT met panelen komt bovenaan, de andere MPPT en de batterij parallel eronder:
+![PV-installatie op het plan: omvormer, DC-busbar, twee MPPT's, batterij en panelen](img/pv-plan.png)
 
-```
- 1 ─ [~/=] ── Accukabel ──┃── Accukabel ── [=/=] ── Solarkabel ── [▦] x4
-     Omvormer: Victron    ┃                MPPT: SmartSolar        PV: JA Solar
-     5 kW                 ┃                35 A                    4 × 450 Wp = 1,8 kWp
-     SN HQ123456          ┃
-                          ┃── DC-kabel ─── [=/=]
-                          ┃                MPPT: SmartSolar 100/20
-                          ┃
-                          ┃── Accukabel ── [ = ]
-                          DC               Batterij: Seplos
-                                           32 kWh
-```
+**In het eendraadschema** wordt dat één aftakking: de omvormer op de kringlijn, dan de verticale **DC**-busbar, met per toestel een rij. De MPPT met panelen komt bovenaan, de andere MPPT en de batterij parallel eronder. Boven elke lijn staat de kabel, onder elk symbool het type, het vermogen en de serienummers:
+
+![De PV-installatie in het eendraadschema](img/eendraad-pv.png)
+
 
 ### E. Domotica
 
 In een domotica-installatie zitten de **modules (relais, dimmers, rolluikmodules) in het verdeelbord**; op het plan staan alleen de drukknoppen, sensoren en de verbruikers.
 
-Doel: een woonkamer met twee lichtkringen op een schakelmodule, een gedimde ledstrip, een rolluik en twee domotica-drukknoppen.
+Doel (zoals in de voorbeeldwoning): drie inbouwspots in de keuken op een schakelmodule, een gedimde ledstrip, een rolluik in de living, een domotica-drukknop en een aanwezigheidsmelder.
 
 1. **Modules aanmaken**: klik bovenaan op **Domotica**.
    - *＋ Schakelmodule* → **M1**, zet *Kanalen* op 8 (instelbaar van 1 tot 32), kies het *Bord* en de *Voeding* (de kring die de modules voedt, bv. kring D).
@@ -211,21 +211,17 @@ Doel: een woonkamer met twee lichtkringen op een schakelmodule, een gedimde leds
 
    | Kanaal | Stuurt | Bediening |
    |---|---|---|
-   | M1.1 | B1 Lichtpunt ×2 – Living | M4.1 drukknop naast de deur |
-   | M1.2 | B2 Inbouwspot ×6 – Living | M4.1, M4.2 |
-   | M2.1 | B3 LED-strip – Keuken | M4.2 |
-   | M3.1 | R1 Rolluik – Living | M4.3 |
+   | M1.1 | B2 Inbouwspot ×3 – Keuken | M4.1 drukknop, M4.2 aanwezigheidsmelder |
+   | M2.1 | B3 LED-strip – Keuken | M4.1 drukknop |
+   | M3.1 | R1 Rolluik – Living | – |
 
 5. **CSV exporteren** in het venster Domotica geeft deze lijst voor de programmeur.
+
+   ![Het venster Domotica met modules, kanalen en bediening](img/domotica.png)
+
 6. **Eendraadschema**: in elke aftakking komt het **relaiscontact met zijn adres** vóór de verbruikers; de kring die de modules voedt krijgt een **modulevak** met hun namen. Drukknoppen komen niet in het 230 V-schema.
 
-```
- B ─┬─ 1 ── [M1.1 ⌐] ── ✕ x2
-    ├─ 2 ── [M1.2 ⌐] ── ⊗ x6
-    └─ 3 ── [M2.1 ⌐] ── ▭▭▭ (LED-strip)
-
- D ─── 1 ── [▦] M1, M2, M3, M4
-```
+![Domotica in het eendraadschema: relaiscontacten M2.1 en M1.1 in kring B](img/eendraad-dom.png)
 
 ### F. Een bestaand plan overtekenen (PDF als achtergrond)
 
@@ -234,6 +230,8 @@ Doel: een woonkamer met twee lichtkringen op een schakelmodule, een gedimde leds
 3. **Schaal bepalen**: klik twee punten waarvan je de afstand kent (bv. de buitenmaat van een gevel) en geef de werkelijke afstand in cm.
 4. Sleep de achtergrond op zijn plaats, zet de *Dekking* op 30–50 % en **vergrendel** hem.
 5. Teken de muren erover. Kies *Mee afdrukken* als de achtergrond op de afdruk moet.
+
+![Een plan als achtergrond, met Schaal bepalen (twee punten, 500 cm)](img/background.png)
 
 ## 7. Stuurkast
 

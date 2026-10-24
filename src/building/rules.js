@@ -13,7 +13,8 @@ export function checkCircuits(building, lib) {
     const syms = circuitSymbols(building, c.id).map(({ s }) => ({ s, def: lib.get(s.sym) }));
     const sockets = syms.filter((x) => x.def?.kind === 'socket').length;
     const max = MAX_IN[c.section];
-    if (!syms.length) warn(c, t('Kring zonder toestellen.'), 'info');
+    const feedsModules = (building.domotics?.modules || []).some((m) => m.circuit === c.id);
+    if (!syms.length && !feedsModules) warn(c, t('Kring zonder toestellen.'), 'info');
     if (max && c.In > max) warn(c, t('Automaat {In} A te groot voor {s} mm² (max. {max} A).', { In: c.In, s: c.section, max }), 'error');
     if (sockets > 8) warn(c, t('{n} stopcontacten: max. 8 (enkel- of meervoudige) per kring.', { n: sockets }), 'error');
     if (sockets && c.section < 2.5) warn(c, t('Kringen met stopcontacten: min. 2,5 mm².'), 'error');

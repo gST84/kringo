@@ -259,7 +259,7 @@ function branchBody(br, lib) {
     const { bx } = busX(br, lib, 0);
     return Math.max(bx, ...br.rows.map((row) => seqLayout(row, lib, bx, false).right)) + 4;
   }
-  if (br.type === 'chain') return 4 + br.switches.length * SW + br.lights.length * 8 + 4;
+  if (br.type === 'chain') return 4 + br.switches.length * SW + br.lights.length * 8 + 4 + br.lights.filter((l) => l.count > 1).length * 4 + 3;
   if (br.type === 'sockets') return 4 + br.qty * (socketLen(br.units) + 1.5);
   if (br.type === 'box') return 4 + 2 * 7;
   return 4 + 8;
@@ -356,13 +356,14 @@ function builder(project, lib, board, title) {
         const c = cx + (isCross ? 2.5 : 3.6);
         placed.push([l.sym, c, isCross ? 0 : 90, l.count]);
         end = c;
-        cx = c + 5;
+        cx = c + 5 + (l.count > 1 ? 4 : 0);
       }
       if (!br.lights.length) end = cx;
       wire([lx, y], [end, y]);
       for (const [sym, c, rot, count] of placed) {
         comp(sym, c, y, rot);
-        if (count > 1) text(c + 1.2, y - 4.8, `x${count}`, 2.2);
+        // the count right of the light, so it cannot be mistaken for the branch above
+        if (count > 1) text(c + (rot ? halfOf(lib, sym) : 2.5) + 0.8, y - 2.4, `x${count}`, 2.2);
       }
     } else if (br.type === 'sockets') {
       const pinY = lib.get(br.sym)?.pins?.[0]?.y ?? 2.5;

@@ -538,7 +538,7 @@ function domChannelSelect(app, s) {
         const key = `${m.id}:${i + 1}`;
         const users = channelUsers(b, m.id, i + 1).filter(({ s: o }) => o !== s);
         return h('option', { value: key, selected: s.dom === key },
-          `${m.name}.${i + 1}${users.length ? ' · ' + users.map(({ s: o }) => symLabel(app, o)).join(', ') : ' ' + t('(vrij)')}`);
+          `${m.name}.${i + 1}${users.length ? ' · ' + users.map(({ s: o }) => symLabel(app, o)).join(', ') : s.dom === key ? '' : ' ' + t('(vrij)')}`);
       }))));
   el.addEventListener('change', () => app.mutate(() => { if (el.value) s.dom = el.value; else delete s.dom; }));
   return field(input ? 'Domotica-ingang' : 'Gestuurd door domotica', el, input ? 'Kanaal van een ingangsmodule.' : 'Het relaiscontact komt in de aftakking van het eendraadschema.');

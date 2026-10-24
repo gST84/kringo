@@ -4,7 +4,7 @@ CAD-programma in de browser voor elektrische schema's. Geen installatie en geen 
 
 ## Handleiding
 
-📖 **[Handleiding met voorbeelden](docs/HANDLEIDING.md)** – grondplan tekenen, kringen, koppelen, eendraadschema, en uitgewerkte voorbeelden: wisselschakeling, ledstrip, zonnepanelen (met DC-busbar, MPPT's en batterij), domotica en een PDF overtekenen. In Kringo opent de **?**-knop bovenaan de handleiding.
+📖 **[Handleiding met voorbeelden](docs/HANDLEIDING.md)** – grondplan tekenen, kringen, koppelen, eendraadschema, en uitgewerkte voorbeelden: wisselschakeling, ledstrip, zonnepanelen (met DC-busbar, MPPT's en batterij), domotica en een PDF overtekenen. In Kringo opent de **?**-knop bovenaan de handleiding. Het voorbeeldproject uit de handleiding staat in [docs/voorbeelden](docs/voorbeelden) (openen met *Open bestand*).
 
 ## Taal
 

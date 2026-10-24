@@ -411,7 +411,7 @@ button .icon svg { display: block; }
 .plan .pstrip:hover .strip-o { stroke: #4b8af0; }
 .plan .pstrip.sel .strip-o { stroke: var(--sel) !important; }
 .plan .pstrip.sel .strip-led { stroke: #c98a0b !important; }
-.plan .pstrip .hit { fill: none !important; }
+.plan .pstrip .hit { fill: none !important; stroke: transparent !important; }
 
 #top .menu button.iconbtn { padding-left: 7px; padding-right: 7px; }
 #top .menu button.iconbtn .icon svg { width: 18px; height: 18px; }
