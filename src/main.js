@@ -16,7 +16,7 @@ import { prompt, toast } from './ui/dialogs.js';
 import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
 import { locate } from './model.js';
-import { cursorIcon, DONATE_URL, h } from './util.js';
+import { cursorIcon, DONATE_URL, h, icon } from './util.js';
 
 import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
 startAutoTranslate();
@@ -35,7 +35,7 @@ app.plan = plan;
 document.body.dataset.mode = 'schematic';
 document.body.dataset.kind = 'schematic';
 
-const btn = (label, title, onclick, cls = '') => h('button', { title, onclick, class: cls }, typeof label === 'function' ? label() : label);
+const btn = (label, title, onclick, cls = '') => h('button', { title, 'aria-label': title, onclick, class: cls }, typeof label === 'function' ? label() : label);
 
 const saveEl = h('span', { class: 'savestate' });
 const kindEl = h('span', { class: 'kindbadge', title: 'Soort project' });
@@ -48,10 +48,11 @@ $('#top').append(
   h('button', { class: 'menutoggle', onclick: () => document.body.classList.toggle('show-menu') }, 'Menu ▾'),
   nameEl,
   h('div', { class: 'menu' },
-    btn('Nieuw', 'Nieuw project', () => startNewProject(app)),
-    btn('Openen', 'Project openen (uit de browser of een bestand)', async () => { await app.save(); openDialog(app); }),
-    btn('Bewaar bestand', 'Project opslaan als .kringo-bestand', () => exportProjectFile(app)),
-    btn('Open bestand', '.kringo-bestand of QElectroTech-project (.qet) openen', async () => { await app.save(); importProjectFile(app); }),
+    btn(() => icon('new'), 'Nieuw project', () => startNewProject(app), 'iconbtn'),
+    btn(() => icon('open'), 'Project openen (uit de browser of een bestand)', async () => { await app.save(); openDialog(app); }, 'iconbtn'),
+    btn(() => icon('save'), 'Project opslaan als .kringo-bestand', () => exportProjectFile(app), 'iconbtn'),
+    btn(() => icon('import'), '.kringo-bestand of QElectroTech-project (.qet) openen', async () => { await app.save(); importProjectFile(app); }, 'iconbtn'),
+    btn(() => icon('print'), 'Afdrukken of PDF', () => printDialog(app), 'iconbtn'),
     h('span', { class: 'sep' }),
     btn('Gegevens', 'Projectgegevens, bedrijf, logo', () => projectDialog(app)),
     btn('Instellingen', 'Nummering en bladindeling', () => settingsDialog(app), 'kind-schematic'),
@@ -59,7 +60,6 @@ $('#top').append(
     btn('Lijsten', 'Toestellen-, klemmen-, draad- en PLC-lijst', () => listsDialog(app), 'kind-schematic'),
     btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app), 'kind-building'),
     btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app), 'kind-building'),
-    btn('Afdrukken', 'Afdrukken of PDF', () => printDialog(app)),
     h('span', { class: 'sep' }),
     undoBtn, redoBtn, saveEl),
   setupPwa({ onFile: async (f) => { await app.save(); openProjectFile(app, f); } }),

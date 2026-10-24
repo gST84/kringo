@@ -24,6 +24,22 @@ export function h(tag, attrs, ...children) {
   return el;
 }
 
+const ICONS = {
+  new: '<path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/><path d="M8.5 8v5M6 10.5h5"/>',
+  open: '<path d="M1.5 4V13h11.5l1.8-6.5H4.2L2.5 13"/><path d="M1.5 4V2.5h4.5l1.5 1.5h5V6.5"/>',
+  save: '<path d="M2 2h9.5L14 4.5V14H2z"/><path d="M5 2v4h5.5V2M4.5 14V9.5h7V14"/>',
+  import: '<path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/><path d="M8.5 13V8M6.3 10.2 8.5 8l2.2 2.2"/>',
+  print: '<path d="M4.5 6V1.5h7V6"/><rect x="1.5" y="6" width="13" height="6" rx="1.2"/><path d="M4.5 10h7v4.5h-7z" fill="var(--panel, #fff)"/><circle cx="12.3" cy="8" r=".5" fill="currentColor"/>',
+};
+
+/** Line icon (16 × 16, current text colour) as a new element per call: new, open, save, import, print. */
+export function icon(name) {
+  const span = document.createElement('span');
+  span.className = 'icon';
+  span.innerHTML = `<svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+  return span;
+}
+
 /** Mouse pointer icon for the select tools (a new element per call). */
 export function cursorIcon() {
   const span = document.createElement('span');
