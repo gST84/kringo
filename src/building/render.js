@@ -21,7 +21,8 @@ export function wallPolygon(w) {
   const p0 = g.at(0), p1 = g.at(g.len);
   const ext = (p, sgn, side) => [p.x + p.u[0] * t * sgn + p.n[0] * t * side, p.y + p.u[1] * t * sgn + p.n[1] * t * side];
   if (!g.arc) return [ext(p0, -1, 1), ext(p1, 1, 1), ext(p1, 1, -1), ext(p0, -1, -1)];
-  return [ext(p0, -1, 1), ...wallPath(w, 0, g.len, t, g), ext(p1, 1, 1), ext(p1, 1, -1), ...wallPath(w, g.len, 0, -t, g), ext(p0, -1, -1)];
+  // curved walls end square (no extension along the tangent, which would stick out of a corner)
+  return [...wallPath(w, 0, g.len, t, g), ...wallPath(w, g.len, 0, -t, g)];
 }
 
 const pts = (list) => list.map(([x, y]) => `${r2(x)},${r2(y)}`).join(' ');
@@ -47,7 +48,8 @@ function openingSvg(o, w, sw, sel) {
   const side = o.side === -1 ? -1 : 1;
   const off = (p, d) => [p.x + p.n[0] * d, p.y + p.n[1] * d];
   let s = `<g class="opening${sel ? ' sel' : ''}" data-k="O:${o.id}">`;
-  s += `<polygon class="gap" points="${pts([...wallPath(w, t0, t1, t + 0.5, g), ...wallPath(w, t1, t0, -t - 0.5, g)])}"/>`;
+  const gt = t + sw * 1.5; // also covers the wall outline
+  s += `<polygon class="gap" points="${pts([...wallPath(w, t0, t1, gt, g), ...wallPath(w, t1, t0, -gt, g)])}"/>`;
   s += line(off(A, t), off(A, -t), sw) + line(off(B, t), off(B, -t), sw);
   if (hasLeaf(o)) {
     const leaves = o.type === 'door2' ? [[-1, hw], [1, hw]] : [[o.hinge === 'r' ? 1 : -1, o.width]];
@@ -223,9 +225,15 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   }
   for (const sh of floor.shapes || []) if (sh.type === 'area') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   // walls
-  s += '<g class="walls">';
-  for (const w of floor.walls) {
-    s += `<polygon class="wall${w.kind === 'inner' ? ' inner' : ''}${sel.has('W:' + w.id) ? ' sel' : ''}" data-k="W:${w.id}" points="${pts(wallPolygon(w))}"/>`;
+  // walls: first every wall with a black outline, then every wall filled on top of that, so the
+  // outlines disappear where walls meet and the walls read as one whole
+  // inner walls first, so outer walls cover them where they meet
+  const polys = [...floor.walls].sort((a, c) => (a.kind === 'inner' ? 0 : 1) - (c.kind === 'inner' ? 0 : 1)).map((w) => [w, pts(wallPolygon(w))]);
+  s += `<g class="walloutline" style="stroke-width:${sw * 2}">`;
+  for (const [, p] of polys) s += `<polygon points="${p}"/>`;
+  s += '</g><g class="walls">';
+  for (const [w, p] of polys) {
+    s += `<polygon class="wall${w.kind === 'inner' ? ' inner' : ''}${sel.has('W:' + w.id) ? ' sel' : ''}" data-k="W:${w.id}" points="${p}"/>`;
   }
   s += '</g>';
   const wallsById = new Map(floor.walls.map((w) => [w.id, w]));
@@ -266,7 +274,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
 }
 
 export const PLAN_STYLE = `
-.plan .wall{fill:#3d3d3d;stroke:none}.plan .wall.inner{fill:#7a7a7a}
+.plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
 .plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}
 `;

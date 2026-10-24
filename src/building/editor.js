@@ -231,8 +231,8 @@ export class PlanEditor {
     const f = this.floor;
     const sz = this.px(5);
     const sw = this.px(1);
-    const sq = (x, y, k) => `<rect class="handle" data-k="${k}" x="${x - sz}" y="${y - sz}" width="${sz * 2}" height="${sz * 2}" style="stroke-width:${sw}"/>`;
-    const dot = (x, y, k, title) => `<circle class="handle round" data-k="${k}" cx="${x}" cy="${y}" r="${sz * 1.1}" style="stroke-width:${sw}"><title>${title}</title></circle>`;
+    const sq = (x, y, k) => `<circle class="phandle" data-k="${k}" cx="${x}" cy="${y}" r="${sz * 1.15}" style="stroke-width:${sw * 1.2}"/>`;
+    const dot = (x, y, k, title) => `<circle class="phandle alt" data-k="${k}" cx="${x}" cy="${y}" r="${sz * 1.15}" style="stroke-width:${sw * 1.2}"><title>${title}</title></circle>`;
     let s = '';
     if (type === 'W') {
       const w = f.walls.find((x) => x.id === id);

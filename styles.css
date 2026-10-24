@@ -256,9 +256,10 @@ body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:no
 /* ---------- plan ---------- */
 .plancanvas[data-tool=wall], .plancanvas[data-tool=arcwall], .plancanvas[data-tool=opening], .plancanvas[data-tool=stair], .plancanvas[data-tool=spiral], .plancanvas[data-tool=text], .plancanvas[data-tool=place], .plancanvas[data-tool=link], .plancanvas[data-tool=dim], .plancanvas[data-tool=area], .plancanvas[data-tool=line], .plancanvas[data-tool=calib] { cursor: crosshair; }
 .plangrid { fill: url(#pgp); }
-.plan .wall { fill: #3d3d3d; stroke: none; }
-.plan .wall.inner { fill: #7a7a7a; }
-.plan .wall:hover { fill: #2f5fbf; }
+.plan .walloutline polygon { fill: #000; stroke: #000; stroke-linejoin: miter; pointer-events: none; }
+.plan .wall { fill: #9b9b9b; stroke: none; }
+.plan .wall.inner { fill: #bdbdbd; }
+.plan .wall:hover { fill: #8fb1ea; }
 .plan .wall.sel { fill: var(--sel) !important; }
 .plan .gap { fill: #fff; stroke: none; }
 .plan .stairbox { fill: #fff; }
@@ -392,3 +393,7 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .overlay .ghostdim text { fill: var(--sel); }
 .symgrid.tools .sym svg { color: #334155; }
 .symgrid.tools .sym.active svg { color: var(--sel); }
+
+/* plan handles: round, light, with an outline */
+.plancanvas .phandle { fill: #bfdbfe; stroke: #2563eb; cursor: move; }
+.plancanvas .phandle:hover { fill: #93c5fd; }
