@@ -49,8 +49,12 @@ export function buildBranches(building, lib, circuit) {
   const kindOf = (s) => lib.get(s.sym)?.kind;
   const isControl = (s) => ['switch', 'push', 'dom-in'].includes(kindOf(s));
   const branches = [];
-  for (const { s } of items) {
+  // switches first, so the lights they control (which may share their number) end up in their chain;
+  // the branches are put back in the order of the numbers afterwards
+  const ordered = [...items.filter(({ s }) => isControl(s)), ...items.filter(({ s }) => !isControl(s))];
+  for (const { s } of ordered) {
     if (used.has(s.id)) continue;
+    const at = branches.length;
     const def = lib.get(s.sym);
     const kind = def?.kind;
     used.add(s.id);
@@ -91,8 +95,9 @@ export function buildBranches(building, lib, circuit) {
     } else {
       branches.push({ type: 'single', sym: s.sym });
     }
+    if (branches.length > at) branches[at].n = s.n || 0;
   }
-  return branches;
+  return branches.sort((x, y) => x.n - y.n).map(({ n, ...br }) => br);
 }
 
 const socketLen = (units) => 5 + (units - 1) * 4.5;
