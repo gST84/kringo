@@ -76,7 +76,12 @@ const tools = [
 const toolBtns = new Map();
 const gridSel = h('select', { title: 'Raster', onchange: (e) => { editor.grid = +e.target.value; } },
   [5, 2.5, 1].map((g) => h('option', { value: g, selected: g === 5 }, t('raster {g}', { g }))));
-const pageLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => app.setPage(+e.target.value) });
+/** Page choice: 'f:<i>' = floor plan, 'p:<i>' = sheet (switches between plan and sheets in building projects). */
+const goTo = (v) => {
+  const [kind, i] = v.split(':');
+  if (kind === 'f') { app.setMode('building'); app.setFloor(+i); } else { app.setMode('schematic'); app.setPage(+i); }
+};
+const pageLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => goTo(e.target.value) });
 const panelBtn = (side, label, title) => h('button', {
   class: 'paneltoggle', title,
   onclick: () => { document.body.classList.toggle('show-' + side); document.body.classList.remove('show-' + (side === 'left' ? 'right' : 'left')); },
@@ -117,7 +122,7 @@ const fillCircuits = () => {
   circSel.replaceChildren(...[['', 'Kring: —'], ...circuitOptions(app.project.building, false).map(([v, l]) => [v, t('Kring') + ' ' + l])]
     .map(([v, l]) => h('option', { value: v, selected: v === plan.activeCircuit }, l)));
 };
-const floorLbl = h('select', { class: 'pagesel', title: 'Verdieping kiezen', onchange: (e) => app.setFloor(+e.target.value) });
+const floorLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => goTo(e.target.value) });
 $('#toolbar').append(h('span', { class: 'tgroup view-plan' },
   ...planTools.map(([k, icon, title, tool, o]) => {
     const b = btn(icon, title, () => plan.setTool(tool || k, { ...(o || {}), key: k }), 'tool');
@@ -193,9 +198,21 @@ $('#toolbar').append(panelBtn('right', 'ⓘ', 'Eigenschappen tonen'));
 app.on('change', () => {
   if (app.mode === 'building') plan.render(); else editor.render();
   const floors = app.project.building.floors;
-  floorLbl.replaceChildren(...floors.map((f, i) => h('option', { value: i, selected: i === app.floorIdx }, `${f.name} (${i + 1}/${floors.length})`)));
+  const onPlan = app.mode === 'building';
+  const floorOpts = () => floors.map((f, i) => h('option', { value: 'f:' + i, selected: onPlan && i === app.floorIdx }, `${f.name} (${i + 1}/${floors.length})`));
   const pages = app.project.pages;
-  pageLbl.replaceChildren(...pages.map((pg, i) => h('option', { value: i, selected: i === app.pageIdx }, `${i + 1} / ${pages.length}  ${pg.title}`)));
+  const pageOpts = () => pages.map((pg, i) => h('option', { value: 'p:' + i, selected: !onPlan && i === app.pageIdx }, `${i + 1} / ${pages.length}  ${pg.title}`));
+  if (app.project.kind === 'building') {
+    // floor plans and single-line sheets in one list, grouped
+    const grouped = () => [
+      h('optgroup', { label: t('Plattegronden') }, floorOpts()),
+      pages.length ? h('optgroup', { label: t('Eendraadschema') }, pageOpts()) : null,
+    ];
+    floorLbl.replaceChildren(...grouped());
+    pageLbl.replaceChildren(...grouped());
+  } else {
+    pageLbl.replaceChildren(...pageOpts());
+  }
   kindEl.textContent = app.project.kind === 'building' ? '🏠 Gebouw' : '🗄 Stuurkast';
   document.body.dataset.kind = app.project.kind;
   undoBtn.disabled = !app.undoStack.length;
@@ -250,6 +267,7 @@ app.on('tool', (t) => {
   if (app.mode !== 'building') hintEl.textContent = HINTS[t] || '';
 });
 app.on('cursor', ([x, y]) => {
+  if (!app.project?.pages.length) return;
   const l = locate(app.project, x, y, app.page);
   cursorEl.textContent = t('x {x}  y {y}  ·  kolom {col}', { x, y, col: l.col + l.row });
 });
