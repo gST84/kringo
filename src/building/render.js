@@ -283,7 +283,7 @@ export function linkKind(defA, defB) {
   const kinds = [defA?.kind, defB?.kind];
   if (kinds.includes('switch') || kinds.includes('push')) return 'switch';
   if (kinds.includes('dom-in') || kinds.includes('dom-out')) return 'dom';
-  if (kinds.includes('pv') || kinds.includes('inverter') || kinds.includes('battery')) return 'pv';
+  if (kinds.some((k) => ['pv', 'inverter', 'battery', 'mppt', 'dcbus'].includes(k))) return 'pv';
   return 'other';
 }
 

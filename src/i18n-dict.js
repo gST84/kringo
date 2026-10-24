@@ -815,4 +815,6 @@ export const DICT = [
   ["Module", "Module", "Module"],
   ["Stuurt / ingang", "Commande / entrée", "Drives / input"],
   ["Ruimte", "Pièce", "Room"],
+  ["MPPT-laadregelaar", "Régulateur de charge MPPT", "MPPT charge controller"],
+  ["DC-busbar", "Jeu de barres DC", "DC busbar"],
 ];

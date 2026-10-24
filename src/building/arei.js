@@ -142,6 +142,8 @@ export const AREI = [
   def('meter', 'Elektriciteitsmeter', 'Energie', 'other', [R(-3, -2.5, 6, 5), T(0, 0, 'kWh', 1.5)], { wall: true, prefix: 'P' }),
   def('pv', 'Zonnepaneel', 'Energie', 'pv', [R(-4, -2.5, 8, 5), L(-4, 0, 4, 0), L(-1.33, -2.5, -1.33, 2.5), L(1.33, -2.5, 1.33, 2.5)], { prefix: 'G' }),
   def('inverter', 'Omvormer', 'Energie', 'inverter', [R(-3, -3, 6, 6), L(-3, 3, 3, -3), T(-1.5, -1.4, '=', 1.8), T(1.5, 1.5, '~', 1.8)], { pinY: 3, wall: true, prefix: 'T' }),
+  def('mppt', 'MPPT-laadregelaar', 'Energie', 'mppt', [R(-3, -3, 6, 6), L(-3, 3, 3, -3), T(-1.5, -1.4, '=', 1.8), T(1.5, 1.5, '=', 1.8)], { pinY: 3, wall: true, prefix: 'T' }),
+  def('dcbus', 'DC-busbar', 'Energie', 'dcbus', [R(-5, -0.8, 10, 1.6, INK), T(0, -2.5, 'DC', 1.6)], { pinY: 0.8, prefix: 'W' }),
   def('battery', 'Thuisbatterij', 'Energie', 'battery', [R(-3.5, -2.5, 7, 5), L(-0.8, -1.6, -0.8, 1.6, { w: 0.4 }), L(0.8, -0.8, 0.8, 0.8, { w: 0.4 })], { wall: true, prefix: 'G' }),
 
   // Diversen
