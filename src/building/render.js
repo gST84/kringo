@@ -15,14 +15,62 @@ export const PLAN_ORIGIN = [FRAME.area.x0 + 10, FRAME.area.y0 + 10];
 
 export const LINK_COLORS = { switch: '#d97706', dom: '#7c3aed', pv: '#059669', other: '#64748b' };
 
-export function wallPolygon(w) {
+/**
+ * End of a wall at a corner: the two face points (+n and −n side of the wall). Where exactly two
+ * walls meet, the faces are mitred (cut at their intersection), so the walls join cleanly, also
+ * between straight and curved walls. A free end stops at its point; a joint of three or more walls
+ * keeps the old square extension.
+ */
+function wallEnd(w, g, end, walls) {
+  const t = (w.t || 20) / 2;
+  const p = g.at(end ? g.len : 0);
+  const P = [p.x, p.y];
+  const a = end ? [-p.u[0], -p.u[1]] : p.u; // from the joint into this wall
+  const face = (side) => [P[0] + p.n[0] * t * side, P[1] + p.n[1] * t * side];
+  const others = [];
+  for (const o of walls || []) {
+    if (o === w || (o.id && o.id === w.id)) continue;
+    for (const oe of [0, 1]) {
+      const q = oe ? [o.x2, o.y2] : [o.x1, o.y1];
+      if (Math.abs(q[0] - P[0]) <= 0.01 && Math.abs(q[1] - P[1]) <= 0.01) others.push([o, oe]);
+    }
+  }
+  if (others.length > 1) {
+    const ext = (side) => [P[0] - a[0] * t + p.n[0] * t * side, P[1] - a[1] * t + p.n[1] * t * side];
+    return { plus: ext(1), minus: ext(-1) };
+  }
+  if (!others.length) return { plus: face(1), minus: face(-1) };
+  const [o, oe] = others[0];
+  const og = wallGeom(o);
+  const q = og.at(oe ? og.len : 0);
+  const b = oe ? [-q.u[0], -q.u[1]] : q.u;
+  const tb = (o.t || 20) / 2;
+  const cross = a[0] * b[1] - a[1] * b[0];
+  if (Math.abs(cross) < 0.02) return { plus: face(1), minus: face(-1) }; // (almost) in line
+  const la = [-a[1], a[0]], lb = [-b[1], b[0]];
+  // left face of this wall meets the right face of the other one, and the other way round
+  const meet = (oa, ob) => {
+    const A = [P[0] + la[0] * oa, P[1] + la[1] * oa], B = [P[0] - lb[0] * ob, P[1] - lb[1] * ob];
+    const s = ((B[0] - A[0]) * b[1] - (B[1] - A[1]) * b[0]) / cross;
+    return [A[0] + a[0] * s, A[1] + a[1] * s];
+  };
+  let left = meet(t, tb), right = meet(-t, -tb);
+  const lim = 4 * Math.max(t, tb); // very sharp corners: no long spikes
+  const far = (m) => Math.hypot(m[0] - P[0], m[1] - P[1]) > lim;
+  if (far(left) || far(right)) return { plus: face(1), minus: face(-1) };
+  // left of `a` is the +n side at the start of the wall and the −n side at its end
+  return end ? { plus: right, minus: left } : { plus: left, minus: right };
+}
+
+export function wallPolygon(w, walls) {
   const g = wallGeom(w);
   const t = (w.t || 20) / 2;
-  const p0 = g.at(0), p1 = g.at(g.len);
-  const ext = (p, sgn, side) => [p.x + p.u[0] * t * sgn + p.n[0] * t * side, p.y + p.u[1] * t * sgn + p.n[1] * t * side];
-  if (!g.arc) return [ext(p0, -1, 1), ext(p1, 1, 1), ext(p1, 1, -1), ext(p0, -1, -1)];
-  // curved walls end square (no extension along the tangent, which would stick out of a corner)
-  return [...wallPath(w, 0, g.len, t, g), ...wallPath(w, g.len, 0, -t, g)];
+  const s0 = wallEnd(w, g, 0, walls), s1 = wallEnd(w, g, 1, walls);
+  if (!g.arc) return [s0.plus, s1.plus, s1.minus, s0.minus];
+  const top = wallPath(w, 0, g.len, t, g), bottom = wallPath(w, g.len, 0, -t, g);
+  top[0] = s0.plus; top[top.length - 1] = s1.plus;
+  bottom[0] = s1.minus; bottom[bottom.length - 1] = s0.minus;
+  return [...top, ...bottom];
 }
 
 const pts = (list) => list.map(([x, y]) => `${r2(x)},${r2(y)}`).join(' ');
@@ -228,7 +276,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   // walls: first every wall with a black outline, then every wall filled on top of that, so the
   // outlines disappear where walls meet and the walls read as one whole
   // inner walls first, so outer walls cover them where they meet
-  const polys = [...floor.walls].sort((a, c) => (a.kind === 'inner' ? 0 : 1) - (c.kind === 'inner' ? 0 : 1)).map((w) => [w, pts(wallPolygon(w))]);
+  const polys = [...floor.walls].sort((a, c) => (a.kind === 'inner' ? 0 : 1) - (c.kind === 'inner' ? 0 : 1)).map((w) => [w, pts(wallPolygon(w, floor.walls))]);
   s += `<g class="walloutline" style="stroke-width:${sw * 2}">`;
   for (const [, p] of polys) s += `<polygon points="${p}"/>`;
   s += '</g><g class="walls">';

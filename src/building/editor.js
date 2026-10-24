@@ -136,7 +136,7 @@ export class PlanEditor {
     const out = [];
     const f = this.floor;
     for (const w of f.walls) {
-      const poly = wallPolygon(w);
+      const poly = wallPolygon(w, f.walls);
       out.push(poly[0], poly[poly.length - 1]);
       const n = poly.length / 2;
       out.push(poly[n - 1], poly[n]);
@@ -279,7 +279,7 @@ export class PlanEditor {
     let s = `<g transform="translate(${PLAN_ORIGIN[0]} ${PLAN_ORIGIN[1]}) scale(${k})">`;
     const sw = this.px(1.5);
     const label = (p, text) => `<g transform="translate(${p[0]} ${p[1]}) scale(${1 / k})">${textSvg(3, -3, text, 2.6, 'start', 'tx measure')}</g>`;
-    const ghostWall = (w) => `<polygon class="ghostwall" points="${wallPolygon(w).map((p) => p.join(',')).join(' ')}"/>`;
+    const ghostWall = (w) => `<polygon class="ghostwall" points="${wallPolygon(w, this.floor.walls).map((p) => p.join(',')).join(' ')}"/>`;
     const cursor = () => `<circle class="cursor" cx="${m[0]}" cy="${m[1]}" r="${this.px(4)}" style="stroke-width:${sw}"/>`;
     if (this.tool === 'wall') {
       if (this.chain) {
