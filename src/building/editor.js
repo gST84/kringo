@@ -5,7 +5,7 @@ import { clone, r2, snap, uid } from '../util.js';
 import { geometry } from '../symbols/geom.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
 import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
-import { nearestWall, nextNumber, projectOnWall, rotateStair, wallGeom } from './model.js';
+import { linkGroup, nearestWall, nextNumber, projectOnWall, rotateStair, setGroupCircuit, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -904,9 +904,14 @@ export class PlanEditor {
     this.app.mutate(() => {
       const f = this.floor;
       const i = f.links.findIndex((l) => (l.a === a && l.b === id) || (l.a === id && l.b === a));
-      if (i >= 0) f.links.splice(i, 1);
-      else f.links.push({ id: uid('l'), a, b: id });
+      if (i >= 0) { f.links.splice(i, 1); return; }
+      f.links.push({ id: uid('l'), a, b: id });
+      // linked symbols share circuit and number: those of the first symbol, else of the new one
+      const src = f.symbols.find((x) => x.id === a), dst = f.symbols.find((x) => x.id === id);
+      const from = src?.circuit ? src : dst?.circuit ? dst : null;
+      if (from && linkGroup(f, a, this.app.lib).some((x) => x.id === id)) setGroupCircuit(this.b, f, a, from.circuit, from.n, this.app.lib);
     });
+    this.app.emit('planCircuits');
     this.linkFrom = id;
     this.render();
   }

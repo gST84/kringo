@@ -4,7 +4,7 @@ import { clone, h, natCmp } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextNumber, nextPos, polygonArea, removeNode, rotateStair, rootBoards, treeChildren, wallGeom } from './model.js';
+import { circuitSymbols, newBoard, newCircuit, newFloor, newRcd, nextCircuitName, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
@@ -171,7 +171,12 @@ export function buildingProps(app, plan) {
     const syms = f.symbols.filter((s) => app.sel.has('A:' + s.id));
     return [section(t('{n} elementen geselecteerd', { n: keys.length }),
       syms.length ? field(t('Kring voor {n} symbool/symbolen', { n: syms.length }), sel('', [['', '— kies —'], ...circuitOptions(b, false)], (v) => set(() => {
-        for (const s of syms) { s.circuit = v; s.n = nextNumber(b, v); }
+        // one number per group of linked symbols
+        const done = new Set();
+        for (const s of syms) {
+          if (done.has(s.id)) continue;
+          for (const g of setGroupCircuit(b, f, s.id, v, undefined, app.lib)) done.add(g.id);
+        }
       }), 'mcirc')) : null,
       h('div', { class: 'btnrow' },
         h('button', { onclick: () => plan.rotate() }, '⟳ Draaien (R)'),
@@ -350,12 +355,12 @@ function symbolProps(app, plan, s) {
           b.circuits.push(c);
           v = c.id;
         }
-        s.circuit = v;
-        s.n = v ? nextNumber(b, v) : undefined;
+        setGroupCircuit(b, f, s.id, v, undefined, app.lib);
         plan.activeCircuit = v;
         app.emit('planCircuits');
       }), 'circ')),
-      s.circuit ? field('Volgnummer in de kring', inp(s.n, (v) => set(() => { s.n = Math.round(v) || 1; }), { type: 'number', key: 'n' })) : null),
+      s.circuit ? field('Volgnummer in de kring', inp(s.n, (v) => set(() => { setGroupCircuit(b, f, s.id, s.circuit, Math.round(v) || 1, app.lib); }), { type: 'number', key: 'n' }),
+        linkGroup(f, s.id, app.lib).length > 1 ? 'Geldt voor alle gekoppelde symbolen.' : undefined) : null),
     section('Gegevens',
       field('Ruimte / plaats', inp(s.props.room, setProp('room'), { key: 'room', placeholder: 'bv. Keuken' })),
       field('Omschrijving', inp(s.props.desc, setProp('desc'), { key: 'desc' })),

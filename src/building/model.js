@@ -142,6 +142,45 @@ export function circuitSymbols(b, circuitId) {
   return out.sort((a, b2) => (a.s.n || 0) - (b2.s.n || 0));
 }
 
+/**
+ * Symbols connected through links on a floor (a switch and the lights it controls …). Domotics links
+ * are left out: push buttons and outputs of a domotics system are on different circuits.
+ */
+export function linkGroup(floor, id, lib) {
+  const byId = new Map(floor.symbols.map((x) => [x.id, x]));
+  const dom = (s) => ['dom-in', 'dom-out'].includes(lib?.get(s?.sym)?.kind);
+  const seen = new Set([id]);
+  const queue = [id];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const l of floor.links) {
+      const other = l.a === cur ? l.b : l.b === cur ? l.a : null;
+      if (!other || seen.has(other) || !byId.has(other)) continue;
+      if (dom(byId.get(cur)) || dom(byId.get(other))) continue;
+      seen.add(other);
+      queue.push(other);
+    }
+  }
+  return [...seen].map((x) => byId.get(x)).filter(Boolean);
+}
+
+/** Gives a symbol and everything linked to it the same circuit and number (a new number when n is not given). */
+export function setGroupCircuit(b, floor, id, circuit, n, lib) {
+  const group = linkGroup(floor, id, lib);
+  const ids = new Set(group.map((s) => s.id));
+  if (circuit && !(n > 0)) {
+    // next free number, not counting the group itself
+    let max = 0;
+    for (const { s } of circuitSymbols(b, circuit)) if (!ids.has(s.id)) max = Math.max(max, s.n || 0);
+    n = max + 1;
+  }
+  for (const s of group) {
+    s.circuit = circuit || '';
+    if (circuit) s.n = n; else delete s.n;
+  }
+  return group;
+}
+
 export function nextNumber(b, circuitId) {
   let max = 0;
   for (const { s } of circuitSymbols(b, circuitId)) max = Math.max(max, s.n || 0);

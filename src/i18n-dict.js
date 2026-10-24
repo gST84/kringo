@@ -781,4 +781,5 @@ export const DICT = [
   ["Spanning", "Tension", "Voltage"],
   ["Sleep de punten om de strip aan te passen; het eerste punt (donker) is de voeding.", "Faites glisser les points pour modifier le ruban ; le premier point (foncé) est l’alimentation.", "Drag the points to change the strip; the first (dark) point is the feed."],
   ["LED-strip: klik de punten van de strip (het eerste punt is de voeding) · dubbelklik, Enter of rechtermuisknop = einde · Backspace = punt terug · Esc", "Ruban LED : cliquez les points du ruban (le premier point est l’alimentation) · double-clic, Entrée ou clic droit = fin · Retour arrière = point précédent · Échap", "LED strip: click the points of the strip (the first point is the feed) · double-click, Enter or right-click = finish · Backspace = undo point · Esc"],
+  ["Geldt voor alle gekoppelde symbolen.", "S’applique à tous les symboles liés.", "Applies to all linked symbols."],
 ];
