@@ -60,26 +60,30 @@ export function buildBranches(building, lib, circuit) {
   const linkObj = new Map();
   for (const f of building.floors) for (const l of f.links) { linkObj.set(l.a + '|' + l.b, l); linkObj.set(l.b + '|' + l.a, l); }
   const num = (v) => String(Math.round((parseFloat(v) || 0) * 100) / 100).replace('.', ',');
+  /** Data of a PV / DC device for under its symbol (type, power, serial numbers) and the cable towards the previous device. */
   const deviceInfo = (it, prevIds) => {
     const first = symById.get(it.ids[0]);
     const kind = kindOf(first);
     const p = first?.props || {};
-    const parts = [];
-    if (p.model) parts.push(p.model);
-    if (kind === 'pv' && p.wp) parts.push(it.count > 1 ? `${it.count} × ${num(p.wp)} Wp = ${num((it.count * p.wp) / 1000)} kWp` : `${num(p.wp)} Wp`);
-    if (kind === 'inverter' && p.kw) parts.push(`${num(p.kw)} kW`);
-    if (kind === 'mppt' && p.power) parts.push(`${num(p.power)} W`);
-    if (kind === 'mppt' && p.amp) parts.push(`${num(p.amp)} A`);
-    if (kind === 'battery' && p.kwh) parts.push(`${num(p.kwh)} kWh`);
-    if (kind === 'battery' && p.kw) parts.push(`${num(p.kw)} kW`);
+    const power = [];
+    if (kind === 'pv' && p.wp) power.push(it.count > 1 ? `${it.count} × ${num(p.wp)} Wp = ${num((it.count * p.wp) / 1000)} kWp` : `${num(p.wp)} Wp`);
+    if (kind === 'inverter' && p.kw) power.push(`${num(p.kw)} kW`);
+    if (kind === 'mppt' && p.power) power.push(`${num(p.power)} W`);
+    if (kind === 'mppt' && p.amp) power.push(`${num(p.amp)} A`);
+    if (kind === 'battery' && p.kwh) power.push(`${num(p.kwh)} kWh`);
+    if (kind === 'battery' && p.kw) power.push(`${num(p.kw)} kW`);
     const serials = it.ids.map((id) => symById.get(id)?.props?.serial).filter(Boolean);
-    if (serials.length) parts.push('SN ' + (serials.length > 3 ? serials.slice(0, 3).join(', ') + ' …' : serials.join(', ')));
+    const lines = [];
+    if (p.model || power.length || serials.length) {
+      const name = { inverter: t('Omvormer'), mppt: 'MPPT', pv: 'PV', battery: t('Batterij') }[kind] || t(lib.get(it.sym)?.name || '');
+      lines.push(p.model ? `${name}: ${p.model}` : name);
+      if (power.length) lines.push(power.join(' · '));
+      if (serials.length) lines.push('SN ' + (serials.length > 3 ? serials.slice(0, 3).join(', ') + ' …' : serials.join(', ')));
+    }
     let cable = '';
     for (const a of it.ids) for (const b2 of prevIds) cable ||= linkObj.get(a + '|' + b2)?.cable || '';
-    if (cable) parts.push(cable);
-    if (!parts.length) return '';
-    const name = { inverter: t('Omvormer'), mppt: 'MPPT', pv: 'PV', battery: t('Batterij') }[kind] || t(lib.get(it.sym)?.name || '');
-    return `${name}: ${parts.join(' · ')}`;
+    it.lines = lines;
+    it.cable = cable;
   };
   const branches = [];
   // switches first, so the lights they control (which may share their number) end up in their chain;
@@ -186,12 +190,12 @@ export function buildBranches(building, lib, circuit) {
         const hasPv = (row) => row.some((it) => kindOf({ sym: it.sym }) === 'pv');
         rows.sort((a, c) => hasPv(c) - hasPv(a));
         const head = countItems(heads);
-        head.forEach((it) => { it.info = deviceInfo(it, [bus.id]); });
-        rows.forEach((row) => row.forEach((it, i) => { it.info = deviceInfo(it, i ? row[i - 1].ids : [bus.id]); }));
+        head.forEach((it) => deviceInfo(it, [bus.id]));
+        rows.forEach((row) => row.forEach((it, i) => deviceInfo(it, i ? row[i - 1].ids : [bus.id])));
         branches.push({ type: 'dc', head, rows: rows.length ? rows : [[]] });
       } else if (group.length > 1) {
         const items = countItems(group);
-        items.forEach((it, i) => { it.info = deviceInfo(it, i ? items[i - 1].ids : []); });
+        items.forEach((it, i) => deviceInfo(it, i ? items[i - 1].ids : []));
         branches.push({ type: 'group', items });
       } else {
         const { relay: _, ...br } = branchOf(s, def, '');
@@ -208,19 +212,59 @@ export function buildBranches(building, lib, circuit) {
 
 const socketLen = (units) => 5 + (units - 1) * 4.5;
 const RELAY_W = 7; // room for a domotics output contact at the start of a branch
-function branchLength(br) {
-  return (br.relay ? RELAY_W : 0) + (br.label ? br.label.length * 1.4 + 2 : 0) + branchBody(br);
+
+// PV / DC branches: cable type above the line between two devices, device data under each symbol.
+const CABLE_SZ = 2, INFO_SZ = 1.7, INFO_LH = 2.2;
+const DC_ROW = 2 * ROW; // rows on a DC busbar
+const textW = (str, size) => str.length * size * 0.56;
+/** "Accukabel 25mm² CCA" → ["Accukabel", "25mm² CCA"]. */
+const cableLines = (c) => {
+  if (!c) return [];
+  const i = c.indexOf(' ');
+  return c.length <= 12 || i < 0 ? [c] : [c.slice(0, i), c.slice(i + 1)];
+};
+const halfOf = (lib, sym) => { const d = lib.get(sym); return d?.box ? d.half || 3.5 : d?.pins?.[0]?.y ?? 2.5; };
+/** Positions of devices in a row starting at x0: the line from `from` to the symbol at `left`. */
+function seqLayout(items, lib, x0, acFirst) {
+  let x = x0, infoRight = -Infinity;
+  const cells = items.map((it, i) => {
+    const half = halfOf(lib, it.sym);
+    const cl = i === 0 && acFirst ? [] : cableLines(it.cable);
+    let seg = cl.length ? Math.max(10, ...cl.map((l) => textW(l, CABLE_SZ))) + 4 : i === 0 ? 4 : 6;
+    if (x + seg < infoRight + 2) seg = infoRight + 2 - x; // keep the data under the symbols apart
+    const left = x + seg;
+    const cell = { it, from: x, left, half, cl };
+    infoRight = left + Math.max(0, ...(it.lines || []).map((l) => textW(l, INFO_SZ)));
+    x = left + 2 * half;
+    return cell;
+  });
+  return { cells, end: x, right: Math.max(x, infoRight) };
 }
-function branchBody(br) {
+/** DC branch: x of the busbar relative to the branch start. */
+function busX(br, lib, x0) {
+  const head = seqLayout(br.head, lib, x0, true);
+  const cl = cableLines(br.head[0]?.cable);
+  const seg = cl.length ? Math.max(10, ...cl.map((l) => textW(l, CABLE_SZ))) + 4 : 6;
+  return { head, bx: Math.max(head.end + seg, head.right + 3), cl };
+}
+/** Rows above / below the line of a branch (branches are stacked in rows of ROW mm). */
+const branchRows = (br) => (br.type === 'dc' ? { above: 1, below: 2 * (br.rows.length - 1) + 1 } : br.type === 'group' ? { above: 1, below: 1 } : { above: 0, below: 0 });
+
+function branchLength(br, lib) {
+  return (br.relay ? RELAY_W : 0) + (br.label ? br.label.length * 1.4 + 2 : 0) + branchBody(br, lib);
+}
+function branchBody(br, lib) {
+  if (br.type === 'group') return seqLayout(br.items, lib, 0, true).right + 4;
+  if (br.type === 'dc') {
+    const { bx } = busX(br, lib, 0);
+    return Math.max(bx, ...br.rows.map((row) => seqLayout(row, lib, bx, false).right)) + 4;
+  }
   if (br.type === 'chain') return 4 + br.switches.length * SW + br.lights.length * 8 + 4;
   if (br.type === 'sockets') return 4 + br.qty * (socketLen(br.units) + 1.5);
   if (br.type === 'box') return 4 + 2 * 7;
-  const infoW = (items) => Math.max(0, ...items.map((it) => (it.info || '').length * 1.05)) + 3;
-  if (br.type === 'group') return 4 + br.items.length * 11 + 5 + infoW(br.items);
-  if (br.type === 'dc') return 4 + br.head.length * 11 + 6 + Math.max(0, ...br.rows.map((r, i) => r.length * 11 + infoW(i ? r : [...br.head, ...r]))) + 5;
   return 4 + 8;
 }
-const circuitWidth = (branches) => Math.max(21, ...branches.map((br) => branchLength(br) + 9));
+const circuitWidth = (branches, lib) => Math.max(21, ...branches.map((br) => branchLength(br, lib) + 9));
 
 function builder(project, lib, board, title) {
   const b = project.building;
@@ -277,26 +321,18 @@ function builder(project, lib, board, title) {
   /** Breaker texts: vertical columns right of the breaker, centred on its middle. */
   const breakerTexts = (bx, by, lines) => lines.forEach((t, i) => vtext(bx + 2.6 + i * 3, by - MCB_H / 2, t.text, 2.1, { anchor: 'middle', ...(t.box ? { box: true } : {}) }));
 
-  /** Devices one after the other on a line, each with its connection to the left; returns the end x. */
-  const seq = (items, from, at, y) => {
-    for (const it of items) {
+  /** Draws a row laid out by seqLayout: lines with the cable above, symbols, counts and data below. */
+  const drawSeq = (lay, y) => {
+    for (const c of lay.cells) {
+      const { it, from, left, half, cl } = c;
+      wire([from, y], [left, y]);
+      cl.forEach((l, k) => text((from + left) / 2, y - 1.4 - (cl.length - 1 - k) * 2.5, l, CABLE_SZ, { anchor: 'middle' }));
       const def = lib.get(it.sym);
-      const half = def?.box ? def.half || 3.5 : def?.pins?.[0]?.y ?? 2.5;
-      wire([from, y], [at, y]);
-      if (def?.box) comp(it.sym, at + half, y); else comp(it.sym, at + half, y, 90);
-      from = at + 2 * half;
-      // the count right of the symbol, so rows below / above stay free
-      if (it.count > 1) { text(from + 0.8, y - 2.4, `x${it.count}`, 2.2); if (it !== items[items.length - 1]) { wire([from, y], [from + 5, y]); from += 5; } }
-      at = from + 3;
+      if (def?.box) comp(it.sym, left + half, y); else comp(it.sym, left + half, y, 90);
+      if (it.count > 1) text(left + 2 * half - 1, y - (def?.box ? half : 4) - 1.8, `x${it.count}`, 2.2);
+      (it.lines || []).forEach((l, k) => text(left, y + (def?.box ? half : 4) + 2.6 + k * INFO_LH, l, INFO_SZ));
     }
-    return from;
-  };
-
-  /** Device data (type, power, serial numbers, cable) right of a row, one line per device. */
-  const infoBlock = (items, endX, y) => {
-    const lines = items.map((it) => it.info).filter(Boolean);
-    const lh = 2.2;
-    lines.forEach((l, i) => text(endX + 6, y - ((lines.length - 1) * lh) / 2 + i * lh, l, 1.7));
+    return lay.end;
   };
 
   const drawBranch = (br, lx, y) => {
@@ -336,19 +372,17 @@ function builder(project, lib, board, title) {
       wire([lx, y], [starts[starts.length - 1], y]);
       for (const s of starts) comp(br.sym, s + pinY, y, 90);
     } else if (br.type === 'group') {
-      infoBlock(br.items, seq(br.items, lx, px, y), y);
+      drawSeq(seqLayout(br.items, lib, lx, true), y);
     } else if (br.type === 'dc') {
-      // inverter on the circuit line, then a vertical DC busbar with one row per DC device
-      const end = br.head.length ? seq(br.head, lx, px, y) : lx;
-      const bx = end + 4;
+      // inverter on the circuit line, DC cable, a vertical busbar, then one row per DC device
+      const { head, bx, cl } = busX(br, lib, lx);
+      const end = drawSeq(head, y);
       wire([end, y], [bx, y]);
-      const last = y + (br.rows.length - 1) * ROW;
-      page.wires.push({ id: uid('w'), points: [[bx, y - 2.5], [bx, last + 2.5]], w: 0.9 });
-      text(bx, y - 4, 'DC', 1.8, { anchor: 'middle', bold: true });
-      // the device data of all rows in one column, right of the longest row
-      const ends = br.rows.map((row, r) => (row.length ? seq(row, bx, bx + 3, y + r * ROW) : bx));
-      const col = Math.max(...ends) + (br.rows.some((row) => row.some((it) => it.count > 1)) ? 4 : 0);
-      br.rows.forEach((row, r) => infoBlock(r ? row : [...br.head, ...row], col, y + r * ROW));
+      cl.forEach((l, k) => text((end + bx) / 2, y - 1.4 - (cl.length - 1 - k) * 2.5, l, CABLE_SZ, { anchor: 'middle' }));
+      const last = y + (br.rows.length - 1) * DC_ROW;
+      page.wires.push({ id: uid('w'), points: [[bx, y - 3], [bx, last + 3]], w: 0.9 });
+      text(bx, y - 5, 'DC', 1.8, { anchor: 'middle', bold: true });
+      br.rows.forEach((row, r) => { if (row.length) drawSeq(seqLayout(row, lib, bx, false), y + r * DC_ROW); });
     } else if (br.type === 'box') {
       wire([lx, y], [px, y]);
       comp(br.sym, px + (lib.get(br.sym)?.half || 3.5), y);
@@ -373,7 +407,7 @@ function builder(project, lib, board, title) {
 
   const circuit = (c, base) => {
     const branches = buildBranches(b, lib, c);
-    const w = circuitWidth(branches);
+    const w = circuitWidth(branches, lib);
     const fuse = c.curve === 'gG';
     comp(fuse ? 'arei/fuse-v' : 'arei/mcb-v', x, base);
     text(x - 2.2, base - 2.5, c.name, 3.8, { bold: true, anchor: 'end' });
@@ -409,9 +443,10 @@ function builder(project, lib, board, title) {
     const colTop = []; // per column: row of the highest branch line
     let col = 0, filled = 0, topY = first;
     branches.forEach((br, j) => {
-      const height = Math.min(rows, br.type === 'dc' ? br.rows.length : 1);
+      const { above, below } = branchRows(br);
+      const height = above + 1 + below;
       if (filled && filled + height > rows) { col++; filled = 0; }
-      const row = filled + height - 1;
+      const row = filled + below;
       filled += height;
       colTop[col] = row;
       const lx = x + col * w;
@@ -460,7 +495,7 @@ function builder(project, lib, board, title) {
   const children = (parentId, base) => {
     for (const { type, node } of treeChildren(b, parentId)) {
       if (type === 'circuit') {
-        ensureRoom(circuitWidth(buildBranches(b, lib, node)));
+        ensureRoom(circuitWidth(buildBranches(b, lib, node), lib));
         if (stack.length) stack[stack.length - 1].lastX = x;
         x += circuit(node, base);
       } else if (type === 'rcd') {
