@@ -1,7 +1,7 @@
 // Service worker: makes Kringo installable and usable offline.
 // Strategy: network first (always the newest version when online), cache as fallback.
 // Bump VERSION for every release (0.61 → 0.62 …), equal to APP_VERSION in src/version.js; add new source files to SHELL.
-const VERSION = 'kringo-0.64';
+const VERSION = 'kringo-0.65';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
@@ -16,13 +16,23 @@ const SHELL = [
 /** URL with a unique query, so neither the browser nor the CDN can answer with an old copy. */
 const bust = (url) => url + (url.includes('?') ? '&' : '?') + '__fresh=' + Date.now();
 
+/**
+ * Fetches past every cache and hands back a response without that unique URL: browsers (Safari) use the
+ * response URL as the address of a page or module, so it must look like the original request.
+ */
+async function fresh(url) {
+  const res = await fetch(bust(url), { cache: 'no-store', credentials: 'same-origin' });
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers });
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(VERSION);
     // fetched past every cache (browser and GitHub's CDN), stored under the plain URL
     await Promise.all(SHELL.map(async (u) => {
-      const res = await fetch(bust(new URL(u, self.location).href), { cache: 'no-store' });
-      if (res.ok) await cache.put(new URL(u, self.location).href, res);
+      const url = new URL(u, self.location).href;
+      const res = await fresh(url);
+      if (res.ok) await cache.put(url, res);
     }));
     await self.skipWaiting();
   })());
@@ -41,7 +51,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     const cache = await caches.open(VERSION);
     try {
-      const net = fetch(bust(req.url), { cache: 'no-store', credentials: 'same-origin' });
+      const net = fresh(req.url);
       net.catch(() => {});
       // slow network: a cached copy after 5 s, otherwise keep waiting for the network
       let res = await Promise.race([net, new Promise((r) => setTimeout(r, 5000))]);

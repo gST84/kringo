@@ -36,5 +36,23 @@
   <div id="print-root"></div>
   <noscript>Kringo heeft JavaScript nodig.</noscript>
   <script type="module" src="src/main.js"></script>
+  <script>
+    // Safety net: when the app does not start (an old or broken offline copy), offer to clear it.
+    setTimeout(function () {
+      if (window.kringo) return;
+      var box = document.createElement('div');
+      box.style.cssText = 'position:fixed;inset:auto 16px 16px 16px;z-index:9999;max-width:520px;margin:auto;padding:14px 16px;border-radius:10px;background:#fff7e6;border:1px solid #f0b44c;color:#3b2a06;font:14px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.2)';
+      box.innerHTML = '<b>Kringo start niet.</b> Waarschijnlijk is de opgeslagen (offline) versie verouderd. Je projecten blijven bewaard.<br><button style="margin-top:8px;padding:6px 12px;border-radius:6px;border:1px solid #c98a0b;background:#f6b73c;cursor:pointer;font:inherit">Herstellen en herladen</button>';
+      box.querySelector('button').onclick = async function () {
+        try {
+          var regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+          for (var i = 0; i < regs.length; i++) await regs[i].unregister();
+          if (window.caches) { var keys = await caches.keys(); for (var j = 0; j < keys.length; j++) await caches.delete(keys[j]); }
+        } catch (e) { /* reload anyway */ }
+        location.replace(location.pathname + '?r=' + Date.now());
+      };
+      document.body.appendChild(box);
+    }, 8000);
+  </script>
 </body>
 </html>
