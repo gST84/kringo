@@ -55,7 +55,7 @@ Alle tekentools staan links onder **Grondplan**.
 
 - **Muur** (`W`): klik punt na punt. Typ een lengte in cm en druk Enter voor een exacte maat. Klik op het beginpunt (of dubbelklik / Esc) om te stoppen. Kies vooraf het muurtype in de werkbalk (buitenmuur 30 / 40, binnenmuur 14 / 10, scheidingswand 7).
 - **Gebogen muur** (`A`): klik het beginpunt, het eindpunt en dan een punt op de boog.
-- Een geselecteerde muur heeft blauwe bolletjes: de **eindpunten** verlengen de muur (aansluitende muren schuiven mee), het **middelste** bolletje buigt hem. *Recht maken* in de eigenschappen maakt hem terug recht.
+- Een geselecteerde muur heeft blauwe bolletjes: de **eindpunten** verlengen de muur (aansluitende muren schuiven mee, en binnenmuren die ertegen aansluiten blijven eraan vast), het **middelste** bolletje verschuift een rechte muur evenwijdig (hij blijft recht; aansluitende muren rekken mee). Met **Buigen** in de eigenschappen maak je er een gebogen muur van; bij een gebogen muur verandert het middelste bolletje de boog en maakt *Recht maken* hem terug recht.
 - Muren die in een hoek samenkomen sluiten vanzelf netjes aan (verstek), ook tussen gebogen en rechte muren.
 
 ### Deuren, ramen en poorten
@@ -245,7 +245,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 1. **Ruimtes tekenen** (onder *Grondplan*):
    - **Ruimte**: klik in een kamer. Kringo zoekt de omtrek tussen de muren; verplaats je later een muur, dan past de ruimte zich aan.
-   - **Ruimte (hoeken)**: voor ruimtes zonder muren rondom (open keuken, buiten). Klik de hoeken; een hoek op een muurhoek blijft aan die muur hangen en beweegt mee. Sluit met het eerste punt, dubbelklik of Enter.
+   - **Ruimte (hoeken)**: voor ruimtes zonder muren rondom (open keuken, buiten). Klik de hoeken: ze snappen op elke hoek van de muuromtrek (ook waar een binnenmuur een buitenmuur of een andere binnenmuur raakt) en op de muurvlakken. Zo'n hoek blijft aan de muren hangen en beweegt mee; Alt = vrij plaatsen. Sluit met het eerste punt, dubbelklik of Enter.
 2. Geef een **naam**. Uit de naam kiest Kringo een **sjabloon** (keuken, badkamer, garage, technische ruimte, terras …) dat de codes invult; dat kan je achteraf wijzigen.
 3. In de eigenschappen klap je een code open en klik je de **klassen** aan (groen = gekozen), elk met hun omschrijving – meerdere tegelijk mag (bv. AA 4, 5 en 8). Codes die afwijken van een normaal lokaal zijn gemarkeerd en staan op het plan onder de naam en de oppervlakte.
    Met **★ Opslaan als sjabloon…** bewaar je de instellingen van een ruimte (codes, publiek toegankelijk, kleur) als eigen sjabloon. Het staat dan met ★ in de lijst, in elk project op deze computer, en wordt ook in het project zelf bewaard. Een nieuwe ruimte waarvan de naam het sjabloon bevat, krijgt het automatisch. **Sjabloon verwijderen** haalt het weg; ruimtes houden hun waarden.

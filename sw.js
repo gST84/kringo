@@ -1,7 +1,7 @@
 // Service worker: makes Kringo installable and usable offline.
 // Strategy: network first (always the newest version when online), cache as fallback.
 // Bump VERSION for every release (0.61 → 0.62 …), equal to APP_VERSION in src/version.js; add new source files to SHELL.
-const VERSION = 'kringo-0.63';
+const VERSION = 'kringo-0.64';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
@@ -13,10 +13,17 @@ const SHELL = [
   'src/ui/splitters.js', 'src/version.js', 'src/ui/dialogs.js', 'src/ui/lists.js', 'src/ui/panels.js', 'src/ui/project.js', 'src/ui/start.js', 'src/ui/symbolEditor.js', 'src/util.js',
 ];
 
+/** URL with a unique query, so neither the browser nor the CDN can answer with an old copy. */
+const bust = (url) => url + (url.includes('?') ? '&' : '?') + '__fresh=' + Date.now();
+
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(VERSION);
-    await cache.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })));
+    // fetched past every cache (browser and GitHub's CDN), stored under the plain URL
+    await Promise.all(SHELL.map(async (u) => {
+      const res = await fetch(bust(new URL(u, self.location).href), { cache: 'no-store' });
+      if (res.ok) await cache.put(new URL(u, self.location).href, res);
+    }));
     await self.skipWaiting();
   })());
 });
@@ -34,10 +41,15 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     const cache = await caches.open(VERSION);
     try {
-      const res = await Promise.race([
-        fetch(req, { cache: 'no-store' }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000)),
-      ]);
+      const net = fetch(bust(req.url), { cache: 'no-store', credentials: 'same-origin' });
+      net.catch(() => {});
+      // slow network: a cached copy after 5 s, otherwise keep waiting for the network
+      let res = await Promise.race([net, new Promise((r) => setTimeout(r, 5000))]);
+      if (!res) {
+        const hit = await cache.match(req, { ignoreSearch: true });
+        if (hit) return hit;
+        res = await net;
+      }
       if (res.ok) cache.put(req, res.clone());
       return res;
     } catch {

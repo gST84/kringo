@@ -948,4 +948,7 @@ export const DICT = [
   ["Kring {c}: geen verdeelbord op het plan – de kabel start bij het eerste punt.", "Circuit {c} : pas de tableau sur le plan – le câble part du premier point.", "Circuit {c}: no board on the plan – the cable starts at the first point."],
   ["Kring {c}: {n} stuk(ken) zonder doorgang (deur / opening) – rechte lijn gerekend.", "Circuit {c} : {n} tronçon(s) sans passage (porte / ouverture) – ligne droite comptée.", "Circuit {c}: {n} part(s) without a passage (door / opening) – counted as a straight line."],
   ["{f}: de buitenmuren zijn niet gesloten – kabels kunnen buitenom lopen.", "{f} : les murs extérieurs ne sont pas fermés – les câbles peuvent passer par l’extérieur.", "{f}: the outer walls are not closed – cables may run outside."],
+  ["Versie v{n} is nog niet overal beschikbaar (GitHub publiceert met wat vertraging). Probeer over een minuut opnieuw.", "La version v{n} n’est pas encore disponible partout (GitHub publie avec un peu de retard). Réessayez dans une minute.", "Version v{n} is not available everywhere yet (GitHub publishes with some delay). Try again in a minute."],
+  ["Bijgewerkt naar v{n}", "Mis à jour vers v{n}", "Updated to v{n}"],
+  ["Sleep de hoekpunten om te verlengen, het middelpunt om de muur evenwijdig te verschuiven (blijft recht).", "Faites glisser les extrémités pour allonger, le point du milieu pour déplacer le mur parallèlement (il reste droit).", "Drag the end points to lengthen, the middle point to move the wall parallel (it stays straight)."],
 ];

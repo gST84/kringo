@@ -21,7 +21,7 @@ import { cursorIcon, DONATE_URL, h, icon, MANUAL_URL } from './util.js';
 
 import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
 import { initSplitters } from './ui/splitters.js';
-import { versionButton } from './version.js';
+import { checkExpectedVersion, versionButton } from './version.js';
 startAutoTranslate();
 const lib = new Library();
 await lib.init();
@@ -254,6 +254,7 @@ app.on('planTool', (t) => {
   if (app.mode === 'building') hintEl.textContent = PLAN_HINTS[t] || '';
 });
 app.on('planToast', (msg) => toast(msg));
+setTimeout(() => checkExpectedVersion(toast), 800);
 app.on('planRequestRoom', async (data) => {
   const name = await prompt('Naam van de ruimte', '', { label: 'bv. Keuken, Badkamer, Slaapkamer 1 – het sjabloon voor de uitwendige invloeden wordt uit de naam afgeleid' });
   if (name === null) return;

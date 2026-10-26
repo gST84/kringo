@@ -2,7 +2,7 @@
 // A room is either found automatically between the walls around a point you clicked (`seed`), or
 // drawn as corners (`pts`) that can hang on wall corners and then follow the walls when they move.
 import { uid } from '../util.js';
-import { polygonArea } from './model.js';
+import { polygonArea, projectOnWall, wallGeom } from './model.js';
 import { wallCorners, wallPolygon } from './render.js';
 
 /** The external influences with their classes (code → [name, [description per class]]). */
@@ -117,13 +117,111 @@ export const roomColor = (room) => room.color || presetOf(room.preset)?.color ||
 
 // ---------- geometry ----------
 
-/** Position of a corner point of a manually drawn room: free, or hanging on a wall corner. */
+/**
+ * Position of a corner point of a manually drawn room. It is free ({x, y}) or hangs on the walls, so it
+ * follows them: a wall end corner {w, end, side}, the crossing of two wall faces {w, side, w2, side2}
+ * (e.g. where an inner wall meets an outer wall) or a point on a wall face {w, side, t}.
+ */
 export function cornerPoint(floor, p) {
   if (!p.w) return [p.x, p.y];
   const w = floor.walls.find((x) => x.id === p.w);
   if (!w) return [p.x, p.y];
+  if (p.w2) {
+    const w2 = floor.walls.find((x) => x.id === p.w2);
+    const a = w2 && faceLine(w, p.side, floor.walls), b = w2 && faceLine(w2, p.side2, floor.walls);
+    return (a && b && lineCross(a, b)) || [p.x, p.y];
+  }
+  if (p.t != null) {
+    const g = wallGeom(w);
+    const q = g.at(Math.max(0, Math.min(g.len, p.t)));
+    const h = (w.t || 20) / 2 * (p.side > 0 ? 1 : -1);
+    return [q.x + q.n[0] * h, q.y + q.n[1] * h];
+  }
   const c = wallCorners(w, floor.walls)[p.end ? 's1' : 's0'][p.side > 0 ? 'plus' : 'minus'];
   return c;
+}
+
+/** One face of a straight wall as a segment [A, B] (null for curved walls). */
+function faceLine(w, side, walls) {
+  if (w.cx != null && w.cy != null) return null;
+  const c = wallCorners(w, walls);
+  const k = side > 0 ? 'plus' : 'minus';
+  return [c.s0[k], c.s1[k]];
+}
+
+/** Crossing of two (infinite) lines, or null when they are parallel. */
+function lineCross([A, B], [C, D]) {
+  const r = [B[0] - A[0], B[1] - A[1]], q = [D[0] - C[0], D[1] - C[1]];
+  const den = r[0] * q[1] - r[1] * q[0];
+  if (Math.abs(den) < 1e-9 * Math.hypot(...r) * Math.hypot(...q)) return null;
+  const u = ((C[0] - A[0]) * q[1] - (C[1] - A[1]) * q[0]) / den;
+  return [A[0] + r[0] * u, A[1] + r[1] * u];
+}
+
+/** Parameter of the crossing on both segments (to see whether it lies on them). */
+function segCross([A, B], [C, D]) {
+  const r = [B[0] - A[0], B[1] - A[1]], q = [D[0] - C[0], D[1] - C[1]];
+  const den = r[0] * q[1] - r[1] * q[0];
+  if (Math.abs(den) < 1e-9) return null;
+  const u = ((C[0] - A[0]) * q[1] - (C[1] - A[1]) * q[0]) / den;
+  const v = ((C[0] - A[0]) * r[1] - (C[1] - A[1]) * r[0]) / den;
+  return { u, v, p: [A[0] + r[0] * u, A[1] + r[1] * u] };
+}
+
+/** True when q lies on the outline of the walls: around it there is both wall and free space. */
+function onOutline(q, polys) {
+  let wall = 0, free = 0;
+  for (let k = 0; k < 8; k++) {
+    const a = (k * Math.PI) / 4 + 0.3;
+    const x = q[0] + Math.cos(a) * 1.5, y = q[1] + Math.sin(a) * 1.5;
+    if (polys.some((p) => inPoly(x, y, p))) wall++; else free++;
+  }
+  return wall > 0 && free > 0;
+}
+
+/**
+ * Snap for room corners: the corners of the wall outline (wall ends and every place where two wall faces
+ * meet – outer / inner, inner / inner …), else a point on a wall face. Returns {p, ref, corner} or null.
+ */
+export function outlineSnap(floor, p, tol) {
+  const walls = floor.walls;
+  if (!walls.length) return null;
+  const polys = walls.map((w) => wallPolygon(w, walls));
+  const d = (q) => Math.hypot(q[0] - p[0], q[1] - p[1]);
+  let best = null;
+  const offer = (q, ref) => { const dd = d(q); if (dd <= tol && (!best || dd < best.d - 1e-6) && onOutline(q, polys)) best = { d: dd, p: q, ref }; };
+  // wall end corners
+  for (const w of walls) {
+    const c = wallCorners(w, walls);
+    for (const [end, side] of [[0, 1], [0, -1], [1, 1], [1, -1]]) offer(c[end ? 's1' : 's0'][side > 0 ? 'plus' : 'minus'], { w: w.id, end, side });
+  }
+  // crossings of the faces of two walls
+  const faces = [];
+  for (const w of walls) for (const side of [1, -1]) { const f = faceLine(w, side, walls); if (f) faces.push([w, side, f]); }
+  const near = faces.filter(([, , [A, B]]) => {
+    // only faces that pass within reach of the cursor
+    const r = [B[0] - A[0], B[1] - A[1]], L2 = r[0] * r[0] + r[1] * r[1] || 1;
+    const u = Math.max(0, Math.min(1, ((p[0] - A[0]) * r[0] + (p[1] - A[1]) * r[1]) / L2));
+    return d([A[0] + r[0] * u, A[1] + r[1] * u]) <= tol * 3;
+  });
+  for (let i = 0; i < near.length; i++) for (let j = i + 1; j < near.length; j++) {
+    const [w1, s1, f1] = near[i], [w2, s2, f2] = near[j];
+    if (w1 === w2) continue;
+    const x = segCross(f1, f2);
+    const e1 = 2 / (Math.hypot(f1[1][0] - f1[0][0], f1[1][1] - f1[0][1]) || 1), e2 = 2 / (Math.hypot(f2[1][0] - f2[0][0], f2[1][1] - f2[0][1]) || 1);
+    if (x && x.u >= -e1 && x.u <= 1 + e1 && x.v >= -e2 && x.v <= 1 + e2) offer(x.p, { w: w1.id, side: s1, w2: w2.id, side2: s2 });
+  }
+  if (best) return { p: best.p, ref: best.ref, corner: true };
+  // a point on a wall face
+  for (const w of walls) {
+    const g = wallGeom(w);
+    const pr = projectOnWall(w, p[0], p[1]);
+    const side = pr.d >= 0 ? 1 : -1;
+    const q = g.at(pr.t);
+    const h = (w.t || 20) / 2 * side;
+    offer([q.x + q.n[0] * h, q.y + q.n[1] * h], { w: w.id, side, t: Math.round(pr.t * 10) / 10 });
+  }
+  return best && { p: best.p, ref: best.ref, corner: false };
 }
 
 const CELL = 2.5; // cm, raster used to find the room around a point

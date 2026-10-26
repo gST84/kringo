@@ -4,9 +4,9 @@ import { SHEET } from '../model.js';
 import { clone, r2, snap, uid } from '../util.js';
 import { geometry } from '../symbols/geom.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
-import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallCorners, wallPolygon } from './render.js';
-import { cornerPoint, roomLabelPos, roomPolygon } from './rooms.js';
-import { linkGroup, nearestWall, nextNumber, projectOnWall, rotateStair, setGroupCircuit, wallGeom } from './model.js';
+import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
+import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js';
+import { linkGroup, nearestWall, nextNumber, projectOnWall, rotateStair, setGroupCircuit, wallFrame, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -195,17 +195,11 @@ export class PlanEditor {
   roomSnap(p, e) {
     const tol = this.px(12);
     if (!e?.altKey) {
-      let best = null;
-      for (const w of this.floor.walls) {
-        const c = wallCorners(w, this.floor.walls);
-        for (const [end, side] of [[0, 1], [0, -1], [1, 1], [1, -1]]) {
-          const q = c[end ? 's1' : 's0'][side > 0 ? 'plus' : 'minus'];
-          const d = dist(p, q);
-          if (d <= tol && (!best || d < best.d)) best = { d, p: q.map(r2), ref: { w: w.id, end, side } };
-        }
-      }
-      if (best) return best;
+      // closing the outline on the first point
       if (this.pts.length >= 3 && near(p, this.pts[0], tol)) return { p: [...this.pts[0]], ref: this.ptRefs?.[0] || null };
+      // corners and faces of the wall outline (they keep a reference, so the room follows the walls)
+      const hit = outlineSnap(this.floor, p, tol);
+      if (hit) return { p: hit.p.map(r2), ref: hit.ref };
     }
     return { p: this.snapPoint(p, e, this.pts[this.pts.length - 1]), ref: null };
   }
@@ -270,8 +264,9 @@ export class PlanEditor {
       const w = f.walls.find((x) => x.id === id);
       if (!w) return '';
       s += sq(w.x1, w.y1, `WH:${id}:1`) + sq(w.x2, w.y2, `WH:${id}:2`);
-      const m = w.cx != null ? [w.cx, w.cy] : [(w.x1 + w.x2) / 2, (w.y1 + w.y2) / 2];
-      s += dot(m[0], m[1], `WH:${id}:3`, 'Sleep om de muur te buigen');
+      // curved wall: drag the middle point to change the bend; straight wall: move it parallel (stays straight)
+      if (w.cx != null) s += dot(w.cx, w.cy, `WH:${id}:3`, 'Sleep om de muur te buigen');
+      else s += dot((w.x1 + w.x2) / 2, (w.y1 + w.y2) / 2, `WH:${id}:4`, 'Sleep om de muur evenwijdig te verschuiven');
     } else if (type === 'O') {
       const o = f.openings.find((x) => x.id === id);
       const w = o && f.walls.find((x) => x.id === o.wall);
@@ -677,11 +672,36 @@ export class PlanEditor {
   startHandle(d) {
     const [type, id, which] = d.key.split(':');
     const f = this.floor;
-    if (type === 'WH' && which !== '3') {
+    if (type === 'WH' && (which === '1' || which === '2')) {
       const w = f.walls.find((x) => x.id === id);
       const pt = which === '1' ? [w.x1, w.y1] : [w.x2, w.y2];
       d.ends = this.endsAt(pt);
       d.anchor = pt;
+      // walls ending against this one keep their distance from the end that does not move
+      if (w.cx == null) {
+        d.fixed = which === '1' ? [w.x2, w.y2] : [w.x1, w.y1];
+        const len = wallFrame(w).len;
+        d.tees = this.teesOn(w, new Set(d.ends.map(([x]) => x))).map(([ww, i, q, tt]) => [ww, i, which === '1' ? len - tt : tt]);
+      }
+    }
+    if (type === 'WH' && which === '4') {
+      const w = f.walls.find((x) => x.id === id);
+      d.a0 = [w.x1, w.y1]; d.b0 = [w.x2, w.y2];
+      d.endsA = this.endsAt(d.a0); d.endsB = this.endsAt(d.b0);
+      d.n = wallFrame(w).n;
+      d.anchor = [(w.x1 + w.x2) / 2, (w.y1 + w.y2) / 2];
+      // walls that end somewhere on this wall (T-junction) follow too
+      const len = wallFrame(w).len;
+      d.tees = [];
+      for (const ww of f.walls) {
+        if (ww === w) continue;
+        for (const i of [1, 2]) {
+          const q = i === 1 ? [ww.x1, ww.y1] : [ww.x2, ww.y2];
+          if (near(q, d.a0, 0.01) || near(q, d.b0, 0.01)) continue;
+          const pr = projectOnWall(w, q[0], q[1]);
+          if (Math.abs(pr.d) < 1 && pr.t > 0.01 && pr.t < len - 0.01) d.tees.push([ww, i, q]);
+        }
+      }
     }
   }
 
@@ -694,7 +714,19 @@ export class PlanEditor {
       const w = f.walls.find((x) => x.id === id);
       if (!w) return;
       const p = this.snapPoint(raw, e);
-      if (which === '3') {
+      if (which === '4') {
+        // parallel move: only the distance across the wall counts, rounded to the grid
+        let dist = (raw[0] - d.anchor[0]) * d.n[0] + (raw[1] - d.anchor[1]) * d.n[1];
+        if (g) dist = Math.round(dist / g) * g;
+        if (!d.moved && Math.abs(dist) < 0.01) return;
+        begin();
+        const A = [r2(d.a0[0] + d.n[0] * dist), r2(d.a0[1] + d.n[1] * dist)], B = [r2(d.b0[0] + d.n[0] * dist), r2(d.b0[1] + d.n[1] * dist)];
+        for (const [ends, P] of [[d.endsA, A], [d.endsB, B]]) for (const [ww, i] of ends) { if (i === 1) { ww.x1 = P[0]; ww.y1 = P[1]; } else { ww.x2 = P[0]; ww.y2 = P[1]; } }
+        for (const [ww, i, q] of d.tees) {
+          const P = [r2(q[0] + d.n[0] * dist), r2(q[1] + d.n[1] * dist)];
+          if (i === 1) { ww.x1 = P[0]; ww.y1 = P[1]; } else { ww.x2 = P[0]; ww.y2 = P[1]; }
+        }
+      } else if (which === '3') {
         if (w.cx === p[0] && w.cy === p[1]) return;
         begin();
         const pr = projectOnWall({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }, p[0], p[1]);
@@ -703,6 +735,16 @@ export class PlanEditor {
         if (!d.moved && near(p, d.anchor, 0.01)) return;
         begin();
         for (const [ww, i] of d.ends) { if (i === 1) { ww.x1 = p[0]; ww.y1 = p[1]; } else { ww.x2 = p[0]; ww.y2 = p[1]; } }
+        if (d.tees?.length) {
+          const F = d.fixed, L = Math.hypot(p[0] - F[0], p[1] - F[1]);
+          if (L > 1) {
+            const u = [(p[0] - F[0]) / L, (p[1] - F[1]) / L];
+            for (const [ww, i, dist] of d.tees) {
+              const P = [r2(F[0] + u[0] * dist), r2(F[1] + u[1] * dist)];
+              if (i === 1) { ww.x1 = P[0]; ww.y1 = P[1]; } else { ww.x2 = P[0]; ww.y2 = P[1]; }
+            }
+          }
+        }
       }
     } else if (type === 'OH') {
       const o = f.openings.find((x) => x.id === id);
@@ -1001,6 +1043,21 @@ export class PlanEditor {
     return out;
   }
 
+  /** Wall ends that lie on wall w between its ends (T-junction): [[wall, end 1|2, [x, y], t along w]]. */
+  teesOn(w, exclude) {
+    const out = [];
+    const len = wallGeom(w).len;
+    for (const ww of this.floor.walls) {
+      if (ww === w || exclude?.has(ww)) continue;
+      for (const i of [1, 2]) {
+        const q = i === 1 ? [ww.x1, ww.y1] : [ww.x2, ww.y2];
+        const pr = projectOnWall(w, q[0], q[1]);
+        if (Math.abs(pr.d) < 1 && pr.t > 0.5 && pr.t < len - 0.5) out.push([ww, i, q, pr.t]);
+      }
+    }
+    return out;
+  }
+
   makeMove(start, key) {
     const f = this.floor;
     const sel = this.app.sel;
@@ -1018,6 +1075,8 @@ export class PlanEditor {
     for (const w of walls) for (const pt of [[w.x1, w.y1], [w.x2, w.y2]]) {
       for (const [o, i] of this.endsAt(pt, wset)) attached.push([o, i, i === 1 ? o.x1 : o.x2, i === 1 ? o.y1 : o.y2]);
     }
+    // inner walls that end against a moved wall stay attached to it
+    for (const w of walls) for (const [o, i, q] of this.teesOn(w, wset)) attached.push([o, i, q[0], q[1]]);
     return {
       type: 'move', start, items, attached, moved: false, dx: 0, dy: 0,
       walls: walls.map((w) => ({ o: w, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, cx: w.cx, cy: w.cy })),

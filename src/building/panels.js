@@ -208,7 +208,7 @@ export function buildingProps(app, plan) {
             onclick: () => set(() => { w.cx = Math.round(((w.x1 + w.x2) / 2 + g.n[0] * g.len / 4) * 10) / 10; w.cy = Math.round(((w.y1 + w.y2) / 2 + g.n[1] * g.len / 4) * 10) / 10; }),
           }, '◠ Buigen'),
         del),
-      h('p', { class: 'hint' }, 'Sleep de hoekpunten om te verlengen, het ronde middelpunt om te buigen.'))];
+      h('p', { class: 'hint' }, w.cx != null ? 'Sleep de hoekpunten om te verlengen, het ronde middelpunt om te buigen.' : 'Sleep de hoekpunten om te verlengen, het middelpunt om de muur evenwijdig te verschuiven (blijft recht).'))];
   }
   if (kind === 'O') {
     const o = f.openings.find((x) => x.id === id);

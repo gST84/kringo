@@ -13,7 +13,7 @@ const isIos = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.p
  */
 export function setupPwa({ onFile } = {}) {
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker:', e));
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch((e) => console.warn('Service worker:', e));
   }
   // Ask the browser not to evict projects stored in IndexedDB.
   navigator.storage?.persist?.().catch(() => {});
