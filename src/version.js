@@ -3,14 +3,21 @@ import { t } from './i18n.js';
 import { h } from './util.js';
 import { modal } from './ui/dialogs.js';
 
-export const APP_VERSION = 61;
+export const APP_VERSION = '0.61';
+
+/** Compares versions like '0.61' and '0.102' part by part. */
+const newer = (a, b) => {
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+};
 
 /** Latest version on the server (null when offline). */
 async function onlineVersion() {
   try {
     const res = await fetch(`src/version.js?t=${Date.now()}`, { cache: 'no-store' });
-    const m = (await res.text()).match(/APP_VERSION\s*=\s*(\d+)/);
-    return m ? Number(m[1]) : null;
+    const m = (await res.text()).match(/APP_VERSION\s*=\s*'([\d.]+)'/);
+    return m ? m[1] : null;
   } catch { return null; }
 }
 
@@ -32,7 +39,7 @@ export function versionButton(app) {
     onclick: async () => {
       const latest = h('span', null, '…');
       onlineVersion().then((v) => {
-        latest.textContent = v == null ? t('niet bereikbaar (offline?)') : v > APP_VERSION ? t('v{n} – nieuwer!', { n: v }) : t('v{n} – je bent up-to-date', { n: v });
+        latest.textContent = v == null ? t('niet bereikbaar (offline?)') : newer(v, APP_VERSION) ? t('v{n} – nieuwer!', { n: v }) : t('v{n} – je bent up-to-date', { n: v });
       });
       const ok = await modal({
         title: 'Pagina vernieuwen',

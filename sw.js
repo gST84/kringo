@@ -1,7 +1,7 @@
 // Service worker: makes Kringo installable and usable offline.
 // Strategy: network first (always the newest version when online), cache as fallback.
-// Bump VERSION when files are added or removed; add new source files to SHELL.
-const VERSION = 'kringo-v61';
+// Bump VERSION for every release (0.61 → 0.62 …), equal to APP_VERSION in src/version.js; add new source files to SHELL.
+const VERSION = 'kringo-0.61';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
