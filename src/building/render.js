@@ -441,6 +441,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     s += `<path class="plink${sel.has('L:' + l.id) ? ' sel' : ''}" data-k="L:${l.id}" d="M ${r2(a.x)} ${r2(a.y)} Q ${r2(qx)} ${r2(qy)} ${r2(c.x)} ${r2(c.y)}" style="stroke:${LINK_COLORS[kind]};stroke-width:${sw * 1.2}" stroke-dasharray="${sw * 6} ${sw * 4}"/>`;
     if (!opts.print) s += `<path class="hit" data-k="L:${l.id}" d="M ${r2(a.x)} ${r2(a.y)} Q ${r2(qx)} ${r2(qy)} ${r2(c.x)} ${r2(c.y)}" style="stroke-width:${sw * 10}"/>`;
   }
+  if (b.traceShow && b.traces?.floors?.[floor.id]) s += traceSvg(b, floor, k, sw);
   for (const sym of floor.symbols) {
     const def = lib.get(sym.sym);
     if (def) s += symbolSvg(sym, def, k, b, sel.has('A:' + sym.id), opts);
@@ -451,10 +452,39 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   return s;
 }
 
+export const TRACE_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#c2255c', '#7048e8', '#0c8599', '#e67700', '#5c940d', '#ae3ec9', '#1864ab'];
+export const traceColor = (b, circuitId) => TRACE_COLORS[Math.max(0, b.circuits.findIndex((c) => c.id === circuitId)) % TRACE_COLORS.length];
+
+/** Cable traces: per circuit one colour; the run from the board is thicker and carries the circuit name. */
+function traceSvg(b, floor, k, sw) {
+  let s = '<g class="ptraces">';
+  const names = new Map(b.circuits.map((c) => [c.id, c.name]));
+  const list = b.traces.floors[floor.id];
+  for (const tr of list) {
+    const col = traceColor(b, tr.c);
+    s += `<polyline class="ptrace" points="${pts(tr.pts)}" style="stroke:${col};stroke-width:${sw * (tr.home ? 3.2 : 2)}"/>`;
+  }
+  for (const tr of list) {
+    if (!tr.home || tr.pts.length < 2) continue;
+    // label on the middle of the longest segment
+    let best = 0, bi = 1;
+    for (let i = 1; i < tr.pts.length; i++) {
+      const d = Math.hypot(tr.pts[i][0] - tr.pts[i - 1][0], tr.pts[i][1] - tr.pts[i - 1][1]);
+      if (d > best) { best = d; bi = i; }
+    }
+    const [x, y] = [(tr.pts[bi][0] + tr.pts[bi - 1][0]) / 2, (tr.pts[bi][1] + tr.pts[bi - 1][1]) / 2];
+    const name = names.get(tr.c) || '';
+    const w = Math.max(5.2, name.length * 1.5 + 2);
+    s += `<g transform="translate(${r2(x)} ${r2(y)}) scale(${1 / k})"><rect x="${r2(-w / 2)}" y="-1.7" width="${r2(w)}" height="3.4" rx="0.8" style="fill:${traceColor(b, tr.c)}"/>${textSvg(0, 0, name, 2.2, 'middle', 'tx ptracetx', ' style="dominant-baseline:central"')}</g>`;
+  }
+  return s + '</g>';
+}
+
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
 .plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
+.plan .ptraces{pointer-events:none}.plan .ptrace{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.8}.plan .ptracetx{fill:#fff;font-weight:bold;dominant-baseline:central}
 `;
 
 export function standalonePlanSvg(project, floorIdx, lib) {

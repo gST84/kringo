@@ -8,10 +8,11 @@ import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, 
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
-import { dimGeom, hasLeaf, OPENING_TYPES, pathLength } from './render.js';
+import { dimGeom, hasLeaf, OPENING_TYPES, pathLength, traceColor } from './render.js';
 import { loadBackground } from './background.js';
 import { allPresets, deleteRoomPreset, INFLUENCES, isCustomPreset, NORMAL, presetInfl, presetOf, roomArea, roomPolygon, saveRoomPreset } from './rooms.js';
 import { generateInfluences, influenceRows } from './influences.js';
+import { cableTotals, generateTraces, symbolHeight, traceCfg, TRACE_FIELDS, traceKey } from './traces.js';
 
 const inp = (value, commit, { type = 'text', key, placeholder, list, step } = {}) => {
   const el = h('input', { type, value: value ?? '', 'data-key': key, placeholder, list, step });
@@ -352,6 +353,8 @@ function symbolProps(app, plan, s) {
   if (kind === 'battery') extra.push(h('div', { class: 'grid2' },
     field('Capaciteit (kWh)', inp(s.props.kwh, setProp('kwh'), { type: 'number', key: 'kwh' })),
     field('Vermogen (kW)', inp(s.props.kw, setProp('kw'), { type: 'number', key: 'bkw' }))));
+  if (kind === 'board' && b.boards.length > 1) extra.push(field('Welk verdeelbord', sel(s.props.board || '', [['', '— automatisch —'], ...b.boards.map((x) => [x.id, x.name])], setProp('board'), 'pbd'), 'Voor de kabeltrace: kringen van dit bord vertrekken hier.'));
+  if (!strip && def) extra.push(field('Hoogte (cm)', inp(s.props.h ?? '', setProp('h'), { type: 'number', key: 'hgt', placeholder: String(symbolHeight({ ...s, props: {} }, def, traceCfg(b))) }), 'Voor de kabellengte; leeg = standaard (zie Kabels).'));
   if (kind === 'dom-out') extra.push(field('Domotica-adres / kanaal', inp(s.props.addr, setProp('addr'), { key: 'da', placeholder: 'bv. module 2 – kanaal 4' })));
   const domSel = domChannelSelect(app, s);
   if (domSel) extra.push(domSel);
@@ -538,7 +541,15 @@ function roomProps(app, plan, r) {
       field('Sjabloon', sel(r.preset || 'normal', [...allPresets().map(([k, v]) => [k, isCustomPreset(k) ? `★ ${v.label}` : t(v.label)]), ...(presetOf(r.preset) ? [] : [[r.preset, '—']])],
         (v) => set(() => { r.preset = v; r.infl = presetInfl(v); const pr = presetOf(v); if (isCustomPreset(v)) r.pub = !!pr.pub; }), 'rpreset'),
         'Vult de uitwendige invloeden in; je kan ze daarna aanpassen. ★ = eigen sjabloon.'),
+      poly ? h('p', null, t('Oppervlakte'), ': ', h('b', null, `${roomArea(poly).toFixed(2).replace('.', ',')} m²`))
+        : h('p', { class: 'warn' }, 'Deze ruimte is niet gesloten door muren. Teken ze opnieuw met "Ruimte (hoeken)".'),
+      chk(r.pub, (v) => set(() => { r.pub = v; }), 'Publiek toegankelijke ruimte', 'rpub'),
+      h('p', { class: 'hint' }, r.seed ? 'De omtrek volgt de muren automatisch. Sleep het label om het te verplaatsen.' : 'Hoeken op een muurhoek volgen de muur; sleep de blauwe bolletjes om de vorm aan te passen.')),
+    section('Uitwendige invloeden',
+      h('p', { class: 'hint' }, 'Klap een code open en klik de klassen aan (meerdere mogelijk). Afwijkend van een normaal lokaal = gemarkeerd; die codes staan ook op het plan.'),
+      h('div', { class: 'infl' }, rows),
       h('div', { class: 'btnrow' },
+        h('button', { onclick: () => set(() => { r.infl = presetInfl(r.preset); }) }, '↺ Waarden van het sjabloon'),
         h('button', {
           onclick: async () => {
             const cur = presetOf(r.preset);
@@ -556,17 +567,9 @@ function roomProps(app, plan, r) {
             set((p) => { deleteRoomPreset(p.building, r.preset); });
           },
         }, 'Sjabloon verwijderen') : null),
-      poly ? h('p', null, t('Oppervlakte'), ': ', h('b', null, `${roomArea(poly).toFixed(2).replace('.', ',')} m²`))
-        : h('p', { class: 'warn' }, 'Deze ruimte is niet gesloten door muren. Teken ze opnieuw met "Ruimte (hoeken)".'),
-      chk(r.pub, (v) => set(() => { r.pub = v; }), 'Publiek toegankelijke ruimte', 'rpub'),
-      h('p', { class: 'hint' }, r.seed ? 'De omtrek volgt de muren automatisch. Sleep het label om het te verplaatsen.' : 'Hoeken op een muurhoek volgen de muur; sleep de blauwe bolletjes om de vorm aan te passen.')),
-    section('Uitwendige invloeden',
-      h('p', { class: 'hint' }, 'Klap een code open en klik de klassen aan (meerdere mogelijk). Afwijkend van een normaal lokaal = gemarkeerd; die codes staan ook op het plan.'),
-      h('div', { class: 'infl' }, rows),
       h('div', { class: 'btnrow' },
-        h('button', { onclick: () => set(() => { r.infl = presetInfl(r.preset); }) }, '↺ Waarden van het sjabloon'),
         h('button', { onclick: () => influencesDialog(app) }, '▦ Tabel…'),
-        h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen'))),
+        h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Ruimte verwijderen'))),
   ];
 }
 
@@ -1060,3 +1063,81 @@ export async function generateDialog(app) {
   toast('Eendraadschema gegenereerd');
 }
 
+
+/** Cable traces on the plan and the cable lengths per type. */
+export function cablesDialog(app) {
+  const b = app.project.building;
+  const body = h('div', { class: 'cables' });
+  const m1 = (v) => `${(Math.round(v * 10) / 10).toFixed(1).replace('.', ',')} m`;
+  const render = () => {
+    const cfg = traceCfg(b);
+    const tr = b.traces;
+    const stale = tr && tr.key !== traceKey(b);
+    const num = (key) => {
+      const el = h('input', { type: 'number', value: cfg[key], min: 0, step: 1 });
+      el.addEventListener('change', () => {
+        const v = Number(String(el.value).replace(',', '.'));
+        if (!Number.isFinite(v)) return;
+        app.mutate(() => { (b.traceCfg ||= {})[key] = v; });
+        render();
+      });
+      return el;
+    };
+    const settings = h('details', { class: 'cablecfg' },
+      h('summary', null, t('Hoogtes en reserve')),
+      h('div', { class: 'cablegrid' },
+        TRACE_FIELDS.map(([key, label]) => h('label', { class: 'tf' }, h('span', null, `${t(label)} (cm)`), num(key))),
+        h('label', { class: 'tf' }, h('span', null, t('Extra per aansluiting (cm)')), num('box')),
+        h('label', { class: 'tf' }, h('span', null, t('Reserve (%)')), num('reserve'))),
+      h('p', { class: 'hint' }, 'Een punt kan een eigen hoogte krijgen in zijn eigenschappen. Plafondpunten worden via het plafond bereikt, de andere via de vloer.'));
+    const show = h('input', { type: 'checkbox', checked: !!b.traceShow, disabled: !tr });
+    show.addEventListener('change', () => { app.mutate(() => { b.traceShow = show.checked; }); app.emit('change'); });
+    const parts = [
+      h('p', { class: 'hint' }, 'Per kring een route van het verdeelbord naar het eerste punt en daarna van punt naar punt (in volgorde van de nummers). Kabels gaan enkel door deuren en openingen, niet door muren of ramen.'),
+      settings,
+      h('div', { class: 'btnrow' },
+        h('button', {
+          class: 'primary',
+          onclick: () => {
+            app.mutate(() => { generateTraces(b, app.lib); b.traceShow = true; });
+            app.setMode('building');
+            app.emit('change');
+            render();
+          },
+        }, tr ? '⟳ Kabeltrace opnieuw genereren' : '⟳ Kabeltrace genereren'),
+        h('label', { class: 'check' }, show, t('Toon op het grondplan'))),
+    ];
+    if (stale) parts.push(h('p', { class: 'warn' }, 'Het plan of de kringen zijn gewijzigd sinds de laatste berekening – genereer opnieuw.'));
+    if (tr) {
+      for (const w of tr.warnings) parts.push(h('p', { class: 'warn' }, w));
+      const totals = cableTotals(tr.rows);
+      parts.push(
+        h('h4', null, t('Nodig per kabeltype')),
+        h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable' },
+          h('thead', null, h('tr', null, h('th', null, 'Kabel'), h('th', null, 'Lengte'), h('th', null, 'Kringen'))),
+          h('tbody', null, totals.length ? totals.map(([cable, len, names]) => h('tr', null, h('td', null, h('b', null, cable)), h('td', { class: 'num' }, h('b', null, `${len} m`)), h('td', null, names.join(', '))))
+            : h('tr', null, h('td', { colspan: 3, class: 'empty' }, 'Geen kringen met punten op het plan.'))))),
+        h('h4', null, t('Per kring')),
+        h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable' },
+          h('thead', null, h('tr', null, h('th', null, 'Kring'), h('th', null, 'Kabel'), h('th', null, 'Punten'), h('th', null, 'Horizontaal'), h('th', null, 'Verticaal'), h('th', null, 'Totaal incl. reserve'))),
+          h('tbody', null, tr.rows.map((r) => h('tr', null,
+            h('td', null, h('span', { class: 'cabledot', style: { background: traceColor(b, r.circuit) } }), ` ${r.name}${r.desc ? ` – ${r.desc}` : ''}`),
+            h('td', null, r.cable), h('td', { class: 'num' }, String(r.points)), h('td', { class: 'num' }, m1(r.horiz)), h('td', { class: 'num' }, m1(r.vert)), h('td', { class: 'num' }, h('b', null, `${r.total} m`))))))));
+    }
+    body.replaceChildren(...parts);
+  };
+  render();
+  const csv = () => {
+    const tr = b.traces;
+    if (!tr) return;
+    const rows = [[t('Kabel'), t('Lengte (m)'), t('Kringen')], ...cableTotals(tr.rows).map(([c, l, n]) => [c, l, n.join(' ')]), [],
+      [t('Kring'), t('Kabel'), t('Punten'), t('Horizontaal (m)'), t('Verticaal (m)'), t('Totaal incl. reserve (m)')],
+      ...tr.rows.map((r) => [r.name, r.cable, r.points, r.horiz.toFixed(1).replace('.', ','), r.vert.toFixed(1).replace('.', ','), r.total])];
+    download(`${safeName(app.project.name)} - ${t('Kabels')}.csv`, '﻿' + toCsv(rows), 'text/csv;charset=utf-8');
+  };
+  return modal({
+    title: 'Kabels', wide: true, body,
+    buttons: [{ label: 'CSV exporteren', value: 'csv' }, { label: 'Sluiten', value: false, primary: true }],
+    onButton: (v) => { if (v === 'csv') { csv(); return false; } return true; },
+  });
+}

@@ -3,7 +3,7 @@ import { App } from './app.js';
 import { Library } from './symbols/library.js';
 import { SchematicEditor } from './schematic/editor.js';
 import { PlanEditor } from './building/editor.js';
-import { buildingLeftPanel, buildingProps, circuitOptions, circuitsDialog, domoticsDialog, generateDialog, influencesDialog } from './building/panels.js';
+import { buildingLeftPanel, buildingProps, cablesDialog, circuitOptions, circuitsDialog, domoticsDialog, generateDialog, influencesDialog } from './building/panels.js';
 import { libraryPanel, pagesPanel, propertiesPanel } from './ui/panels.js';
 import { listsDialog } from './ui/lists.js';
 import { openSymbolEditor } from './ui/symbolEditor.js';
@@ -65,6 +65,7 @@ $('#top').append(
     btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app), 'kind-building'),
     btn('Domotica', 'Domotica-modules en hun kanalen', () => domoticsDialog(app), 'kind-building'),
     btn('Invloeden', 'Uitwendige invloeden per ruimte: tabel, CSV en blad', () => influencesDialog(app), 'kind-building'),
+    btn('Kabels', 'Kabeltrace op het grondplan en kabellengtes per type', () => cablesDialog(app), 'kind-building'),
     btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app), 'kind-building'),
     h('span', { class: 'sep' }),
     undoBtn, redoBtn, saveEl),
@@ -129,6 +130,13 @@ const fillCircuits = () => {
   circSel.replaceChildren(...[['', 'Kring: —'], ...circuitOptions(app.project.building, false).map(([v, l]) => [v, t('Kring') + ' ' + l])]
     .map(([v, l]) => h('option', { value: v, selected: v === plan.activeCircuit }, l)));
 };
+const traceBox = h('input', { type: 'checkbox', onchange: (e) => { app.mutate(() => { app.project.building.traceShow = e.target.checked; }); app.emit('change'); } });
+const traceChk = h('label', { class: 'check small', title: 'Kabeltrace tonen (genereren via Kabels)' }, traceBox, 'kabels');
+const syncTrace = () => {
+  const b = app.project?.building;
+  traceChk.hidden = !b?.traces;
+  traceBox.checked = !!b?.traceShow;
+};
 const floorLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => goTo(e.target.value) });
 $('#toolbar').append(h('span', { class: 'tgroup view-plan' },
   ...planTools.map(([k, icon, title, tool, o]) => {
@@ -143,6 +151,7 @@ $('#toolbar').append(h('span', { class: 'tgroup view-plan' },
   btn('+', 'Inzoomen', () => plan.zoomBy(0.8)),
   btn('⤢', 'Passend (F)', () => plan.fit()),
   h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: true, onchange: (e) => { plan.showGrid = e.target.checked; plan.render(); } }), 'raster'),
+  traceChk,
   h('span', { class: 'grow' }),
   btn('◀', 'Vorige verdieping', () => app.setFloor(app.floorIdx - 1)),
   floorLbl,
@@ -206,6 +215,7 @@ $('#toolbar').append(panelBtn('right', 'ⓘ', 'Eigenschappen tonen'));
 
 // ---------- events ----------
 app.on('change', () => {
+  syncTrace();
   if (app.mode === 'building') plan.render(); else editor.render();
   const floors = app.project.building.floors;
   const onPlan = app.mode === 'building';

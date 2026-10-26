@@ -19,6 +19,7 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
    - [E. Domotica](#e-domotica)
    - [F. Een bestaand plan overtekenen (PDF als achtergrond)](#f-een-bestaand-plan-overtekenen-pdf-als-achtergrond)
    - [G. Ruimtes en uitwendige invloeden](#g-ruimtes-en-uitwendige-invloeden)
+   - [H. Kabeltrace en kabellengtes](#h-kabeltrace-en-kabellengtes)
 7. [Stuurkast](#7-stuurkast)
 8. [Bewaren, openen, afdrukken](#8-bewaren-openen-afdrukken)
 9. [Sneltoetsen](#9-sneltoetsen)
@@ -258,6 +259,21 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
    ![Het blad met uitwendige invloeden](img/influences-sheet.png)
 
 > De sjablonen zijn een vertrekpunt. De uitwendige invloeden worden bepaald door de uitbater en nagekeken door het erkend organisme – pas ze aan aan de werkelijke situatie.
+
+### H. Kabeltrace en kabellengtes
+
+1. Zet een **Verdeelbord** (Energie) op het grondplan. Met meerdere borden kies je in de eigenschappen van het symbool welk bord het is.
+2. Klik bovenaan op **Kabels** en dan op **Kabeltrace genereren**. Per kring loopt een route van het verdeelbord naar het eerste punt en daarna van punt naar punt, in de volgorde van de nummers (bij hetzelfde nummer eerst de schakelaar, dan de lampen). Elk domotica-uitgangskanaal krijgt een eigen kabel vanaf het bord. De DC-kant van zonnepanelen telt niet mee.
+3. De kabels gaan enkel door **deuren, deuropeningen, schuifdeuren en garagepoorten** – niet door muren of ramen, en niet buiten het gebouw om. Elke kring krijgt een kleur; de kabel vanaf het bord is dikker en draagt de naam van de kring. Met het vinkje **kabels** in de werkbalk zet je de overlay aan of uit.
+
+   ![Kabeltrace op het grondplan](img/cables-plan.png)
+
+4. De lengte = de route op het plan + de verticale stukken naar elke doos (hoogtes onder **Hoogtes en reserve**: verdeelbord, stopcontacten, schakelaars, wandverlichting, toestellen, plafond, verdiepingshoogte) + een extra stuk per aansluiting + de reserve in %. Plafondpunten worden via het plafond bereikt, de andere via de vloer. Een punt kan een eigen **Hoogte (cm)** krijgen in zijn eigenschappen. Punten op een andere verdieping lopen via een stijgleiding op de plaats van het verdeelbord.
+5. Het type kabel komt uit de kring (bv. VOB Eca 3G2,5²). Je krijgt een lijst **per kabeltype** en **per kring**, ook als CSV.
+
+   ![Kabellengtes per type en per kring](img/cables.png)
+
+> Het is een schatting: de routes lopen in rechte lijnen door de ruimtes. Wijzig je het plan of de kringen, dan meldt Kringo dat je opnieuw moet genereren.
 
 ## 7. Stuurkast
 

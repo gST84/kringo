@@ -3,9 +3,9 @@ import { t } from './i18n.js';
 import { h } from './util.js';
 import { modal } from './ui/dialogs.js';
 
-export const APP_VERSION = '0.61';
+export const APP_VERSION = '0.63';
 
-/** Compares versions like '0.61' and '0.102' part by part. */
+/** Compares versions like '0.63' and '0.102' part by part. */
 const newer = (a, b) => {
   const x = a.split('.').map(Number), y = b.split('.').map(Number);
   for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);

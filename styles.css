@@ -476,3 +476,12 @@ button .icon svg { display: block; }
 .infltable td:first-child, .infltable th:first-child { text-align: left; }
 .inflmeta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .inflmeta .tf { display: flex; flex-direction: column; font-size: 12px; flex: 1; min-width: 150px; }
+
+/* ---------- cables ---------- */
+.cables h4 { margin: 14px 0 6px; }
+.cablecfg { margin: 8px 0; }
+.cablecfg summary { cursor: pointer; font-weight: 600; }
+.cablegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 10px; margin-top: 6px; }
+.cablegrid .tf { display: flex; flex-direction: column; font-size: 12px; }
+.cabletable td.num { text-align: right; white-space: nowrap; }
+.cabledot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
