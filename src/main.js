@@ -3,7 +3,7 @@ import { App } from './app.js';
 import { Library } from './symbols/library.js';
 import { SchematicEditor } from './schematic/editor.js';
 import { PlanEditor } from './building/editor.js';
-import { buildingLeftPanel, buildingProps, circuitOptions, circuitsDialog, domoticsDialog, generateDialog } from './building/panels.js';
+import { buildingLeftPanel, buildingProps, circuitOptions, circuitsDialog, domoticsDialog, generateDialog, influencesDialog } from './building/panels.js';
 import { libraryPanel, pagesPanel, propertiesPanel } from './ui/panels.js';
 import { listsDialog } from './ui/lists.js';
 import { openSymbolEditor } from './ui/symbolEditor.js';
@@ -13,6 +13,7 @@ import {
 } from './ui/project.js';
 import { startNewProject, startScreen } from './ui/start.js';
 import { prompt, toast } from './ui/dialogs.js';
+import { guessPreset, newRoom, presetInfl } from './building/rooms.js';
 import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
 import { locate } from './model.js';
@@ -61,6 +62,7 @@ $('#top').append(
     btn('Lijsten', 'Toestellen-, klemmen-, draad- en PLC-lijst', () => listsDialog(app), 'kind-schematic'),
     btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app), 'kind-building'),
     btn('Domotica', 'Domotica-modules en hun kanalen', () => domoticsDialog(app), 'kind-building'),
+    btn('Invloeden', 'Uitwendige invloeden per ruimte: tabel, CSV en blad', () => influencesDialog(app), 'kind-building'),
     btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app), 'kind-building'),
     h('span', { class: 'sep' }),
     undoBtn, redoBtn, saveEl),
@@ -167,6 +169,8 @@ const PLAN_HINTS = {
   line: 'Klik de punten van de lijn · dubbelklik, Enter of rechtermuisknop = einde · Backspace = punt terug · Esc',
   calib: 'Klik twee punten op de achtergrond waarvan je de werkelijke afstand kent',
   strip: 'LED-strip: klik de punten van de strip (het eerste punt is de voeding) · dubbelklik, Enter of rechtermuisknop = einde · Backspace = punt terug · Esc',
+  room: 'Klik in een ruimte: de omtrek wordt tussen de muren gezocht en volgt de muren als je ze verplaatst',
+  roomPoly: 'Klik de hoeken van de ruimte (hoeken op een muurhoek volgen de muur) · eerste punt, dubbelklik of Enter = sluiten · Backspace = punt terug · Esc',
   callout: 'Tekstballon: klik het punt waarnaar hij wijst, dan de plaats van de ballon · tekstvak: klik de plaats · Esc',
   text: 'Klik in een ruimte om een naam te plaatsen',
   place: 'Klik om te plaatsen (tegen de dichtstbijzijnde muur) · R draaien · Alt = vrij plaatsen · Esc = stoppen',
@@ -209,7 +213,7 @@ app.on('change', () => {
     // floor plans and single-line sheets in one list, grouped
     const grouped = () => [
       h('optgroup', { label: t('Plattegronden') }, floorOpts()),
-      pages.length ? h('optgroup', { label: t('Eendraadschema') }, pageOpts(true)) : null,
+      pages.length ? h('optgroup', { label: t('Bladen') }, pageOpts(true)) : null,
     ];
     floorLbl.replaceChildren(...grouped());
     pageLbl.replaceChildren(...grouped());
@@ -236,6 +240,12 @@ app.on('planTool', (t) => {
   if (app.mode === 'building') hintEl.textContent = PLAN_HINTS[t] || '';
 });
 app.on('planToast', (msg) => toast(msg));
+app.on('planRequestRoom', async (data) => {
+  const name = await prompt('Naam van de ruimte', '', { label: 'bv. Keuken, Badkamer, Slaapkamer 1 – het sjabloon voor de uitwendige invloeden wordt uit de naam afgeleid' });
+  if (name === null) return;
+  const preset = guessPreset(name);
+  plan.addRoom(newRoom({ ...data, name, preset, infl: presetInfl(preset) }));
+});
 app.on('planRequestCallout', async (pts) => {
   const v = await prompt('Tekst', '', { multiline: true });
   if (v) plan.addCallout(pts, v);

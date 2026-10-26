@@ -144,7 +144,7 @@ export class App {
   pruneSelection() {
     if (this.mode === 'building') {
       const f = this.floor;
-      const lists = { W: f.walls, O: f.openings, S: f.stairs, T: f.texts, A: f.symbols, L: f.links, D: f.dims, P: f.shapes, B: f.bg ? [{ id: 'bg' }] : [] };
+      const lists = { W: f.walls, O: f.openings, S: f.stairs, T: f.texts, A: f.symbols, L: f.links, D: f.dims, P: f.shapes, R: f.rooms, B: f.bg ? [{ id: 'bg' }] : [] };
       for (const k of [...this.sel]) { const [t, id] = k.split(':'); if (!lists[t]?.some((o) => o.id === id)) this.sel.delete(k); }
       return;
     }

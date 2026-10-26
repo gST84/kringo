@@ -18,6 +18,7 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
    - [D. Zonnepanelen met DC-busbar, MPPT's en batterij](#d-zonnepanelen-met-dc-busbar-mppts-en-batterij)
    - [E. Domotica](#e-domotica)
    - [F. Een bestaand plan overtekenen (PDF als achtergrond)](#f-een-bestaand-plan-overtekenen-pdf-als-achtergrond)
+   - [G. Ruimtes en uitwendige invloeden](#g-ruimtes-en-uitwendige-invloeden)
 7. [Stuurkast](#7-stuurkast)
 8. [Bewaren, openen, afdrukken](#8-bewaren-openen-afdrukken)
 9. [Sneltoetsen](#9-sneltoetsen)
@@ -236,6 +237,26 @@ Doel (zoals in de voorbeeldwoning): drie inbouwspots in de keuken op een schakel
 5. Teken de muren erover. Kies *Mee afdrukken* als de achtergrond op de afdruk moet.
 
 ![Een plan als achtergrond, met Schaal bepalen (twee punten, 500 cm)](img/background.png)
+
+### G. Ruimtes en uitwendige invloeden
+
+Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevingstemperatuur (AA), water (AD), vreemde lichamen (AE) … tot structuur van gebouwen (CB), plus of de ruimte publiek toegankelijk is. Kringo maakt daar het document van.
+
+1. **Ruimtes tekenen** (onder *Grondplan*):
+   - **Ruimte**: klik in een kamer. Kringo zoekt de omtrek tussen de muren; verplaats je later een muur, dan past de ruimte zich aan.
+   - **Ruimte (hoeken)**: voor ruimtes zonder muren rondom (open keuken, buiten). Klik de hoeken; een hoek op een muurhoek blijft aan die muur hangen en beweegt mee. Sluit met het eerste punt, dubbelklik of Enter.
+2. Geef een **naam**. Uit de naam kiest Kringo een **sjabloon** (keuken, badkamer, garage, technische ruimte, terras …) dat de codes invult; dat kan je achteraf wijzigen.
+3. In de eigenschappen klik je per code de **klassen** aan – meerdere tegelijk mag (bv. AA 4,5,8). Codes die afwijken van een normaal lokaal zijn gemarkeerd en staan op het plan onder de naam en de oppervlakte.
+
+   ![Ruimtes met kleur, oppervlakte en afwijkende codes; rechts de uitwendige invloeden](img/rooms.png)
+
+4. **Invloeden** bovenaan toont de tabel van alle ruimtes met referentie, datum en adres. **CSV exporteren** geeft de lijst voor Excel; **Blad genereren** maakt het A3-blad zoals het Normec-overzicht, met vakken voor de handtekeningen van de exploitant en het erkend organisme.
+
+   ![De tabel met uitwendige invloeden](img/influences.png)
+
+   ![Het blad met uitwendige invloeden](img/influences-sheet.png)
+
+> De sjablonen zijn een vertrekpunt. De uitwendige invloeden worden bepaald door de uitbater en nagekeken door het erkend organisme – pas ze aan aan de werkelijke situatie.
 
 ## 7. Stuurkast
 

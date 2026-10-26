@@ -4,7 +4,8 @@ import { SHEET } from '../model.js';
 import { clone, r2, snap, uid } from '../util.js';
 import { geometry } from '../symbols/geom.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
-import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
+import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallCorners, wallPolygon } from './render.js';
+import { cornerPoint, roomLabelPos, roomPolygon } from './rooms.js';
 import { linkGroup, nearestWall, nextNumber, projectOnWall, rotateStair, setGroupCircuit, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 
@@ -13,7 +14,9 @@ const near = (a, b, tol = 0.5) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] 
 const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
 /** Tools that draw several points before they create something. */
-const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'strip', 'calib', 'callout']);
+const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'strip', 'calib', 'callout', 'roomPoly']);
+/** Tools that draw a closed polygon. */
+const POLY = new Set(['area', 'roomPoly']);
 
 const ico = (inner) => `<svg viewBox="0 0 40 40" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 
@@ -30,6 +33,8 @@ export const PLAN_PALETTE = [
   { key: 'stair', label: 'Trap', tool: 'stair', opts: { stair: 'straight' }, icon: ico('<rect x="12" y="3" width="16" height="34" stroke-width="1.6"/><path d="M12 10h16M12 16h16M12 22h16M12 28h16" stroke-width="1"/><path d="M20 34V6M16 10l4-4 4 4" stroke-width="1.4"/>') },
   { key: 'quarter', label: 'Kwartdraaitrap', tool: 'stair', opts: { stair: 'quarter' }, icon: ico('<path d="M4 4h32v12H16v20H4z" stroke-width="1.6"/><path d="M4 28h12M4 22h12M16 16L4 4M22 4v12M29 4v12" stroke-width="1"/><path d="M10 34V10h24M30 7l4 3-4 3" stroke-width="1.4"/>') },
   { key: 'spiral', label: 'Wenteltrap', tool: 'spiral', icon: ico('<circle cx="20" cy="20" r="16" stroke-width="1.6"/><circle cx="20" cy="20" r="3" stroke-width="1.2"/><path d="M20 17V4M23 20h13M20 23v13M17 20H4M22 18l9-9M22 22l9 9M18 22l-9 9M18 18 9 9" stroke-width="1"/>') },
+  { key: 'room', label: 'Ruimte', tool: 'room', icon: ico('<path d="M6 8h28v24H6z" fill="#dbeafe" stroke-width="2.5"/><circle cx="20" cy="20" r="3" fill="currentColor"/><path d="M23 23l6 6" stroke-width="1.5"/>') },
+  { key: 'roomPoly', label: 'Ruimte (hoeken)', tool: 'roomPoly', icon: ico('<path d="M6 8h18l10 10v14H6z" fill="#dbeafe" stroke-width="2"/><circle cx="6" cy="8" r="3" fill="currentColor"/><circle cx="24" cy="8" r="3" fill="currentColor"/><circle cx="34" cy="18" r="3" fill="currentColor"/><circle cx="34" cy="32" r="3" fill="currentColor"/><circle cx="6" cy="32" r="3" fill="currentColor"/>') },
   { key: 'text', label: 'Ruimtenaam', tool: 'text', icon: ico('<path d="M10 10h20M20 10v22" stroke-width="3"/>') },
   { key: 'dim', label: 'Maatlijn', tool: 'dim', icon: ico('<path d="M5 26h30M5 20v12M35 20v12M2 29l6-6M32 29l6-6" stroke-width="1.6"/><text x="20" y="18" font-size="11" text-anchor="middle" fill="currentColor" stroke="none" font-family="sans-serif">385</text>') },
   { key: 'area', label: 'Gekleurd vlak', tool: 'area', icon: ico('<path d="M6 30 10 8l20 4 4 18z" fill="#93c5fd" fill-opacity=".7" stroke="#3b82f6"/>') },
@@ -186,6 +191,25 @@ export class PlanEditor {
     return q;
   }
 
+  /** Room corner: on a wall corner (then it follows the wall), the first point, or the grid. */
+  roomSnap(p, e) {
+    const tol = this.px(12);
+    if (!e?.altKey) {
+      let best = null;
+      for (const w of this.floor.walls) {
+        const c = wallCorners(w, this.floor.walls);
+        for (const [end, side] of [[0, 1], [0, -1], [1, 1], [1, -1]]) {
+          const q = c[end ? 's1' : 's0'][side > 0 ? 'plus' : 'minus'];
+          const d = dist(p, q);
+          if (d <= tol && (!best || d < best.d)) best = { d, p: q.map(r2), ref: { w: w.id, end, side } };
+        }
+      }
+      if (best) return best;
+      if (this.pts.length >= 3 && near(p, this.pts[0], tol)) return { p: [...this.pts[0]], ref: this.ptRefs?.[0] || null };
+    }
+    return { p: this.snapPoint(p, e, this.pts[this.pts.length - 1]), ref: null };
+  }
+
   /** Cursor position for the current tool. */
   cursorPoint(raw, e) {
     switch (this.tool) {
@@ -194,6 +218,7 @@ export class PlanEditor {
       case 'arcwall': return this.snapPoint(raw, e, this.pts.length === 1 ? this.pts[0] : null);
       case 'dim': return this.pts.length === 2 ? raw.map(r2) : this.snapPoint(raw, e, this.pts[0]);
       case 'area': case 'line': case 'strip': return this.snapPoint(raw, e, this.pts[this.pts.length - 1]);
+      case 'roomPoly': return this.roomSnap(raw, e).p;
       default: return this.snapPoint(raw, e);
     }
   }
@@ -256,6 +281,9 @@ export class PlanEditor {
     } else if (type === 'A') {
       const sym = f.symbols.find((x) => x.id === id);
       if (sym?.pts) sym.pts.forEach(([x, y], i) => { s += sq(x, y, `AH:${id}:${i}`); });
+    } else if (type === 'R') {
+      const r = f.rooms.find((x) => x.id === id);
+      if (r?.pts) r.pts.forEach((q, i) => { const [x, y] = cornerPoint(f, q); s += sq(x, y, `RH:${id}:${i}`); });
     } else if (type === 'P') {
       const sh = f.shapes.find((x) => x.id === id);
       if (!sh) return '';
@@ -321,14 +349,14 @@ export class PlanEditor {
       }
       s += cursor();
     }
-    if ((this.tool === 'area' || this.tool === 'line' || this.tool === 'strip') && this.pts.length) {
+    if ((POLY.has(this.tool) || this.tool === 'line' || this.tool === 'strip') && this.pts.length) {
       const list = [...this.pts, m];
-      s += this.tool === 'area'
+      s += POLY.has(this.tool)
         ? `<polygon class="ghostarea" points="${list.map((p) => p.join(',')).join(' ')}" style="stroke-width:${sw}"/>`
         : `<polyline class="ghostline" points="${list.map((p) => p.join(',')).join(' ')}" style="fill:none;stroke-width:${sw}"/>`;
       s += label(m, r2(dist(this.pts[this.pts.length - 1], m)) + ' cm');
     }
-    if (this.tool === 'area' || this.tool === 'line' || this.tool === 'strip') s += cursor();
+    if (POLY.has(this.tool) || this.tool === 'line' || this.tool === 'strip' || this.tool === 'room') s += cursor();
     if (this.tool === 'callout' && this.pts.length) {
       const [a] = this.pts;
       s += `<line class="ghostline" x1="${a[0]}" y1="${a[1]}" x2="${m[0]}" y2="${m[1]}" style="stroke-width:${sw}"/>`;
@@ -453,7 +481,7 @@ export class PlanEditor {
     }
     if (e.button === 2) {
       if (this.tool === 'wall' && this.chain) { this.chain = null; this.typed = ''; this.renderOverlay(); }
-      else if ((this.tool === 'area' && this.pts.length >= 3) || ((this.tool === 'line' || this.tool === 'strip') && this.pts.length >= 2)) this.finishShape();
+      else if ((POLY.has(this.tool) && this.pts.length >= 3) || ((this.tool === 'line' || this.tool === 'strip') && this.pts.length >= 2)) this.finishShape();
       else if (this.pts.length) { this.pts = []; this.renderOverlay(); }
       else if (this.tool !== 'select') this.setTool('select');
       return;
@@ -465,7 +493,8 @@ export class PlanEditor {
       case 'wall': return this.wallClick(p, e);
       case 'arcwall': return this.arcClick(p);
       case 'dim': return this.dimClick(p);
-      case 'area': case 'line': case 'strip': return this.shapeClick(p);
+      case 'area': case 'line': case 'strip': case 'roomPoly': return this.shapeClick(p, e);
+      case 'room': return this.roomClick(p);
       case 'calib': return this.calibClick(p);
       case 'callout': return this.calloutClick(p);
       case 'opening': return this.addOpening();
@@ -477,7 +506,7 @@ export class PlanEditor {
     }
     // select
     const key = this.hitKey(e.target);
-    if (/^(WH|OH|PH|DH|SH|AH):/.test(key || '')) { this.drag = { type: 'handle', key, moved: false, start: raw }; this.startHandle(this.drag); return; }
+    if (/^(WH|OH|PH|DH|SH|AH|RH):/.test(key || '')) { this.drag = { type: 'handle', key, moved: false, start: raw }; this.startHandle(this.drag); return; }
     if (key) {
       if (e.shiftKey) {
         if (app.sel.has(key)) { app.sel.delete(key); app.emit('selection'); return; }
@@ -525,6 +554,7 @@ export class PlanEditor {
       if (dx === d.dx && dy === d.dy) return;
       if (!d.moved) { this.app.checkpoint(); d.moved = true; }
       d.dx = dx; d.dy = dy;
+      for (const it of d.rooms || []) { it.o.lx = r2(it.x + dx); it.o.ly = r2(it.y + dy); }
       for (const it of d.items) {
         it.o.x = r2(it.x + dx); it.o.y = r2(it.y + dy);
         if (it.pts) it.o.pts = it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
@@ -557,6 +587,7 @@ export class PlanEditor {
           ...f.stairs.filter((s) => inR(s.x, s.y)).map((s) => 'S:' + s.id),
           ...f.dims.filter((m) => inR(m.x1, m.y1) && inR(m.x2, m.y2)).map((m) => 'D:' + m.id),
           ...f.shapes.filter((sh) => sh.pts.every(([x, y]) => inR(x, y))).map((sh) => 'P:' + sh.id),
+          ...f.rooms.filter((r) => inR(...roomLabelPos(r, roomPolygon(f, r)))).map((r) => 'R:' + r.id),
         ], d.add);
       }
       this.renderOverlay();
@@ -586,7 +617,7 @@ export class PlanEditor {
 
   onDbl(e) {
     if (this.tool === 'wall') { this.chain = null; this.typed = ''; this.renderOverlay(); return; }
-    if (this.tool === 'area' || this.tool === 'line' || this.tool === 'strip') { this.finishShape(); return; }
+    if (POLY.has(this.tool) || this.tool === 'line' || this.tool === 'strip') { this.finishShape(); return; }
     if (this.tool !== 'select') return;
     const key = this.hitKey(e.target);
     if (key?.startsWith('T:')) this.app.emit('planEditText', key.slice(2));
@@ -617,8 +648,8 @@ export class PlanEditor {
       return;
     }
     if (POINT_TOOLS.has(this.tool) && this.pts.length) {
-      if (k === 'backspace') { e.preventDefault(); this.pts.pop(); this.renderOverlay(); return; }
-      if (k === 'enter' && (this.tool === 'area' || this.tool === 'line' || this.tool === 'strip')) { this.finishShape(); return; }
+      if (k === 'backspace') { e.preventDefault(); this.pts.pop(); this.ptRefs?.pop(); this.renderOverlay(); return; }
+      if (k === 'enter' && (POLY.has(this.tool) || this.tool === 'line' || this.tool === 'strip')) { this.finishShape(); return; }
       if (k === 'escape') { this.pts = []; this.renderOverlay(); return; }
     }
     if (k === 'escape') {
@@ -694,6 +725,18 @@ export class PlanEditor {
       begin();
       sym.pts[i] = p;
       if (i === 0) { sym.x = p[0]; sym.y = p[1]; }
+    } else if (type === 'RH') {
+      const r = f.rooms.find((x) => x.id === id);
+      if (!r?.pts) return;
+      const prevTool = this.tool, prevPts = this.pts;
+      this.tool = 'roomPoly'; this.pts = [];
+      const snapped = this.roomSnap(raw, e);
+      this.tool = prevTool; this.pts = prevPts;
+      const i = +which;
+      const cur = cornerPoint(f, r.pts[i]);
+      if (near(cur, snapped.p, 0.01)) return;
+      begin();
+      r.pts[i] = snapped.ref ? { ...snapped.ref, x: snapped.p[0], y: snapped.p[1] } : { x: snapped.p[0], y: snapped.p[1] };
     } else if (type === 'PH') {
       const sh = f.shapes.find((x) => x.id === id);
       if (!sh) return;
@@ -790,12 +833,32 @@ export class PlanEditor {
     this.renderOverlay();
   }
 
-  shapeClick(p) {
-    if (this.tool === 'area' && this.pts.length >= 3 && near(p, this.pts[0], 0.01)) { this.finishShape(); return; }
+  shapeClick(p, e) {
+    if (POLY.has(this.tool) && this.pts.length >= 3 && near(p, this.pts[0], 0.01)) { this.finishShape(); return; }
     const last = this.pts[this.pts.length - 1];
     if (last && near(p, last, 0.01)) return;
+    if (this.tool === 'roomPoly') {
+      if (!this.pts.length) this.ptRefs = [];
+      this.ptRefs.push(this.roomSnap(this.raw, e).ref);
+    }
     this.pts.push(p);
     this.ptsFresh = this.pts.length === 1;
+    this.renderOverlay();
+  }
+
+  /** Room: click inside a closed room; its outline is found between the walls. */
+  roomClick(p) {
+    if (!roomPolygon(this.floor, { id: 'probe', seed: p })) {
+      this.app.emit('planToast', 'Geen gesloten ruimte gevonden op die plaats. Teken de hoeken met "Ruimte (hoeken)".');
+      return;
+    }
+    this.app.emit('planRequestRoom', { seed: p });
+  }
+
+  /** Creates a room (data from roomClick / finishShape) with a name. */
+  addRoom(room) {
+    this.app.mutate(() => this.floor.rooms.push(room));
+    this.app.select(['R:' + room.id]);
     this.renderOverlay();
   }
 
@@ -803,6 +866,17 @@ export class PlanEditor {
     const type = this.tool === 'area' ? 'area' : 'line';
     const list = this.pts.filter((p, i, a) => i === 0 || !near(p, a[i - 1], 0.01));
     if (this.tool === 'strip') { this.pts = []; this.addStrip(list); this.renderOverlay(); return; }
+    if (this.tool === 'roomPoly') {
+      // corners on wall corners keep a reference to the wall, so they follow it
+      const refs = this.ptRefs || [];
+      const corners = this.pts.map((q, i) => (refs[i] ? { ...refs[i], x: q[0], y: q[1] } : { x: q[0], y: q[1] }))
+        .filter((q, i, a) => i === 0 || !near([q.x, q.y], [a[i - 1].x, a[i - 1].y], 0.01));
+      if (corners.length > 3 && near([corners[0].x, corners[0].y], [corners.at(-1).x, corners.at(-1).y], 0.01)) corners.pop();
+      this.pts = []; this.ptRefs = [];
+      this.renderOverlay();
+      if (corners.length >= 3) this.app.emit('planRequestRoom', { pts: corners });
+      return;
+    }
     if (type === 'area' && list.length > 3 && near(list[0], list[list.length - 1], 0.01)) list.pop();
     this.pts = [];
     if (list.length < (type === 'area' ? 3 : 2)) { this.renderOverlay(); return; }
@@ -948,6 +1022,7 @@ export class PlanEditor {
       type: 'move', start, items, attached, moved: false, dx: 0, dy: 0,
       walls: walls.map((w) => ({ o: w, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, cx: w.cx, cy: w.cy })),
       dims: f.dims.filter((d) => sel.has('D:' + d.id)).map((d) => ({ o: d, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 })),
+      rooms: f.rooms.filter((r) => sel.has('R:' + r.id)).map((r) => { const [x, y] = roomLabelPos(r, roomPolygon(f, r)); return { o: r, x, y }; }),
       shapes: f.shapes.filter((s) => sel.has('P:' + s.id)).map((s) => ({
         o: s, pts: s.pts.map((p) => [...p]),
         // dragging a single balloon moves the balloon, its arrow keeps pointing at the same spot
@@ -983,6 +1058,7 @@ export class PlanEditor {
       f.stairs = f.stairs.filter((s) => !sel.has('S:' + s.id));
       f.dims = f.dims.filter((d) => !sel.has('D:' + d.id));
       f.shapes = f.shapes.filter((s) => !sel.has('P:' + s.id));
+      f.rooms = f.rooms.filter((r) => !sel.has('R:' + r.id));
       if (sel.has('B:bg')) f.bg = null;
     });
     this.app.select([]);

@@ -3,7 +3,7 @@ import { uid } from '../util.js';
 import { t } from '../i18n.js';
 
 export function newFloor(name = t('Gelijkvloers')) {
-  return { id: uid('f'), name, walls: [], openings: [], stairs: [], texts: [], symbols: [], links: [], dims: [], shapes: [], bg: null };
+  return { id: uid('f'), name, walls: [], openings: [], stairs: [], texts: [], symbols: [], links: [], dims: [], shapes: [], rooms: [], bg: null };
 }
 
 // ---------- distribution tree ----------
@@ -123,7 +123,7 @@ export function normalizeBuilding(b) {
   b.grid ||= 5;
   b.floors ||= [];
   if (!b.floors.length) b.floors.push(newFloor());
-  for (const f of b.floors) { f.walls ||= []; f.openings ||= []; f.stairs ||= []; f.texts ||= []; f.symbols ||= []; f.links ||= []; f.dims ||= []; f.shapes ||= []; f.bg ||= null; }
+  for (const f of b.floors) { f.walls ||= []; f.openings ||= []; f.stairs ||= []; f.texts ||= []; f.symbols ||= []; f.links ||= []; f.dims ||= []; f.shapes ||= []; f.rooms ||= []; f.bg ||= null; }
   b.boards ||= d.boards;
   if (!b.boards.length) b.boards.push(newBoard());
   b.rcds ||= [];

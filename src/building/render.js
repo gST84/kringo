@@ -7,6 +7,7 @@ import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
 import { colorChannels, domAddress, domKey, wallGeom, wallPath } from './model.js';
+import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
 /** Sheet millimetres per plan centimetre. */
 export const planK = (b) => 10 / (b.scale || 50);
@@ -60,6 +61,12 @@ function wallEnd(w, g, end, walls) {
   if (far(left) || far(right)) return { plus: face(1), minus: face(-1) };
   // left of `a` is the +n side at the start of the wall and the −n side at its end
   return end ? { plus: right, minus: left } : { plus: left, minus: right };
+}
+
+/** The four corner points of a wall (s0 = start, s1 = end; plus / minus side), with the joints worked out. */
+export function wallCorners(w, walls) {
+  const g = wallGeom(w);
+  return { s0: wallEnd(w, g, 0, walls), s1: wallEnd(w, g, 1, walls) };
 }
 
 export function wallPolygon(w, walls) {
@@ -287,6 +294,23 @@ export function linkKind(defA, defB) {
   return 'other';
 }
 
+/** Name, area and the influences that differ from a normal room, in the middle of the room. */
+function roomLabelSvg(r, poly, k, on, opts) {
+  const [x, y] = roomLabelPos(r, poly);
+  const mm = 1 / k;
+  const dev = deviations(r);
+  let s = `<g class="proomlabel${on ? ' sel' : ''}" data-k="R:${r.id}" transform="translate(${r2(x)} ${r2(y)}) scale(${r2(mm)})">`;
+  const lines = [];
+  if (r.name) lines.push([r.name, 3, 'tx room']);
+  lines.push([poly ? `${roomArea(poly).toFixed(1).replace('.', ',')} m²` : t('niet gesloten'), 2, 'tx rarea']);
+  if (dev.length) lines.push([dev.join(' · '), 2, 'tx rinfl']);
+  if (r.pub) lines.push([t('publiek toegankelijk'), 1.8, 'tx rinfl']);
+  let yy = -((lines.length - 1) * 3.2) / 2;
+  for (const [text, size, cls] of lines) { s += textSvg(0, yy, text, size, 'middle', cls); yy += 3.2; }
+  if (!opts.print) s += `<rect class="hit" x="-12" y="${r2(-((lines.length) * 3.2) / 2)}" width="24" height="${r2(lines.length * 3.2)}"/>`;
+  return s + '</g>';
+}
+
 /** Length of a polyline (cm). */
 export const pathLength = (list) => list.reduce((sum, p, i) => (i ? sum + Math.hypot(p[0] - list[i - 1][0], p[1] - list[i - 1][1]) : 0), 0);
 
@@ -367,6 +391,14 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     s += `<image class="pbg${bg.locked ? ' locked' : ''}${sel.has('B:bg') ? ' sel' : ''}"${bg.locked || opts.print ? '' : ' data-k="B:bg"'} href="${bgUrl}" x="${r2(bg.x)}" y="${r2(bg.y)}" width="${r2(bg.w)}" height="${r2(bg.h)}" preserveAspectRatio="none" opacity="${bg.opacity ?? 0.5}"/>`;
     if (sel.has('B:bg')) s += `<rect class="bgsel" x="${r2(bg.x)}" y="${r2(bg.y)}" width="${r2(bg.w)}" height="${r2(bg.h)}" style="stroke-width:${sw * 2}"/>`;
   }
+  // rooms: a light colour under the walls; their labels come later, above everything
+  const roomLabels = [];
+  for (const r of floor.rooms || []) {
+    const poly = roomPolygon(floor, r);
+    const on = sel.has('R:' + r.id);
+    if (poly) s += `<polygon class="proom${on ? ' sel' : ''}" data-k="R:${r.id}" points="${pts(poly)}" style="fill:${roomColor(r)};stroke-width:${sw * 2}"/>`;
+    roomLabels.push([r, poly, on]);
+  }
   for (const sh of floor.shapes || []) if (sh.type === 'area') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   // walls
   // walls: first every wall with a black outline, then every wall filled on top of that, so the
@@ -413,6 +445,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     const def = lib.get(sym.sym);
     if (def) s += symbolSvg(sym, def, k, b, sel.has('A:' + sym.id), opts);
   }
+  for (const [r, poly, on] of roomLabels) s += roomLabelSvg(r, poly, k, on, opts);
   for (const sh of floor.shapes || []) if (sh.type === 'callout') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   s += '</g>';
   return s;
@@ -421,7 +454,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
 .plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
-.plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.cdom{fill:#7c3aed;font-weight:bold}
+.plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
 `;
 
 export function standalonePlanSvg(project, floorIdx, lib) {

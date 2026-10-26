@@ -10,6 +10,8 @@ import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
 import { dimGeom, hasLeaf, OPENING_TYPES, pathLength } from './render.js';
 import { loadBackground } from './background.js';
+import { INFLUENCES, NORMAL, PRESETS, presetInfl, roomArea, roomPolygon } from './rooms.js';
+import { generateInfluences, influenceRows } from './influences.js';
 
 const inp = (value, commit, { type = 'text', key, placeholder, list, step } = {}) => {
   const el = h('input', { type, value: value ?? '', 'data-key': key, placeholder, list, step });
@@ -295,6 +297,7 @@ export function buildingProps(app, plan) {
       h('p', { class: 'hint' }, 'Sleep de hoekpunten om de vorm aan te passen.'))];
   }
   if (kind === 'B') return backgroundSection(app, plan);
+  if (kind === 'R') return roomProps(app, plan, f.rooms.find((x) => x.id === id));
   if (kind === 'T') {
     const tx = f.texts.find((x) => x.id === id);
     if (!tx) return [];
@@ -487,6 +490,99 @@ function floorProps(app, plan) {
     section('Sneltoetsen', h('p', { class: 'hint keys' },
       'W muur (cijfers + Enter = lengte in cm) · A gebogen muur · D deur · N raam · M maatlijn · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),
   ];
+}
+
+// ---------- rooms and external influences ----------
+
+/** Room: name, template, public access and the classes of every external influence (several allowed). */
+function roomProps(app, plan, r) {
+  if (!r) return [];
+  const f = app.floor;
+  const set = (fn) => app.mutate(fn);
+  const poly = roomPolygon(f, r);
+  const rows = INFLUENCES.map(([code, name, classes]) => {
+    const cur = r.infl?.[code] || NORMAL[code];
+    const differs = cur.join(',') !== NORMAL[code].join(',');
+    return h('div', { class: 'inflrow' + (differs ? ' differs' : ''), title: t(name) },
+      h('span', { class: 'inflcode' }, code),
+      h('span', { class: 'inflname' }, t(name)),
+      h('span', { class: 'inflchips' }, classes.map((desc, i) => {
+        const n = i + 1;
+        return h('button', {
+          class: 'inflchip' + (cur.includes(n) ? ' on' : ''), title: `${code}${n}: ${t(desc)}`,
+          onclick: () => set(() => {
+            r.infl ||= presetInfl(r.preset);
+            const v = new Set(r.infl[code] || NORMAL[code]);
+            if (v.has(n)) v.delete(n); else v.add(n);
+            r.infl[code] = v.size ? [...v].sort((a, b) => a - b) : [n];
+          }),
+        }, String(n));
+      })));
+  });
+  return [
+    section('Ruimte',
+      field('Naam', inp(r.name, (v) => set(() => { r.name = v; }), { key: 'rname', placeholder: 'bv. Keuken' })),
+      field('Sjabloon', sel(r.preset || 'normal', Object.entries(PRESETS).map(([k, v]) => [k, t(v.label)]), (v) => set(() => { r.preset = v; r.infl = presetInfl(v); }), 'rpreset'),
+        'Vult de uitwendige invloeden in; je kan ze daarna aanpassen.'),
+      poly ? h('p', null, t('Oppervlakte'), ': ', h('b', null, `${roomArea(poly).toFixed(2).replace('.', ',')} m²`))
+        : h('p', { class: 'warn' }, 'Deze ruimte is niet gesloten door muren. Teken ze opnieuw met "Ruimte (hoeken)".'),
+      chk(r.pub, (v) => set(() => { r.pub = v; }), 'Publiek toegankelijke ruimte', 'rpub'),
+      h('p', { class: 'hint' }, r.seed ? 'De omtrek volgt de muren automatisch. Sleep het label om het te verplaatsen.' : 'Hoeken op een muurhoek volgen de muur; sleep de blauwe bolletjes om de vorm aan te passen.')),
+    section('Uitwendige invloeden',
+      h('p', { class: 'hint' }, 'Klik de klassen aan (meerdere mogelijk). Afwijkend van een normaal lokaal = gemarkeerd; die codes staan ook op het plan.'),
+      h('div', { class: 'infl' }, rows),
+      h('div', { class: 'btnrow' },
+        h('button', { onclick: () => set(() => { r.infl = presetInfl(r.preset); }) }, '↺ Waarden van het sjabloon'),
+        h('button', { onclick: () => influencesDialog(app) }, '▦ Tabel…'),
+        h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen'))),
+  ];
+}
+
+/** All rooms with their external influences: table, CSV, and the sheet in the project. */
+export function influencesDialog(app) {
+  const b = app.project.building;
+  b.inflMeta ||= {};
+  const meta = b.inflMeta;
+  const rows = influenceRows(b);
+  const codes = INFLUENCES.map(([c]) => c);
+  const metaField = (label, key, fallback) => {
+    const el = h('input', { type: 'text', value: meta[key] ?? fallback ?? '' });
+    el.addEventListener('change', () => app.mutate(() => { meta[key] = el.value; }));
+    return h('label', { class: 'tf' }, h('span', null, label), el);
+  };
+  const table = h('div', { class: 'tablewrap' }, h('table', { class: 'list infltable' },
+    h('thead', null, h('tr', null, h('th', null, 'Ruimte'), codes.map((c) => h('th', { title: t(INFLUENCES.find((x) => x[0] === c)[1]) }, c)), h('th', null, 'PUB'))),
+    h('tbody', null, rows.length ? rows.map((row) => h('tr', {
+      title: 'Klik om naar de ruimte te gaan',
+      onclick: () => { app.setMode('building'); app.setFloor(b.floors.indexOf(row.floor)); app.select(['R:' + row.room.id]); },
+    }, h('td', null, row.name), codes.map((c) => h('td', { class: row.values[c] !== NORMAL[c].join(',') ? 'differs' : '' }, row.values[c])), h('td', null, row.pub)))
+      : h('tr', null, h('td', { colspan: codes.length + 2, class: 'empty' }, 'Nog geen ruimtes: gebruik "Ruimte" onder Grondplan.')))));
+  const csv = () => {
+    const head = ['Ruimte', ...codes, 'PUB'];
+    const data = rows.map((row) => [row.name, ...codes.map((c) => row.values[c]), row.pub]);
+    download(`${safeName(app.project.name)} - ${t('Uitwendige invloeden')}.csv`, '\ufeff' + toCsv([head.map((x) => t(x)), ...data]), 'text/csv;charset=utf-8');
+  };
+  return modal({
+    title: 'Uitwendige invloeden', wide: true,
+    body: h('div', null,
+      h('div', { class: 'inflmeta' }, metaField(t('Referentie'), 'ref', app.project.name), metaField(t('Datum'), 'date', app.project.meta?.date), metaField(t('Adres'), 'address', app.project.meta?.address)),
+      table,
+      h('p', { class: 'hint' }, 'Gemarkeerde waarden wijken af van een normaal lokaal. Het blad komt bij de bladen van het project (vervangt een eerder blad).')),
+    buttons: [{ label: 'CSV exporteren', value: 'csv' }, { label: 'Sluiten', value: false }, { label: 'Blad genereren', value: 'sheet', primary: true }],
+    onButton: (v) => {
+      if (v === 'csv') { csv(); return false; }
+      if (v === 'sheet') {
+        let first = 0;
+        app.mutate((p) => { first = generateInfluences(p); });
+        app.setMode('schematic');
+        app.pageIdx = -1;
+        app.setPage(first);
+        app.emit('change');
+        toast(t('Blad met uitwendige invloeden gegenereerd'));
+      }
+      return true;
+    },
+  });
 }
 
 // ---------- PV / DC ----------
