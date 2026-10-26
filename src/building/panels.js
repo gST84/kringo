@@ -10,7 +10,7 @@ import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
 import { dimGeom, hasLeaf, OPENING_TYPES, pathLength } from './render.js';
 import { loadBackground } from './background.js';
-import { INFLUENCES, NORMAL, PRESETS, presetInfl, roomArea, roomPolygon } from './rooms.js';
+import { allPresets, deleteRoomPreset, INFLUENCES, isCustomPreset, NORMAL, presetInfl, presetOf, roomArea, roomPolygon, saveRoomPreset } from './rooms.js';
 import { generateInfluences, influenceRows } from './influences.js';
 
 const inp = (value, commit, { type = 'text', key, placeholder, list, step } = {}) => {
@@ -494,6 +494,9 @@ function floorProps(app, plan) {
 
 // ---------- rooms and external influences ----------
 
+/** Codes that are unfolded in the room panel (kept while the panel re-renders). */
+const openInfl = new Set();
+
 /** Room: name, template, public access and the classes of every external influence (several allowed). */
 function roomProps(app, plan, r) {
   if (!r) return [];
@@ -503,33 +506,57 @@ function roomProps(app, plan, r) {
   const rows = INFLUENCES.map(([code, name, classes]) => {
     const cur = r.infl?.[code] || NORMAL[code];
     const differs = cur.join(',') !== NORMAL[code].join(',');
-    return h('div', { class: 'inflrow' + (differs ? ' differs' : ''), title: t(name) },
-      h('span', { class: 'inflcode' }, code),
-      h('span', { class: 'inflname' }, t(name)),
-      h('span', { class: 'inflchips' }, classes.map((desc, i) => {
+    return h('details', {
+      class: 'inflrow' + (differs ? ' differs' : ''), open: openInfl.has(code),
+      ontoggle: (e) => { if (e.target.open) openInfl.add(code); else openInfl.delete(code); },
+    },
+      h('summary', { title: t(name) },
+        h('span', { class: 'inflcode' }, code),
+        h('span', { class: 'inflname' }, t(name)),
+        h('span', { class: 'inflval' }, cur.map((n) => h('span', { class: 'inflchip on' }, String(n))))),
+      h('div', { class: 'inflopts' }, classes.map((desc, i) => {
         const n = i + 1;
-        return h('button', {
-          class: 'inflchip' + (cur.includes(n) ? ' on' : ''), title: `${code}${n}: ${t(desc)}`,
-          onclick: () => set(() => {
-            r.infl ||= presetInfl(r.preset);
-            const v = new Set(r.infl[code] || NORMAL[code]);
-            if (v.has(n)) v.delete(n); else v.add(n);
-            r.infl[code] = v.size ? [...v].sort((a, b) => a - b) : [n];
-          }),
-        }, String(n));
+        const toggle = () => set(() => {
+          r.infl ||= presetInfl(r.preset);
+          const v = new Set(r.infl[code] || NORMAL[code]);
+          if (v.has(n)) v.delete(n); else v.add(n);
+          r.infl[code] = v.size ? [...v].sort((a, b) => a - b) : [n];
+        });
+        return h('div', { class: 'inflopt', onclick: toggle },
+          h('button', { class: 'inflchip' + (cur.includes(n) ? ' on' : ''), title: `${code}${n}` }, String(n)),
+          h('span', null, t(desc)));
       })));
   });
   return [
     section('Ruimte',
       field('Naam', inp(r.name, (v) => set(() => { r.name = v; }), { key: 'rname', placeholder: 'bv. Keuken' })),
-      field('Sjabloon', sel(r.preset || 'normal', Object.entries(PRESETS).map(([k, v]) => [k, t(v.label)]), (v) => set(() => { r.preset = v; r.infl = presetInfl(v); }), 'rpreset'),
-        'Vult de uitwendige invloeden in; je kan ze daarna aanpassen.'),
+      field('Sjabloon', sel(r.preset || 'normal', [...allPresets().map(([k, v]) => [k, isCustomPreset(k) ? `★ ${v.label}` : t(v.label)]), ...(presetOf(r.preset) ? [] : [[r.preset, '—']])],
+        (v) => set(() => { r.preset = v; r.infl = presetInfl(v); const pr = presetOf(v); if (isCustomPreset(v)) r.pub = !!pr.pub; }), 'rpreset'),
+        'Vult de uitwendige invloeden in; je kan ze daarna aanpassen. ★ = eigen sjabloon.'),
+      h('div', { class: 'btnrow' },
+        h('button', {
+          onclick: async () => {
+            const cur = presetOf(r.preset);
+            const label = await prompt('Opslaan als sjabloon', isCustomPreset(r.preset) ? cur.label : r.name || '', { label: t('Naam van het sjabloon') });
+            if (!label?.trim()) return;
+            set((p) => { r.preset = saveRoomPreset(p.building, label, r); });
+            toast(t('Sjabloon "{n}" opgeslagen', { n: label.trim() }));
+          },
+        }, '★ Opslaan als sjabloon…'),
+        isCustomPreset(r.preset) ? h('button', {
+          class: 'danger',
+          onclick: async () => {
+            const label = presetOf(r.preset).label;
+            if (!(await confirmDlg('Sjabloon verwijderen', t('Het eigen sjabloon "{n}" verwijderen? Ruimtes behouden hun waarden.', { n: label }), 'Verwijderen', true))) return;
+            set((p) => { deleteRoomPreset(p.building, r.preset); });
+          },
+        }, 'Sjabloon verwijderen') : null),
       poly ? h('p', null, t('Oppervlakte'), ': ', h('b', null, `${roomArea(poly).toFixed(2).replace('.', ',')} m²`))
         : h('p', { class: 'warn' }, 'Deze ruimte is niet gesloten door muren. Teken ze opnieuw met "Ruimte (hoeken)".'),
       chk(r.pub, (v) => set(() => { r.pub = v; }), 'Publiek toegankelijke ruimte', 'rpub'),
       h('p', { class: 'hint' }, r.seed ? 'De omtrek volgt de muren automatisch. Sleep het label om het te verplaatsen.' : 'Hoeken op een muurhoek volgen de muur; sleep de blauwe bolletjes om de vorm aan te passen.')),
     section('Uitwendige invloeden',
-      h('p', { class: 'hint' }, 'Klik de klassen aan (meerdere mogelijk). Afwijkend van een normaal lokaal = gemarkeerd; die codes staan ook op het plan.'),
+      h('p', { class: 'hint' }, 'Klap een code open en klik de klassen aan (meerdere mogelijk). Afwijkend van een normaal lokaal = gemarkeerd; die codes staan ook op het plan.'),
       h('div', { class: 'infl' }, rows),
       h('div', { class: 'btnrow' },
         h('button', { onclick: () => set(() => { r.infl = presetInfl(r.preset); }) }, '↺ Waarden van het sjabloon'),

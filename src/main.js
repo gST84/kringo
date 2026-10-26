@@ -13,13 +13,14 @@ import {
 } from './ui/project.js';
 import { startNewProject, startScreen } from './ui/start.js';
 import { prompt, toast } from './ui/dialogs.js';
-import { guessPreset, newRoom, presetInfl } from './building/rooms.js';
+import { guessPreset, newRoom, presetInfl, presetOf, syncPresets } from './building/rooms.js';
 import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
 import { locate } from './model.js';
 import { cursorIcon, DONATE_URL, h, icon, MANUAL_URL } from './util.js';
 
 import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
+import { initSplitters } from './ui/splitters.js';
 startAutoTranslate();
 const lib = new Library();
 await lib.init();
@@ -179,6 +180,7 @@ const PLAN_HINTS = {
 };
 
 // panels
+initSplitters();
 const buildingLeft = h('div', { id: 'building-left', class: 'kind-building' });
 $('#left').append(buildingLeft);
 buildingLeftPanel(app, buildingLeft, { plan, editor });
@@ -244,7 +246,7 @@ app.on('planRequestRoom', async (data) => {
   const name = await prompt('Naam van de ruimte', '', { label: 'bv. Keuken, Badkamer, Slaapkamer 1 – het sjabloon voor de uitwendige invloeden wordt uit de naam afgeleid' });
   if (name === null) return;
   const preset = guessPreset(name);
-  plan.addRoom(newRoom({ ...data, name, preset, infl: presetInfl(preset) }));
+  plan.addRoom(newRoom({ ...data, name, preset, infl: presetInfl(preset), pub: !!presetOf(preset)?.pub }));
 });
 app.on('planRequestCallout', async (pts) => {
   const v = await prompt('Tekst', '', { multiline: true });
@@ -264,6 +266,7 @@ app.on('planCalibrate', async ({ a, b, len }) => {
 app.on('planCursor', ([x, y]) => { cursorEl.textContent = `x ${Math.round(x)} cm  y ${Math.round(y)} cm`; });
 app.on('planCircuits', fillCircuits);
 app.on('project', fillCircuits);
+app.on('project', () => syncPresets(app.project.building));
 app.on('planRequestText', async (p) => {
   const t = await prompt('Naam van de ruimte', '', { label: 'bv. Keuken, Badkamer, Slaapkamer 1' });
   if (t) plan.addText(p, t);

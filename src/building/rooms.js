@@ -44,11 +44,55 @@ export const PRESETS = {
   outside: { label: 'Buiten', color: '#d1fae5', infl: { AA: [3, 5], AD: [3], AN: [2] } },
 };
 
-export const presetInfl = (key) => ({ ...structuredClone(NORMAL), ...structuredClone(PRESETS[key]?.infl || {}) });
+// Own templates ("Opslaan als sjabloon"): kept in this browser and in the project that uses them, so a
+// project opened on another computer still knows them.
+const STORE = 'kringo-room-presets';
+const CUSTOM = {};
+try { Object.assign(CUSTOM, JSON.parse(localStorage.getItem(STORE)) || {}); } catch { /* private mode */ }
+const saveCustom = () => { try { localStorage.setItem(STORE, JSON.stringify(CUSTOM)); } catch { /* private mode */ } };
+
+export const isCustomPreset = (key) => !!CUSTOM[key] && !PRESETS[key];
+export const presetOf = (key) => PRESETS[key] || CUSTOM[key];
+
+/** All templates: built-in first, then the own ones (alphabetical). */
+export function allPresets() {
+  const own = Object.entries(CUSTOM).filter(([k]) => !PRESETS[k]).sort((a, b) => a[1].label.localeCompare(b[1].label));
+  return [...Object.entries(PRESETS), ...own];
+}
+
+/** Makes the templates stored in a project known (after opening it). */
+export function syncPresets(building) {
+  for (const [k, v] of Object.entries(building?.roomPresets || {})) if (!PRESETS[k] && !CUSTOM[k]) CUSTOM[k] = v;
+}
+
+/** Saves the influences, public access and colour of a room as an own template; returns its key. */
+export function saveRoomPreset(building, label, room) {
+  const key = 'u_' + label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const infl = {};
+  for (const [code] of INFLUENCES) {
+    const v = room.infl?.[code] || NORMAL[code];
+    if (v.join(',') !== NORMAL[code].join(',')) infl[code] = [...v];
+  }
+  CUSTOM[key] = { label: label.trim(), color: roomColor(room), infl, pub: !!room.pub };
+  saveCustom();
+  if (building) (building.roomPresets ||= {})[key] = structuredClone(CUSTOM[key]);
+  return key;
+}
+
+/** Removes an own template from this browser and the project (rooms keep their values). */
+export function deleteRoomPreset(building, key) {
+  delete CUSTOM[key];
+  saveCustom();
+  if (building?.roomPresets) delete building.roomPresets[key];
+}
+
+export const presetInfl = (key) => ({ ...structuredClone(NORMAL), ...structuredClone(presetOf(key)?.infl || {}) });
 
 /** Template guessed from a room name ("Badkamer 1" → bathroom). */
 export function guessPreset(name) {
   const n = String(name || '').toLowerCase();
+  const own = Object.entries(CUSTOM).find(([k, v]) => !PRESETS[k] && n.includes(v.label.toLowerCase()));
+  if (own) return own[0];
   const rules = [[/bad|douche|sauna/, 'bathroom'], [/keuken|kitchen|cuisine/, 'kitchen'], [/wc|toilet/, 'wc'], [/was|berging|bijkeuken/, 'laundry'],
     [/kelder/, 'cellar'], [/zolder/, 'attic'], [/garage|carport/, 'garage'], [/techn|stook|ketel|boiler/, 'technical'], [/terras|veranda/, 'terrace'], [/buiten|tuin|oprit/, 'outside']];
   return rules.find(([re]) => re.test(n))?.[1] || 'normal';
@@ -69,7 +113,7 @@ export function deviations(room) {
   return out;
 }
 
-export const roomColor = (room) => room.color || PRESETS[room.preset]?.color || '#dbeafe';
+export const roomColor = (room) => room.color || presetOf(room.preset)?.color || '#dbeafe';
 
 // ---------- geometry ----------
 

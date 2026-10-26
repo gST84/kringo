@@ -246,7 +246,8 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
    - **Ruimte**: klik in een kamer. Kringo zoekt de omtrek tussen de muren; verplaats je later een muur, dan past de ruimte zich aan.
    - **Ruimte (hoeken)**: voor ruimtes zonder muren rondom (open keuken, buiten). Klik de hoeken; een hoek op een muurhoek blijft aan die muur hangen en beweegt mee. Sluit met het eerste punt, dubbelklik of Enter.
 2. Geef een **naam**. Uit de naam kiest Kringo een **sjabloon** (keuken, badkamer, garage, technische ruimte, terras …) dat de codes invult; dat kan je achteraf wijzigen.
-3. In de eigenschappen klik je per code de **klassen** aan – meerdere tegelijk mag (bv. AA 4,5,8). Codes die afwijken van een normaal lokaal zijn gemarkeerd en staan op het plan onder de naam en de oppervlakte.
+3. In de eigenschappen klap je een code open en klik je de **klassen** aan (groen = gekozen), elk met hun omschrijving – meerdere tegelijk mag (bv. AA 4, 5 en 8). Codes die afwijken van een normaal lokaal zijn gemarkeerd en staan op het plan onder de naam en de oppervlakte.
+   Met **★ Opslaan als sjabloon…** bewaar je de instellingen van een ruimte (codes, publiek toegankelijk, kleur) als eigen sjabloon. Het staat dan met ★ in de lijst, in elk project op deze computer, en wordt ook in het project zelf bewaard. Een nieuwe ruimte waarvan de naam het sjabloon bevat, krijgt het automatisch. **Sjabloon verwijderen** haalt het weg; ruimtes houden hun waarden.
 
    ![Ruimtes met kleur, oppervlakte en afwijkende codes; rechts de uitwendige invloeden](img/rooms.png)
 
