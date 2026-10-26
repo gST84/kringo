@@ -264,7 +264,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 1. Zet een **Verdeelbord** (Energie) op het grondplan. Met meerdere borden kies je in de eigenschappen van het symbool welk bord het is.
 2. Klik bovenaan op **Kabels** en dan op **Kabeltrace genereren**. Per kring loopt een route van het verdeelbord naar het eerste punt en daarna van punt naar punt, in de volgorde van de nummers (bij hetzelfde nummer eerst de schakelaar, dan de lampen). Elk domotica-uitgangskanaal krijgt een eigen kabel vanaf het bord. De DC-kant van zonnepanelen telt niet mee.
-3. De kabels gaan enkel door **deuren, deuropeningen, schuifdeuren en garagepoorten** – niet door muren of ramen, en niet buiten het gebouw om. Elke kring krijgt een kleur; de kabel vanaf het bord is dikker en draagt de naam van de kring. Met het vinkje **kabels** in de werkbalk zet je de overlay aan of uit.
+3. De kabels gaan enkel door **deuren, deuropeningen, schuifdeuren en garagepoorten** – niet door muren of ramen, en niet buiten het gebouw om. De kabels lopen met rechte hoeken, liefst op 20–30 cm van de muren, en waar ze dezelfde weg nemen liggen ze mooi gebundeld naast elkaar. Elke kring krijgt een kleur; de kabel vanaf het bord is dikker en draagt de naam van de kring. Met het vinkje **kabels** in de werkbalk zet je de overlay aan of uit.
 
    ![Kabeltrace op het grondplan](img/cables-plan.png)
 
@@ -273,7 +273,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
    ![Kabellengtes per type en per kring](img/cables.png)
 
-> Het is een schatting: de routes lopen in rechte lijnen door de ruimtes. Wijzig je het plan of de kringen, dan meldt Kringo dat je opnieuw moet genereren.
+> Het is een schatting: de routes volgen een raster van 10 cm door de ruimtes. Wijzig je het plan of de kringen, dan meldt Kringo dat je opnieuw moet genereren.
 
 ## 7. Stuurkast
 

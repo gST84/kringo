@@ -464,18 +464,29 @@ function traceSvg(b, floor, k, sw) {
     const col = traceColor(b, tr.c);
     s += `<polyline class="ptrace" points="${pts(tr.pts)}" style="stroke:${col};stroke-width:${sw * (tr.home ? 3.2 : 2)}"/>`;
   }
+  // circuit name on every run from the board: on a long piece, away from the labels already placed
+  const placed = [];
+  const syms = floor.symbols.map((x) => [x.x, x.y]);
   for (const tr of list) {
     if (!tr.home || tr.pts.length < 2) continue;
-    // label on the middle of the longest segment
-    let best = 0, bi = 1;
+    let best = null;
     for (let i = 1; i < tr.pts.length; i++) {
-      const d = Math.hypot(tr.pts[i][0] - tr.pts[i - 1][0], tr.pts[i][1] - tr.pts[i - 1][1]);
-      if (d > best) { best = d; bi = i; }
+      const [ax, ay] = tr.pts[i - 1], [bx, by] = tr.pts[i];
+      const len = Math.hypot(bx - ax, by - ay);
+      if (len < 20) continue;
+      for (const f of [0.25, 0.5, 0.75]) {
+        const x = ax + (bx - ax) * f, y = ay + (by - ay) * f;
+        const free = Math.min(300, ...placed.map(([px, py]) => Math.hypot(px - x, py - y)));
+        const clearSym = Math.min(60, ...syms.map(([px, py]) => Math.hypot(px - x, py - y)));
+        const score = free * 2 + Math.min(len, 300) * 0.3 + clearSym * 4;
+        if (!best || score > best.score) best = { score, x, y };
+      }
     }
-    const [x, y] = [(tr.pts[bi][0] + tr.pts[bi - 1][0]) / 2, (tr.pts[bi][1] + tr.pts[bi - 1][1]) / 2];
+    if (!best) continue;
+    placed.push([best.x, best.y]);
     const name = names.get(tr.c) || '';
     const w = Math.max(5.2, name.length * 1.5 + 2);
-    s += `<g transform="translate(${r2(x)} ${r2(y)}) scale(${1 / k})"><rect x="${r2(-w / 2)}" y="-1.7" width="${r2(w)}" height="3.4" rx="0.8" style="fill:${traceColor(b, tr.c)}"/>${textSvg(0, 0, name, 2.2, 'middle', 'tx ptracetx', ' style="dominant-baseline:central"')}</g>`;
+    s += `<g transform="translate(${r2(best.x)} ${r2(best.y)}) scale(${1 / k})"><rect x="${r2(-w / 2)}" y="-1.7" width="${r2(w)}" height="3.4" rx="0.8" style="fill:${traceColor(b, tr.c)}"/>${textSvg(0, 0, name, 2.2, 'middle', 'tx ptracetx', ' style="dominant-baseline:central"')}</g>`;
   }
   return s + '</g>';
 }

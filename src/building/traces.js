@@ -77,6 +77,7 @@ function raster(floor, extra) {
   const grid = new Uint8Array(R.W * R.H);
   for (const p of polys) fillPoly(grid, R, p, 1);
   R.grid = grid;
+  R.used = new Uint8Array(R.W * R.H);
   // outside: flood fill from the border; when that reaches everything the building is not closed
   const out = new Uint8Array(R.W * R.H);
   const stack = [];
@@ -106,6 +107,21 @@ function raster(floor, extra) {
     if (b <= a) continue;
     fillPoly(grid, R, [...wallPath(w, a, b, half, g), ...wallPath(w, b, a, -half, g)], 0, 1); // wall cells only, not outside
   }
+  // free cells 20–30 cm from a wall: cables like to run there (not right against it, so a bundle fits)
+  R.nearWall = new Uint8Array(R.W * R.H);
+  const tooClose = new Uint8Array(R.W * R.H);
+  const ring = (reach, arr) => {
+    for (let j = 0; j < R.H; j++) for (let i = 0; i < R.W; i++) {
+      if (grid[j * R.W + i] !== 1) continue;
+      for (let dj = -reach; dj <= reach; dj++) for (let di = -reach; di <= reach; di++) {
+        const ni = i + di, nj = j + dj;
+        if (ni >= 0 && nj >= 0 && ni < R.W && nj < R.H) arr[nj * R.W + ni] = 1;
+      }
+    }
+  };
+  ring(3, R.nearWall);
+  ring(1, tooClose);
+  for (let c = 0; c < grid.length; c++) if (tooClose[c]) R.nearWall[c] = 0;
   return R;
 }
 
@@ -135,21 +151,23 @@ function snap(R, x, y) {
   return best;
 }
 
-/** A* over the raster (8 directions, no corner cutting); returns cell indices or null. */
+/**
+ * A* over the raster with right angles only. The state is cell + direction, so every bend costs extra;
+ * cells along walls and cells that already carry a cable are cheaper, so cables follow the walls and
+ * bundle. Returns the cell indices or null.
+ */
 function astar(R, from, to) {
-  const { W, H, grid } = R;
-  const g = new Float64Array(W * H).fill(Infinity);
-  const prev = new Int32Array(W * H).fill(-1);
-  const closed = new Uint8Array(W * H);
+  const { W, H, grid, nearWall, used } = R;
+  const N = W * H * 4;
+  const g = new Float64Array(N).fill(Infinity);
+  const prev = new Int32Array(N).fill(-1);
+  const closed = new Uint8Array(N);
   const ti = to % W, tj = Math.floor(to / W);
-  const hcost = (c) => {
-    const dx = Math.abs((c % W) - ti), dy = Math.abs(Math.floor(c / W) - tj);
-    return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy);
-  };
-  // binary heap of [f, cell]
+  const MIN = 0.4; // cheapest step (bundle along a wall)
+  const hcost = (c) => (Math.abs((c % W) - ti) + Math.abs(Math.floor(c / W) - tj)) * MIN;
   const heap = [];
-  const pushH = (f, c) => {
-    heap.push([f, c]);
+  const pushH = (f, st) => {
+    heap.push([f, st]);
     let i = heap.length - 1;
     while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; }
   };
@@ -169,62 +187,113 @@ function astar(R, from, to) {
     }
     return top;
   };
-  g[from] = 0;
-  pushH(hcost(from), from);
-  const DIRS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2]];
+  if (from === to) return [from];
+  for (let d = 0; d < 4; d++) { g[from * 4 + d] = 0; pushH(hcost(from), from * 4 + d); }
+  const DI = [1, -1, 0, 0], DJ = [0, 0, 1, -1];
+  const TURN = 3;
+  let end = -1;
   while (heap.length) {
-    const [, c] = popH();
-    if (closed[c]) continue;
-    if (c === to) break;
-    closed[c] = 1;
-    const i = c % W, j = Math.floor(c / W);
-    for (const [di, dj, cost] of DIRS) {
-      const ni = i + di, nj = j + dj;
+    const [, st] = popH();
+    if (closed[st]) continue;
+    closed[st] = 1;
+    const c = st >> 2, d = st & 3;
+    if (c === to) { end = st; break; }
+    const i = c % W, j = (c - i) / W;
+    for (let nd = 0; nd < 4; nd++) {
+      if ((nd ^ 1) === d) continue; // no turning back
+      const ni = i + DI[nd], nj = j + DJ[nd];
       if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
       const n = nj * W + ni;
-      if (grid[n] || closed[n]) continue;
-      if (di && dj && (grid[j * W + ni] || grid[nj * W + i])) continue; // no corner cutting
-      const ng = g[c] + cost;
-      if (ng < g[n]) { g[n] = ng; prev[n] = c; pushH(ng + hcost(n), n); }
+      if (grid[n]) continue;
+      const ns = n * 4 + nd;
+      if (closed[ns]) continue;
+      const step = (nearWall[n] ? 0.8 : 1) * (used[n] ? 0.5 : 1) + (nd === d ? 0 : TURN);
+      const ng = g[st] + step;
+      if (ng < g[ns]) { g[ns] = ng; prev[ns] = st; pushH(ng + hcost(n), ns); }
     }
   }
-  if (from !== to && prev[to] < 0) return null;
-  const path = [to];
-  while (path[path.length - 1] !== from) path.push(prev[path[path.length - 1]]);
+  if (end < 0) return null;
+  const path = [];
+  for (let st = end; st >= 0; st = prev[st]) { path.push(st >> 2); if (g[st] === 0) break; }
   return path.reverse();
 }
 
-/** True when the straight line between two points only crosses free cells. */
-function clear(R, [ax, ay], [bx, by]) {
-  const n = Math.ceil(Math.hypot(bx - ax, by - ay) / (CELL / 3));
-  for (let k = 1; k < n; k++) {
-    const x = ax + ((bx - ax) * k) / n, y = ay + ((by - ay) * k) / n;
-    const i = Math.floor((x - R.x0) / CELL), j = Math.floor((y - R.y0) / CELL);
-    if (i < 0 || j < 0 || i >= R.W || j >= R.H || R.grid[j * R.W + i]) return false;
-  }
-  return true;
-}
-
-/** Route between two plan points on one floor: [[x, y] …] or null. */
+/** Route between two plan points on one floor: {cells, a, b} or null. Marks its cells as used. */
 function route(R, a, b) {
   const ca = snap(R, a[0], a[1]), cb = snap(R, b[0], b[1]);
   if (ca < 0 || cb < 0) return null;
   const cells = astar(R, ca, cb);
   if (!cells) return null;
-  const pts = cells.map((c) => centre(R, c));
-  // string pulling: keep only the corners that are needed
-  const out = [pts[0]];
-  let i = 0;
-  while (i < pts.length - 1) {
-    let j = pts.length - 1;
-    while (j > i + 1 && !clear(R, pts[i], pts[j])) j--;
-    out.push(pts[j]);
-    i = j;
-  }
-  return [a, ...out, b];
+  for (const c of cells) R.used[c] = 1;
+  return { cells, a, b };
 }
 
-const plen = (pts) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0), 0);
+
+/** Right-angled connection from a symbol to the first / last point of its route. */
+function elbow(from, to, arriveVertical) {
+  if (Math.abs(from[0] - to[0]) < 0.5 || Math.abs(from[1] - to[1]) < 0.5) return [from];
+  return [from, arriveVertical ? [to[0], from[1]] : [from[0], to[1]]];
+}
+
+const SPACING = 4; // cm between bundled cables
+
+/**
+ * Turns the routes of one floor into drawn polylines: cables that share a piece of the raster lie
+ * side by side (a fixed order per bundle), with small steps where a bundle changes.
+ */
+function bundle(R, routes) {
+  const edges = new Map();
+  const ek = (c1, c2) => (c1 < c2 ? c1 * 2 + (c2 - c1 === 1 ? 0 : 1) : c2 * 2 + (c1 - c2 === 1 ? 0 : 1));
+  routes.forEach((rt, idx) => {
+    for (let k = 0; k + 1 < rt.cells.length; k++) {
+      const key = ek(rt.cells[k], rt.cells[k + 1]);
+      if (!edges.has(key)) edges.set(key, []);
+      const list = edges.get(key);
+      if (!list.includes(idx)) list.push(idx);
+    }
+  });
+  return routes.map((rt, idx) => {
+    const { cells, a, b } = rt;
+    const P = cells.map((c) => centre(R, c));
+    if (cells.length < 2) {
+      const m = P[0];
+      return [...elbow(a, m, false), m, ...elbow(b, m, true).reverse()];
+    }
+    const dir = [], off = [];
+    for (let k = 0; k + 1 < cells.length; k++) {
+      const horizontal = Math.abs(cells[k + 1] - cells[k]) === 1;
+      const list = edges.get(ek(cells[k], cells[k + 1]));
+      dir.push(horizontal ? 'h' : 'v');
+      off.push((list.indexOf(idx) - (list.length - 1) / 2) * SPACING);
+    }
+    // offset of a point: horizontal pieces shift in y, vertical pieces in x
+    const shift = (p, d, o) => (d === 'h' ? [p[0], p[1] + o] : [p[0] + o, p[1]]);
+    const out = [shift(P[0], dir[0], off[0])];
+    for (let k = 1; k + 1 < P.length; k++) {
+      const d1 = dir[k - 1], d2 = dir[k], o1 = off[k - 1], o2 = off[k];
+      if (d1 === d2) {
+        if (o1 !== o2) { out.push(shift(P[k], d1, o1), shift(P[k], d2, o2)); }
+      } else {
+        out.push(d1 === 'h' ? [P[k][0] + o2, P[k][1] + o1] : [P[k][0] + o1, P[k][1] + o2]);
+      }
+    }
+    out.push(shift(P.at(-1), dir.at(-1), off.at(-1)));
+    const first = out[0], last = out.at(-1);
+    const pts = [...elbow(a, first, dir[0] === 'h'), ...out, ...elbow(b, last, dir.at(-1) === 'h').reverse()];
+    // drop points on a straight line
+    return pts.filter((p, i) => {
+      if (i === 0 || i === pts.length - 1) return true;
+      const q = pts[i - 1], r = pts[i + 1];
+      return Math.abs((p[0] - q[0]) * (r[1] - q[1]) - (p[1] - q[1]) * (r[0] - q[0])) > 0.01;
+    });
+  });
+}
+
+/** Length of a route along the raster (without the bundle offsets). */
+const routeLen = (R, rt) => {
+  const P = rt.cells.map((c) => centre(R, c));
+  return Math.abs(rt.a[0] - P[0][0]) + Math.abs(rt.a[1] - P[0][1]) + (rt.cells.length - 1) * CELL + Math.abs(rt.b[0] - P.at(-1)[0]) + Math.abs(rt.b[1] - P.at(-1)[1]);
+};
 
 // ---------- generation ----------
 
@@ -271,7 +340,8 @@ export function generateTraces(b, lib) {
   const floors = {};
   const rows = [];
   const warnings = [];
-  const add = (f, c, pts, home) => (floors[f.id] ||= []).push({ c, pts: pts.map(([x, y]) => [Math.round(x), Math.round(y)]), home });
+  const routed = new Map(); // floorId → [{c, home, cells, a, b}]
+  const add = (f, c, rt, home) => { if (!routed.has(f.id)) routed.set(f.id, []); routed.get(f.id).push({ ...rt, c, home }); };
 
   for (const c of b.circuits) {
     // DC side of a PV installation (panels, MPPT, busbar, battery) is not on the AC circuit cable
@@ -295,16 +365,16 @@ export function generateTraces(b, lib) {
       const pa = [A.s.x, A.s.y], pb = [B.s.x, B.s.y];
       if (fa === fb) {
         const R = rasterOf(A.floor);
-        const pts = R && route(R, pa, pb);
-        if (pts) { horiz += plen(pts); add(A.floor, c.id, pts, home); } else { failed++; horiz += Math.hypot(pb[0] - pa[0], pb[1] - pa[1]); }
+        const rt = R && route(R, pa, pb);
+        if (rt) { horiz += routeLen(R, rt); add(A.floor, c.id, rt, home); } else { failed++; horiz += Math.abs(pb[0] - pa[0]) + Math.abs(pb[1] - pa[1]); }
         vert += drop(H(A), H(B)) + 2 * cfg.box;
         return;
       }
       const riser = bs ? [bs.s.x, bs.s.y] : pa;
       const Ra = rasterOf(A.floor), Rb = rasterOf(B.floor);
       const p1 = Ra && route(Ra, pa, riser), p2 = Rb && route(Rb, riser, pb);
-      if (p1) { horiz += plen(p1); add(A.floor, c.id, p1, home); } else failed++;
-      if (p2) { horiz += plen(p2); add(B.floor, c.id, p2, home); } else failed++;
+      if (p1) { horiz += routeLen(Ra, p1); add(A.floor, c.id, p1, home); } else failed++;
+      if (p2) { horiz += routeLen(Rb, p2); add(B.floor, c.id, p2, home); } else failed++;
       // riser: from A's height to B's height over the floors in between
       vert += Math.abs(fb - fa) * cfg.storey + Math.abs(H(B) - H(A)) + 2 * cfg.box;
     };
@@ -320,6 +390,12 @@ export function generateTraces(b, lib) {
     if (failed) warnings.push(t('Kring {c}: {n} stuk(ken) zonder doorgang (deur / opening) – rechte lijn gerekend.', { c: c.name, n: failed }));
     const total = Math.ceil(((horiz + vert) / 100) * (1 + cfg.reserve / 100));
     rows.push({ circuit: c.id, name: c.name, desc: c.desc || '', cable: cableText(c), points: syms.length, horiz: horiz / 100, vert: vert / 100, total });
+  }
+  // draw: bundled, right-angled polylines per floor
+  for (const [fid, list] of routed) {
+    const R = rasters.get(fid);
+    const lines = bundle(R, list);
+    floors[fid] = list.map((rt, i) => ({ c: rt.c, home: rt.home, pts: lines[i].map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) }));
   }
   const closedFloors = b.floors.filter((f) => rasters.has(f.id) && rasters.get(f.id) && !rasters.get(f.id).closed);
   for (const f of closedFloors) warnings.push(t('{f}: de buitenmuren zijn niet gesloten – kabels kunnen buitenom lopen.', { f: f.name }));
