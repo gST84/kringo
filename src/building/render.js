@@ -342,14 +342,27 @@ function stripSvg(sym, k, building, sel, opts) {
   const label = c ? `${c.name}${sym.n ?? ''}` : '';
   if (label || (opts.showRooms && sym.props?.room) || domKey(sym)) {
     s += `<g transform="translate(${r2(P[0][0])} ${r2(P[0][1])}) scale(${r2(mm)})">`;
-    if (label) s += textSvg(1.8, -2.4, label, 2, 'start', 'tx clabel');
-    if (opts.showRooms && sym.props?.room) s += textSvg(1.8, -4.5, sym.props.room, 1.5, 'start', 'tx croom');
+    const parts = [];
+    if (label) parts.push([label, traceColor(building, sym.circuit)]);
     const dom = domAddress(building, sym);
-    if (dom) s += textSvg(label ? 1.8 + label.length * 1.45 + 1 : 1.8, -2.4, dom, 1.7, 'start', 'tx cdom');
+    if (dom) parts.push([dom, '#7c3aed']);
+    s += labelBlock(parts, 1.8, -3);
     s += '</g>';
   }
   if (!opts.print) s += `<polyline class="hit" points="${d}" style="fill:none;stroke-width:${r2(4 * mm)}"/>`;
   return s + '</g>';
+}
+
+/** Labels of a symbol as small coloured blocks with white text (like the cable labels): [[text, colour]]. */
+function labelBlock(parts, x, y) {
+  let s = '';
+  for (const [text, color] of parts) {
+    const w = String(text).length * 1.3 + 1.4;
+    s += `<rect x="${r2(x)}" y="${r2(y - 1.5)}" width="${r2(w)}" height="3" rx="0.6" style="fill:${color};stroke:none"/>`;
+    s += textSvg(x + w / 2, y, text, 2, 'middle', 'tx plbltx', ' style="dominant-baseline:central;fill:#fff;font-weight:bold"');
+    x += w + 0.6;
+  }
+  return s;
 }
 
 /** One installation symbol at plan position, drawn at paper size. */
@@ -360,13 +373,15 @@ function symbolSvg(sym, def, k, building, sel, opts) {
   let shapes = '';
   for (const g of geom.graphics || []) shapes += g.t === 'text' ? textSvg(g.x, g.y, g.text, g.size, g.anchor) : shapeSvg(g);
   let s = `<g class="psym${sel ? ' sel' : ''}" data-k="A:${sym.id}" transform="translate(${r2(sym.x)} ${r2(sym.y)}) scale(${inv})">`;
-  s += `<g transform="rotate(${sym.rot || 0})">${shapes}</g>`;
   const c = building.circuits.find((x) => x.id === sym.circuit);
   const label = c ? `${c.name}${sym.n ?? ''}` : '';
-  if (label) s += textSvg(3.6, -3.2, label, 2, 'start', 'tx clabel');
-  if (opts.showRooms && sym.props?.room) s += textSvg(3.6, -0.8, sym.props.room, 1.5, 'start', 'tx croom');
+  const parts = [];
+  if (label) parts.push([label, traceColor(building, sym.circuit)]);
   const dom = domAddress(building, sym);
-  if (dom) s += textSvg(3.6, opts.showRooms && sym.props?.room ? 1.2 : -0.9, dom, 1.7, 'start', 'tx cdom');
+  if (dom) parts.push([dom, '#7c3aed']);
+  s += labelBlock(parts, 3.4, -3.4);
+  // the symbol on top of its label box
+  s += `<g transform="rotate(${sym.rot || 0})">${shapes}</g>`;
   if (!opts.print) s += `<circle class="hit" cx="0" cy="0" r="4.5"/>`;
   return s + '</g>';
 }
