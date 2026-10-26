@@ -494,8 +494,8 @@ function floorProps(app, plan) {
 
 // ---------- rooms and external influences ----------
 
-/** Codes that are unfolded in the room panel (kept while the panel re-renders). */
-const openInfl = new Set();
+/** The code that is unfolded in the room panel (only one at a time; kept while the panel re-renders). */
+let openInfl = null;
 
 /** Room: name, template, public access and the classes of every external influence (several allowed). */
 function roomProps(app, plan, r) {
@@ -506,11 +506,16 @@ function roomProps(app, plan, r) {
   const rows = INFLUENCES.map(([code, name, classes]) => {
     const cur = r.infl?.[code] || NORMAL[code];
     const differs = cur.join(',') !== NORMAL[code].join(',');
-    return h('details', {
-      class: 'inflrow' + (differs ? ' differs' : ''), open: openInfl.has(code),
-      ontoggle: (e) => { if (e.target.open) openInfl.add(code); else openInfl.delete(code); },
-    },
-      h('summary', { title: t(name) },
+    return h('details', { class: 'inflrow' + (differs ? ' differs' : ''), open: openInfl === code },
+      h('summary', {
+        title: t(name),
+        onclick: (e) => {
+          // accordion: one code open at a time
+          e.preventDefault();
+          openInfl = openInfl === code ? null : code;
+          for (const d of e.currentTarget.closest('.infl').children) d.open = d === e.currentTarget.parentElement && openInfl === code;
+        },
+      },
         h('span', { class: 'inflcode' }, code),
         h('span', { class: 'inflname' }, t(name)),
         h('span', { class: 'inflval' }, cur.map((n) => h('span', { class: 'inflchip on' }, String(n))))),

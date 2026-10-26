@@ -50,6 +50,11 @@ for p, text in src.items():
             if len(re.findall(r'\b' + re.escape(local) + r'\b', text)) < 2:
                 errors.append(f'{p}: import {local} wordt niet gebruikt')
 
+_v = re.search(r"APP_VERSION = (\d+)", src.get('src/version.js', ''))
+_s = re.search(r"VERSION = 'kringo-v(\d+)'", open('sw.js', encoding='utf-8').read())
+if not _v or not _s or _v.group(1) != _s.group(1):
+    errors.append('src/version.js APP_VERSION en sw.js VERSION verschillen')
+
 if errors:
     print('\n'.join(errors))
     sys.exit(1)

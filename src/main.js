@@ -21,6 +21,7 @@ import { cursorIcon, DONATE_URL, h, icon, MANUAL_URL } from './util.js';
 
 import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
 import { initSplitters } from './ui/splitters.js';
+import { versionButton } from './version.js';
 startAutoTranslate();
 const lib = new Library();
 await lib.init();
@@ -71,7 +72,8 @@ $('#top').append(
   kindEl,
   h('select', { class: 'langsel', title: 'Taal', onchange: (e) => setLang(e.target.value) },
     Object.entries(LANGS).map(([k, name]) => h('option', { value: k, selected: k === lang }, `🌐 ${k.toUpperCase()} – ${name}`))),
-  btn('♥ Steun', 'Kringo is gratis – steun de ontwikkeling via Ko-fi', () => window.open(DONATE_URL, '_blank', 'noopener'), 'donatebtn'));
+  btn('♥ Steun', 'Kringo is gratis – steun de ontwikkeling via Ko-fi', () => window.open(DONATE_URL, '_blank', 'noopener'), 'donatebtn'),
+  versionButton(app));
 
 // tools bar
 const tools = [

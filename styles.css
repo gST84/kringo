@@ -10,6 +10,8 @@
   --danger: #c92a2a;
   --sel: #1f6feb;
   --canvas: #c9ced6;
+  --infl-diff: #ccfbf1;
+  --infl-on: #0f766e;
   font: 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--text);
 }
@@ -17,6 +19,7 @@
   :root {
     --bg: #161a20; --panel: #1f242c; --panel2: #262c35; --line: #353c47; --text: #e4e8ee; --muted: #93a0b2;
     --accent: #5b9bff; --accent-soft: #24344f; --canvas: #2a3038;
+    --infl-diff: #173b3a; --infl-on: #0d9488;
   }
 }
 * { box-sizing: border-box; }
@@ -374,6 +377,8 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 
 /* ---------- donate ---------- */
 .donatebtn { color: #d6336c; }
+.versionbtn { background: none; border: none; color: var(--muted); font-size: 12px; padding: 4px 6px; }
+.versionbtn:hover { color: var(--accent); text-decoration: underline; }
 .startscreen .donate { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .startscreen .donate a { color: #d6336c; font-weight: 600; text-decoration: none; }
 .startscreen .donate a:hover { text-decoration: underline; }
@@ -452,7 +457,7 @@ button .icon svg { display: block; }
 
 .infl { display: flex; flex-direction: column; gap: 2px; }
 .infl .inflrow { border-radius: 6px; }
-.infl .inflrow.differs { background: #ccfbf1; }
+.infl .inflrow.differs { background: var(--infl-diff); }
 .infl .inflrow > summary { display: grid; grid-template-columns: 12px 26px 1fr auto; gap: 4px; align-items: center; padding: 3px 4px; cursor: pointer; list-style: none; }
 .infl .inflrow > summary::-webkit-details-marker { display: none; }
 .infl .inflrow > summary::before { content: '▸'; font-size: 10px; color: var(--muted); }
@@ -461,12 +466,12 @@ button .icon svg { display: block; }
 .infl .inflname { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .infl .inflval { display: flex; gap: 2px; }
 .infl .inflchip { min-width: 20px; height: 20px; padding: 0 4px; font-size: 11px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; }
-.infl .inflval .inflchip { min-width: 16px; height: 16px; font-size: 10px; border: 1px solid #0f766e; }
-.infl .inflchip.on { background: #0f766e; color: #fff; border-color: #0f766e; }
+.infl .inflval .inflchip { min-width: 16px; height: 16px; font-size: 10px; border: 1px solid var(--infl-on); }
+.infl .inflchip.on { background: var(--infl-on); color: #fff; border-color: var(--infl-on); }
 .infl .inflopts { display: flex; flex-direction: column; gap: 2px; padding: 0 4px 6px 20px; }
 .infl .inflopt { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: center; font-size: 11.5px; cursor: pointer; padding: 1px 2px; border-radius: 4px; }
 .infl .inflopt:hover { background: rgba(15, 118, 110, 0.08); }
-.infltable td.differs { background: #ccfbf1; font-weight: 600; }
+.infltable td.differs { background: var(--infl-diff); font-weight: 600; }
 .infltable td, .infltable th { text-align: center; }
 .infltable td:first-child, .infltable th:first-child { text-align: left; }
 .inflmeta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }

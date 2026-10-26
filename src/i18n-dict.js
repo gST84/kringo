@@ -895,4 +895,13 @@ export const DICT = [
   ["Sjabloon \"{n}\" opgeslagen", "Modèle « {n} » enregistré", "Template \"{n}\" saved"],
   ["Sjabloon verwijderen", "Supprimer le modèle", "Delete template"],
   ["Het eigen sjabloon \"{n}\" verwijderen? Ruimtes behouden hun waarden.", "Supprimer le modèle « {n} » ? Les locaux gardent leurs valeurs.", "Delete the template \"{n}\"? Rooms keep their values."],
+  ["Versie – klik om de nieuwste versie te laden", "Version – cliquez pour charger la dernière version", "Version – click to load the newest version"],
+  ["niet bereikbaar (offline?)", "injoignable (hors ligne ?)", "unreachable (offline?)"],
+  ["v{n} – nieuwer!", "v{n} – plus récente !", "v{n} – newer!"],
+  ["v{n} – je bent up-to-date", "v{n} – vous êtes à jour", "v{n} – you are up to date"],
+  ["Pagina vernieuwen", "Actualiser la page", "Refresh page"],
+  ["Deze versie", "Cette version", "This version"],
+  ["Online", "En ligne", "Online"],
+  ["De pagina wordt volledig herladen (zonder cache), zodat je zeker de laatste versie krijgt. Je project blijft bewaard.", "La page est entièrement rechargée (sans cache) pour obtenir la dernière version. Votre projet est conservé.", "The page is fully reloaded (without cache) so you surely get the latest version. Your project is kept."],
+  ["Vernieuwen", "Actualiser", "Refresh"],
 ];
