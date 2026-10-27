@@ -10,6 +10,9 @@ import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
 import { dimGeom, hasLeaf, OPENING_TYPES, pathLength, traceColor } from './render.js';
 import { loadBackground } from './background.js';
+import { alignItems, alignSelection, ALIGN_MODES } from './align.js';
+
+let alignGap = null; // fixed spacing (cm) for distributing, or null = spread evenly between the outer ones
 import { allPresets, deleteRoomPreset, INFLUENCES, isCustomPreset, NORMAL, presetInfl, presetOf, roomArea, roomPolygon, saveRoomPreset } from './rooms.js';
 import { generateInfluences, influenceRows } from './influences.js';
 import { cableTotals, generateTraces, symbolHeight, traceCfg, TRACE_FIELDS, traceKey } from './traces.js';
@@ -164,6 +167,26 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
 
 // ---------- properties ----------
 
+/** Align / distribute buttons for two or more selected symbols and texts. */
+function alignBlock(app, f) {
+  const items = alignItems(f, app.sel);
+  if (items.length < 2) return null;
+  const btn = ([mode, title, svg]) => {
+    const dist = mode.startsWith('dist');
+    const b = h('button', {
+      class: 'alignbtn', title: t(title), disabled: dist && items.length < (alignGap > 0 ? 2 : 3),
+      onclick: () => app.mutate(() => alignSelection(alignItems(f, app.sel), mode, dist ? alignGap : null)),
+    });
+    b.innerHTML = svg;
+    return b;
+  };
+  return h('div', { class: 'alignblock' },
+    h('label', null, t('Uitlijnen')),
+    h('div', { class: 'alignrow' }, ...ALIGN_MODES.map(btn)),
+    field('Afstand bij verdelen (cm)', inp(alignGap ?? '', (v) => { alignGap = v > 0 ? v : null; app.emit('change'); }, { type: 'number', key: 'agap', placeholder: t('gelijk verdelen') }),
+      'Leeg: gelijk verdelen tussen de buitenste. Ingevuld: vaste afstand vanaf het eerste (links / boven).'));
+}
+
 export function buildingProps(app, plan) {
   const b = app.project.building;
   const f = app.floor;
@@ -181,6 +204,7 @@ export function buildingProps(app, plan) {
           for (const g of setGroupCircuit(b, f, s.id, v, undefined, app.lib)) done.add(g.id);
         }
       }), 'mcirc')) : null,
+      alignBlock(app, f),
       h('div', { class: 'btnrow' },
         h('button', { onclick: () => plan.rotate() }, '⟳ Draaien (R)'),
         h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')))];

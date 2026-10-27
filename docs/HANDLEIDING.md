@@ -77,6 +77,10 @@ Alle tekentools staan links onder **Grondplan**.
 - **Tekstballon**: klik het punt waarnaar hij wijst, dan de plaats van de ballon, typ de tekst. **Tekstvak**: één klik.
 - **Ruimtenaam** (`T`): klik in een ruimte en typ de naam.
 
+### Uitlijnen en verdelen
+
+Selecteer twee of meer symbolen of ruimtenamen (Shift-klik of een rechthoek slepen). In de eigenschappen staat dan de rij **Uitlijnen**: links, op één verticale lijn, rechts, boven, op één horizontale lijn, onder, en **horizontaal / verticaal gelijk verdelen**. Bij verdelen blijven het eerste en het laatste element staan; vul je *Afstand bij verdelen* in, dan krijgen ze die vaste afstand vanaf het eerste (links / boven).
+
 ### Achtergrond
 
 Zie [voorbeeld F](#f-een-bestaand-plan-overtekenen-pdf-als-achtergrond).
