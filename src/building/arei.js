@@ -1,7 +1,7 @@
 // AREI installation symbols (Belgian house installations), used on floor plans and in single-line
 // diagrams. Coordinates in paper millimetres around (0, 0); the connection point (pin) is at the
 // bottom, which on a plan faces the wall.
-//   kind: light | socket | switch | push | dom-in | dom-out | board | pv | inverter | battery | other
+//   kind: light | socket | switch | push | dom-in | dom-out | board | pv | inverter | battery | data | patch | other
 //   wall: true when the symbol is mounted against a wall (auto-rotates when placed near one)
 
 const L = (x1, y1, x2, y2, o) => ({ t: 'line', x1, y1, x2, y2, ...o });
@@ -149,7 +149,9 @@ export const AREI = [
   // Diversen
   def('bell', 'Bel', 'Diversen', 'other', [P('M -2.5 1 A 2.5 2.5 0 0 1 2.5 1 Z'), L(0, 1, 0, 2.5)], { wall: true, prefix: 'P' }),
   def('smoke', 'Rookmelder', 'Diversen', 'other', [C(0, 0, 2.5), T(0, 0, 'R', 2)], { prefix: 'B' }),
-  def('data', 'Datacontact (UTP)', 'Diversen', 'other', [P('M -2.8 1 L 2.8 1 L 0 -2.6 Z'), L(0, 1, 0, 2.5)], { wall: true, prefix: 'X' }),
+  // data socket: line from the wall to a bar with two short legs pointing away from it (open bracket)
+  def('data', 'Datacontactdoos (UTP)', 'Diversen', 'data', [L(0, 2.5, 0, 0), L(-3, 0, 3, 0), L(-3, 0, -3, -2.6), L(3, 0, 3, -2.6)], { wall: true, prefix: 'X' }),
+  def('patch', 'Patchkast (data)', 'Diversen', 'patch', [R(-4.5, -2.5, 9, 5, WHITE), ...[-3.2, -1.3, 0.6, 2.5].map((x) => R(x, -1.6, 0.9, 1.1, INK)), L(-3.5, 1.1, 3.5, 1.1)], { wall: true, prefix: 'A' }),
   def('tv', 'TV-aansluiting', 'Diversen', 'other', [P('M -3 0 A 3 3 0 0 1 3 0'), L(-3, 0, 3, 0), L(0, 0, 0, 2.5), T(0, -1.2, 'TV', 1.4)], { wall: true, prefix: 'X' }),
   def('junction', 'Aftakdoos', 'Diversen', 'other', [C(0, 0, 1.2, INK)], { pinY: 1.2 }),
 ];

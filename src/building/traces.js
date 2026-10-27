@@ -30,13 +30,17 @@ export const traceCfg = (b) => ({ ...TRACE_DEFAULTS, ...(b.traceCfg || {}) });
 const PASSABLE = new Set(['door', 'door2', 'slide', 'garage']);
 const CELL = 10; // cm
 const DC_KINDS = new Set(['pv', 'mppt', 'dcbus', 'battery']);
+// not on a circuit cable: data sockets (own data cable from the patch cabinet) and bus inputs (bus cable)
+const LOW_KINDS = new Set(['data', 'dom-in']);
+/** Pseudo circuit ids of the low-voltage cables in building.traces. */
+export const DATA_ID = '_data', BUS_ID = '_bus';
 
 /** Mounting height of a symbol in cm (its own height when set). */
 export function symbolHeight(s, def, cfg) {
   if (s.props?.h != null && s.props.h !== '' && Number.isFinite(Number(s.props.h))) return Number(s.props.h);
   const kind = def?.kind;
-  if (kind === 'board') return cfg.board;
-  if (kind === 'socket') return cfg.socket;
+  if (kind === 'board' || kind === 'patch') return cfg.board;
+  if (kind === 'socket' || kind === 'data') return cfg.socket;
   if (!def?.wall && ['light', 'switch', 'dom-in', 'other', 'push'].includes(kind)) return cfg.ceiling; // ceiling light / sensor
   if (kind === 'light') return cfg.wallLight;
   if (kind === 'switch' || kind === 'push' || kind === 'dom-in') return cfg.switch;
@@ -343,16 +347,9 @@ export function generateTraces(b, lib) {
   const routed = new Map(); // floorId → [{c, home, cells, a, b}]
   const add = (f, c, rt, home) => { if (!routed.has(f.id)) routed.set(f.id, []); routed.get(f.id).push({ ...rt, c, home }); };
 
-  for (const c of b.circuits) {
-    // DC side of a PV installation (panels, MPPT, busbar, battery) is not on the AC circuit cable
-    const syms = circuitSymbols(b, c.id).filter((x) => lib.get(x.s.sym) && !DC_KINDS.has(lib.get(x.s.sym).kind));
-    if (!syms.length) continue;
-    // order: by number; within one number switches first (switch → lights)
-    const rank = (x) => (['switch', 'push'].includes(lib.get(x.s.sym)?.kind) ? 0 : 1);
-    syms.sort((p, q) => (p.s.n || 0) - (q.s.n || 0) || rank(p) - rank(q));
-    const bs = boardSymbolFor(b, lib, c.id, boards);
-    if (!bs) warnings.push(t('Kring {c}: geen verdeelbord op het plan – de kabel start bij het eerste punt.', { c: c.name }));
-    let horiz = 0, vert = 0, failed = 0;
+  /** Cable runs for one circuit / cable (accumulates the lengths). */
+  const runner = (id, bs) => {
+    const acc = { horiz: 0, vert: 0, failed: 0 };
     const H = (x) => symbolHeight(x.s, lib.get(x.s.sym), cfg);
     // vertical part of a run between heights ha and hb: via the ceiling when one end is a ceiling point
     const drop = (ha, hb) => {
@@ -360,24 +357,38 @@ export function generateTraces(b, lib) {
       return ceil ? (cfg.ceiling - Math.min(ha, cfg.ceiling)) + (cfg.ceiling - Math.min(hb, cfg.ceiling)) : ha + hb;
     };
     // one run from A to B (possibly over several floors, via the riser at the board)
-    const run = (A, B, home) => {
+    acc.run = (A, B, home) => {
       const fa = floorIdx.get(A.floor.id), fb = floorIdx.get(B.floor.id);
       const pa = [A.s.x, A.s.y], pb = [B.s.x, B.s.y];
       if (fa === fb) {
         const R = rasterOf(A.floor);
         const rt = R && route(R, pa, pb);
-        if (rt) { horiz += routeLen(R, rt); add(A.floor, c.id, rt, home); } else { failed++; horiz += Math.abs(pb[0] - pa[0]) + Math.abs(pb[1] - pa[1]); }
-        vert += drop(H(A), H(B)) + 2 * cfg.box;
+        if (rt) { acc.horiz += routeLen(R, rt); add(A.floor, id, rt, home); } else { acc.failed++; acc.horiz += Math.abs(pb[0] - pa[0]) + Math.abs(pb[1] - pa[1]); }
+        acc.vert += drop(H(A), H(B)) + 2 * cfg.box;
         return;
       }
       const riser = bs ? [bs.s.x, bs.s.y] : pa;
       const Ra = rasterOf(A.floor), Rb = rasterOf(B.floor);
       const p1 = Ra && route(Ra, pa, riser), p2 = Rb && route(Rb, riser, pb);
-      if (p1) { horiz += routeLen(Ra, p1); add(A.floor, c.id, p1, home); } else failed++;
-      if (p2) { horiz += routeLen(Rb, p2); add(B.floor, c.id, p2, home); } else failed++;
+      if (p1) { acc.horiz += routeLen(Ra, p1); add(A.floor, id, p1, home); } else acc.failed++;
+      if (p2) { acc.horiz += routeLen(Rb, p2); add(B.floor, id, p2, home); } else acc.failed++;
       // riser: from A's height to B's height over the floors in between
-      vert += Math.abs(fb - fa) * cfg.storey + Math.abs(H(B) - H(A)) + 2 * cfg.box;
+      acc.vert += Math.abs(fb - fa) * cfg.storey + Math.abs(H(B) - H(A)) + 2 * cfg.box;
     };
+    acc.total = () => Math.ceil(((acc.horiz + acc.vert) / 100) * (1 + cfg.reserve / 100));
+    return acc;
+  };
+
+  for (const c of b.circuits) {
+    // DC side of a PV installation (panels, MPPT, busbar, battery) is not on the AC circuit cable
+    const syms = circuitSymbols(b, c.id).filter((x) => lib.get(x.s.sym) && !DC_KINDS.has(lib.get(x.s.sym).kind) && !LOW_KINDS.has(lib.get(x.s.sym).kind));
+    if (!syms.length) continue;
+    // order: by number; within one number switches first (switch → lights)
+    const rank = (x) => (['switch', 'push'].includes(lib.get(x.s.sym)?.kind) ? 0 : 1);
+    syms.sort((p, q) => (p.s.n || 0) - (q.s.n || 0) || rank(p) - rank(q));
+    const bs = boardSymbolFor(b, lib, c.id, boards);
+    if (!bs) warnings.push(t('Kring {c}: geen verdeelbord op het plan – de kabel start bij het eerste punt.', { c: c.name }));
+    const acc = runner(c.id, bs);
     // a chain board → 1 → 2 → …; every domotics output channel gets its own cable from the board
     const chains = [syms.filter((x) => !x.s.dom)];
     const byDom = new Map();
@@ -385,11 +396,49 @@ export function generateTraces(b, lib) {
     chains.push(...byDom.values());
     for (const list of chains) {
       let prev = bs;
-      for (const x of list) { if (prev) run(prev, x, prev === bs); prev = x; }
+      for (const x of list) { if (prev) acc.run(prev, x, prev === bs); prev = x; }
     }
-    if (failed) warnings.push(t('Kring {c}: {n} stuk(ken) zonder doorgang (deur / opening) – rechte lijn gerekend.', { c: c.name, n: failed }));
-    const total = Math.ceil(((horiz + vert) / 100) * (1 + cfg.reserve / 100));
-    rows.push({ circuit: c.id, name: c.name, desc: c.desc || '', cable: cableText(c), points: syms.length, horiz: horiz / 100, vert: vert / 100, total });
+    if (acc.failed) warnings.push(t('Kring {c}: {n} stuk(ken) zonder doorgang (deur / opening) – rechte lijn gerekend.', { c: c.name, n: acc.failed }));
+    rows.push({ circuit: c.id, name: c.name, desc: c.desc || '', cable: cableText(c), points: syms.length, horiz: acc.horiz / 100, vert: acc.vert / 100, total: acc.total() });
+  }
+
+  // low voltage: every data socket its own cable from the (nearest) patch cabinet; the bus cable runs
+  // from the board along all bus push buttons / sensors (nearest next one, same floor first)
+  const all = [];
+  for (const f of b.floors) for (const s of f.symbols) all.push({ s, floor: f, kind: lib.get(s.sym)?.kind });
+  const dist = (p, q) => (p.floor === q.floor ? 0 : 1e7 * Math.abs(floorIdx.get(p.floor.id) - floorIdx.get(q.floor.id))) + Math.abs(p.s.x - q.s.x) + Math.abs(p.s.y - q.s.y);
+  const datas = all.filter((x) => x.kind === 'data');
+  if (datas.length) {
+    const patches = all.filter((x) => x.kind === 'patch');
+    const mainBoard = boards[0] || null;
+    if (!patches.length) warnings.push(t('Data: geen patchkast op het plan – de datakabels starten bij het verdeelbord.'));
+    const acc = runner(DATA_ID, patches[0] || mainBoard);
+    for (const x of datas) {
+      const from = patches.length ? patches.reduce((m, p) => (dist(p, x) < dist(m, x) ? p : m)) : mainBoard;
+      if (from) acc.run(from, x, true);
+    }
+    if (acc.failed) warnings.push(t('Kring {c}: {n} stuk(ken) zonder doorgang (deur / opening) – rechte lijn gerekend.', { c: t('Data'), n: acc.failed }));
+    if (patches.length || mainBoard) rows.push({ circuit: DATA_ID, name: t('Data'), desc: t('Datacontacten'), cable: t('Datakabel'), points: datas.length, horiz: acc.horiz / 100, vert: acc.vert / 100, total: acc.total() });
+  }
+  const buses = all.filter((x) => x.kind === 'dom-in');
+  if (buses.length) {
+    const start = boards[0] || null;
+    if (!start) warnings.push(t('Bus: geen verdeelbord op het plan – de buskabel start bij de eerste drukknop.'));
+    const acc = runner(BUS_ID, start);
+    const left = [...buses];
+    let prev = start;
+    if (!prev) prev = left.shift();
+    let first = true;
+    while (left.length) {
+      let bi = 0;
+      for (let i = 1; i < left.length; i++) if (dist(prev, left[i]) < dist(prev, left[bi])) bi = i;
+      const next = left.splice(bi, 1)[0];
+      acc.run(prev, next, first && prev === start);
+      first = false;
+      prev = next;
+    }
+    if (acc.failed) warnings.push(t('Kring {c}: {n} stuk(ken) zonder doorgang (deur / opening) – rechte lijn gerekend.', { c: t('Bus'), n: acc.failed }));
+    rows.push({ circuit: BUS_ID, name: t('Bus'), desc: t('Busdrukknoppen en -sensoren'), cable: t('Buskabel'), points: buses.length, horiz: acc.horiz / 100, vert: acc.vert / 100, total: acc.total() });
   }
   // draw: bundled, right-angled polylines per floor
   for (const [fid, list] of routed) {

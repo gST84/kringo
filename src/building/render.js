@@ -476,16 +476,18 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
 }
 
 export const TRACE_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#c2255c', '#7048e8', '#0c8599', '#e67700', '#5c940d', '#ae3ec9', '#1864ab'];
-export const traceColor = (b, circuitId) => TRACE_COLORS[Math.max(0, b.circuits.findIndex((c) => c.id === circuitId)) % TRACE_COLORS.length];
+const LOW_COLORS = { _data: '#0b7285', _bus: '#7c3aed' }; // data cable, bus cable
+export const traceColor = (b, circuitId) => LOW_COLORS[circuitId] || TRACE_COLORS[Math.max(0, b.circuits.findIndex((c) => c.id === circuitId)) % TRACE_COLORS.length];
 
 /** Cable traces: per circuit one colour; the run from the board is thicker and carries the circuit name. */
 function traceSvg(b, floor, k, sw) {
   let s = '<g class="ptraces">';
-  const names = new Map(b.circuits.map((c) => [c.id, c.name]));
+  const names = new Map([...b.circuits.map((c) => [c.id, c.name]), ['_data', t('Data')], ['_bus', t('Bus')]]);
   const list = b.traces.floors[floor.id];
   for (const tr of list) {
     const col = traceColor(b, tr.c);
-    s += `<polyline class="ptrace" points="${pts(tr.pts)}" style="stroke:${col};stroke-width:${sw * (tr.home ? 3.2 : 2)}"/>`;
+    const dash = tr.c === '_data' || tr.c === '_bus' ? `;stroke-dasharray:${r2(3 / k)} ${r2(1.2 / k)};stroke-linecap:butt` : '';
+    s += `<polyline class="ptrace" points="${pts(tr.pts)}" style="stroke:${col};stroke-width:${sw * (tr.home ? 3.2 : 2)}${dash}"/>`;
   }
   // circuit name on every run from the board: on a long piece, away from the labels already placed
   const placed = [];

@@ -275,6 +275,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 4. De lengte = de route op het plan + de verticale stukken naar elke doos (hoogtes onder **Hoogtes en reserve**: verdeelbord, stopcontacten, schakelaars, wandverlichting, toestellen, plafond, verdiepingshoogte) + een extra stuk per aansluiting + de reserve in %. Plafondpunten worden via het plafond bereikt, de andere via de vloer. Een punt kan een eigen **Hoogte (cm)** krijgen in zijn eigenschappen. Punten op een andere verdieping lopen via een stijgleiding op de plaats van het verdeelbord.
 5. Het type kabel komt uit de kring (bv. VOB Eca 3G2,5²). Je krijgt een lijst **per kabeltype** en **per kring**, ook als CSV.
+6. **Data en bus** (gestreepte lijnen): elke **Datacontactdoos** krijgt een eigen **datakabel** vanaf de dichtstbijzijnde **Patchkast** (map *Diversen*; zonder patchkast vanaf het verdeelbord). De **buskabel** loopt vanaf het verdeelbord langs alle domotica-drukknoppen en -sensoren, telkens naar de dichtstbijzijnde volgende. Ze hebben geen kring nodig en staan als *Datakabel* en *Buskabel* in de lijst.
 
    ![Kabellengtes per type en per kring](img/cables.png)
 
