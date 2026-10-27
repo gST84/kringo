@@ -541,6 +541,9 @@ export const DICT = [
 
   // ---------- building: properties ----------
   ['Muur', 'Mur', 'Wall'],
+  ['Ruimtescheiding', 'Séparation de pièces', 'Room divider'],
+  ['Ruimtescheiding (stippellijn)', 'Séparation de pièces (pointillé)', 'Room divider (dashed line)'],
+  ['Een ruimtescheiding is enkel een grens voor de ruimte-tool (bv. zithoek en keuken in één open ruimte). Kabels lopen er gewoon door.', 'Une séparation de pièces n’est qu’une limite pour l’outil pièce (p. ex. salon et cuisine dans un même espace ouvert). Les câbles la traversent librement.', 'A room divider is only a boundary for the room tool (e.g. living area and kitchen in one open space). Cables simply pass through it.'],
   ['Buitenmuur', 'Mur extérieur', 'Outer wall'],
   ['Binnenmuur', 'Mur intérieur', 'Inner wall'],
   ['Dikte (cm)', 'Épaisseur (cm)', 'Thickness (cm)'],

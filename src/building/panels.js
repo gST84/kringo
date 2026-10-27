@@ -191,9 +191,14 @@ export function buildingProps(app, plan) {
     if (!w) return [];
     const g = wallGeom(w);
     const del = h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen');
-    return [section(g.arc ? 'Gebogen muur' : 'Muur',
-      field('Soort', sel(w.kind || 'outer', [['outer', 'Buitenmuur'], ['inner', 'Binnenmuur']], (v) => set(() => { w.kind = v; }), 'wkind')),
-      field('Dikte (cm)', inp(w.t, (v) => set(() => { w.t = Math.max(1, v || 10); }), { type: 'number', key: 'wt' })),
+    const div = w.kind === 'divider';
+    return [section(div ? 'Ruimtescheiding' : g.arc ? 'Gebogen muur' : 'Muur',
+      field('Soort', sel(w.kind || 'outer', [['outer', 'Buitenmuur'], ['inner', 'Binnenmuur'], ['divider', 'Ruimtescheiding (stippellijn)']], (v) => set(() => {
+        if (v === 'divider') { w.t = 1; f.openings = f.openings.filter((o) => o.wall !== w.id); } else if (div) w.t = 14;
+        w.kind = v;
+      }), 'wkind')),
+      div ? h('p', { class: 'hint' }, 'Een ruimtescheiding is enkel een grens voor de ruimte-tool (bv. zithoek en keuken in één open ruimte). Kabels lopen er gewoon door.')
+        : field('Dikte (cm)', inp(w.t, (v) => set(() => { w.t = Math.max(1, v || 10); }), { type: 'number', key: 'wt' })),
       g.arc
         ? h('p', null, t('Lengte (cm)'), ': ', h('b', null, String(Math.round(g.len * 10) / 10)), ' · ', t('straal {r} cm', { r: Math.round(g.r) }))
         : field('Lengte (cm)', inp(Math.round(g.len * 10) / 10, (v) => set(() => {

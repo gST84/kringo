@@ -67,7 +67,7 @@ function fillPoly(grid, R, poly, value, only = -1) {
 
 /** Raster of a floor: 0 = free, 1 = wall, 2 = outside the building. */
 function raster(floor, extra) {
-  const polys = floor.walls.map((w) => wallPolygon(w, floor.walls));
+  const polys = floor.walls.filter((w) => w.kind !== 'divider').map((w) => wallPolygon(w, floor.walls)); // room dividers do not stop cables
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const p of [...polys.flat(), ...extra]) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
   if (!Number.isFinite(x0)) return null;

@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isDivider, wallGeom, wallPath } from './model.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
 /** Sheet millimetres per plan centimetre. */
@@ -30,7 +30,7 @@ function wallEnd(w, g, end, walls) {
   const face = (side) => [P[0] + p.n[0] * t * side, P[1] + p.n[1] * t * side];
   const others = [];
   for (const o of walls || []) {
-    if (o === w || (o.id && o.id === w.id)) continue;
+    if (o === w || (o.id && o.id === w.id) || isDivider(o) !== isDivider(w)) continue;
     for (const oe of [0, 1]) {
       const q = oe ? [o.x2, o.y2] : [o.x1, o.y1];
       if (Math.abs(q[0] - P[0]) <= 0.01 && Math.abs(q[1] - P[1]) <= 0.01) others.push([o, oe]);
@@ -419,7 +419,15 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   // walls: first every wall with a black outline, then every wall filled on top of that, so the
   // outlines disappear where walls meet and the walls read as one whole
   // inner walls first, so outer walls cover them where they meet
-  const polys = [...floor.walls].sort((a, c) => (a.kind === 'inner' ? 0 : 1) - (c.kind === 'inner' ? 0 : 1)).map((w) => [w, pts(wallPolygon(w, floor.walls))]);
+  // room dividers: a dashed line under the walls (with a wide invisible stroke to pick them)
+  for (const w of floor.walls) {
+    if (!isDivider(w)) continue;
+    const d = 'M' + wallPath(w, 0, wallGeom(w).len, 0).map((q) => q.map(r2).join(' ')).join('L');
+    const on = sel.has('W:' + w.id);
+    s += `<g class="divider${on ? ' sel' : ''}" data-k="W:${w.id}"><path class="divhit" d="${d}" style="stroke-width:${r2(3 / k)}"/>`
+      + `<path d="${d}" style="stroke-width:${r2(sw * (on ? 3 : 2))};stroke-dasharray:${r2(3 / k)} ${r2(1.5 / k)}"/></g>`;
+  }
+  const polys = [...floor.walls].filter((w) => !isDivider(w)).sort((a, c) => (a.kind === 'inner' ? 0 : 1) - (c.kind === 'inner' ? 0 : 1)).map((w) => [w, pts(wallPolygon(w, floor.walls))]);
   s += `<g class="walloutline" style="stroke-width:${sw * 2}">`;
   for (const [, p] of polys) s += `<polygon points="${p}"/>`;
   s += '</g><g class="walls">';

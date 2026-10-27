@@ -357,9 +357,13 @@ export function polygonArea(pts) {
   return Math.abs(a) / 2;
 }
 
+/** Room divider: a dashed line drawn like a wall that only bounds rooms (no openings, cables pass). */
+export const isDivider = (w) => w?.kind === 'divider';
+
 export function nearestWall(floor, x, y, maxDist) {
   let best = null;
   for (const w of floor.walls) {
+    if (isDivider(w)) continue;
     const p = projectOnWall(w, x, y);
     const dist = Math.abs(p.d) - (w.t || 20) / 2;
     if (dist <= maxDist && (!best || dist < best.dist)) best = { wall: w, ...p, dist };

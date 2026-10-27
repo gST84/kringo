@@ -24,6 +24,7 @@ const ico = (inner) => `<svg viewBox="0 0 40 40" width="34" height="34" fill="no
 export const PLAN_PALETTE = [
   { key: 'wall', label: 'Muur', tool: 'wall', icon: ico('<rect x="4" y="16" width="32" height="8" fill="currentColor" stroke="none"/>') },
   { key: 'arcwall', label: 'Gebogen muur', tool: 'arcwall', icon: ico('<path d="M5 32 A 20 20 0 0 1 35 32" stroke-width="7"/>') },
+  { key: 'divider', label: 'Ruimtescheiding', tool: 'wall', opts: { divider: true }, icon: ico('<path d="M6 8h28v24H6z" stroke-width="1.6"/><path d="M20 8v24" stroke-width="2.5" stroke-dasharray="4 3"/>') },
   { key: 'door', label: 'Deur', tool: 'opening', opts: { type: 'door' }, icon: ico('<path d="M4 30h6M30 30h6M10 30V8"/><path d="M10 8 A 22 22 0 0 1 30 30" stroke-dasharray="3 2" stroke-width="1.4"/>') },
   { key: 'doorway', label: 'Deuropening', tool: 'opening', opts: { type: 'door', leaf: false }, icon: ico('<path d="M2 26h10M28 26h10" stroke-width="7"/><path d="M12 22v8M28 22v8"/>') },
   { key: 'door2', label: 'Dubbele deur', tool: 'opening', opts: { type: 'door2' }, icon: ico('<path d="M3 30h4M33 30h4M7 30V14M33 30V14"/><path d="M7 14 A 13 13 0 0 1 20 30M33 14 A 13 13 0 0 0 20 30" stroke-dasharray="3 2" stroke-width="1.4"/>') },
@@ -228,6 +229,7 @@ export class PlanEditor {
     this.placing = tool === 'place' ? { sym: opts.sym, rot: 0 } : null;
     if (tool === 'opening') { this.openingType = opts.type || 'door'; this.openingLeaf = opts.leaf !== false; }
     if (tool === 'stair') this.stairKind = opts.stair || 'straight';
+    this.divider = tool === 'wall' && !!opts.divider;
     this.lineArrow = tool === 'line' ? opts.arrow || null : null;
     if (tool === 'strip') this.stripSym = opts.sym || 'arei/ledstrip';
     this.calloutLeader = opts.leader !== false;
@@ -314,7 +316,9 @@ export class PlanEditor {
     let s = `<g transform="translate(${PLAN_ORIGIN[0]} ${PLAN_ORIGIN[1]}) scale(${k})">`;
     const sw = this.px(1.5);
     const label = (p, text) => `<g transform="translate(${p[0]} ${p[1]}) scale(${1 / k})">${textSvg(3, -3, text, 2.6, 'start', 'tx measure')}</g>`;
-    const ghostWall = (w) => `<polygon class="ghostwall" points="${wallPolygon(w, this.floor.walls).map((p) => p.join(',')).join(' ')}"/>`;
+    const ghostWall = (w) => this.divider && this.tool === 'wall'
+      ? `<line class="ghostdiv" x1="${w.x1}" y1="${w.y1}" x2="${w.x2}" y2="${w.y2}" style="stroke-width:${this.px(2)};stroke-dasharray:${this.px(8)} ${this.px(4)}"/>`
+      : `<polygon class="ghostwall" points="${wallPolygon(w, this.floor.walls).map((p) => p.join(',')).join(' ')}"/>`;
     const cursor = () => `<circle class="cursor" cx="${m[0]}" cy="${m[1]}" r="${this.px(4)}" style="stroke-width:${sw}"/>`;
     if (this.tool === 'wall') {
       if (this.chain) {
@@ -830,7 +834,7 @@ export class PlanEditor {
     this.chainFresh = !this.chain;
     if (!this.chain) { this.chain = p; this.renderOverlay(); return; }
     if (near(p, this.chain, 0.01)) { this.chain = null; this.renderOverlay(); return; }
-    const w = { id: uid('w'), x1: this.chain[0], y1: this.chain[1], x2: p[0], y2: p[1], t: this.wallT, kind: this.wallKind };
+    const w = { id: uid('w'), x1: this.chain[0], y1: this.chain[1], x2: p[0], y2: p[1], t: this.divider ? 1 : this.wallT, kind: this.divider ? 'divider' : this.wallKind };
     this.app.mutate(() => this.floor.walls.push(w));
     // closing a room ends the chain
     const closes = this.floor.walls.some((o) => o !== w && (near([o.x1, o.y1], p, 0.01) || near([o.x2, o.y2], p, 0.01)));

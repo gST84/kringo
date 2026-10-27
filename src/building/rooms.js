@@ -2,7 +2,7 @@
 // A room is either found automatically between the walls around a point you clicked (`seed`), or
 // drawn as corners (`pts`) that can hang on wall corners and then follow the walls when they move.
 import { uid } from '../util.js';
-import { polygonArea, projectOnWall, wallGeom } from './model.js';
+import { isDivider, polygonArea, projectOnWall, wallGeom } from './model.js';
 import { wallCorners, wallPolygon } from './render.js';
 
 /** The external influences with their classes (code → [name, [description per class]]). */
@@ -134,16 +134,17 @@ export function cornerPoint(floor, p) {
   if (p.t != null) {
     const g = wallGeom(w);
     const q = g.at(Math.max(0, Math.min(g.len, p.t)));
-    const h = (w.t || 20) / 2 * (p.side > 0 ? 1 : -1);
+    const h = isDivider(w) ? 0 : (w.t || 20) / 2 * (p.side > 0 ? 1 : -1);
     return [q.x + q.n[0] * h, q.y + q.n[1] * h];
   }
-  const c = wallCorners(w, floor.walls)[p.end ? 's1' : 's0'][p.side > 0 ? 'plus' : 'minus'];
-  return c;
+  if (isDivider(w)) return p.end ? [w.x2, w.y2] : [w.x1, w.y1];
+  return wallCorners(w, floor.walls)[p.end ? 's1' : 's0'][p.side > 0 ? 'plus' : 'minus'];
 }
 
 /** One face of a straight wall as a segment [A, B] (null for curved walls). */
 function faceLine(w, side, walls) {
   if (w.cx != null && w.cy != null) return null;
+  if (isDivider(w)) return [[w.x1, w.y1], [w.x2, w.y2]];
   const c = wallCorners(w, walls);
   const k = side > 0 ? 'plus' : 'minus';
   return [c.s0[k], c.s1[k]];
@@ -186,18 +187,22 @@ function onOutline(q, polys) {
 export function outlineSnap(floor, p, tol) {
   const walls = floor.walls;
   if (!walls.length) return null;
-  const polys = walls.map((w) => wallPolygon(w, walls));
+  const polys = walls.filter((w) => !isDivider(w)).map((w) => wallPolygon(w, walls));
+  const div = new Set(walls.filter(isDivider).map((w) => w.id));
   const d = (q) => Math.hypot(q[0] - p[0], q[1] - p[1]);
   let best = null;
-  const offer = (q, ref) => { const dd = d(q); if (dd <= tol && (!best || dd < best.d - 1e-6) && onOutline(q, polys)) best = { d: dd, p: q, ref }; };
+  // a point on a room divider (a line without thickness) only has to lie outside the walls
+  const ok = (q, ref) => (div.has(ref.w) || div.has(ref.w2) ? !polys.some((pl) => inPoly(q[0], q[1], pl)) || onOutline(q, polys) : onOutline(q, polys));
+  const offer = (q, ref) => { const dd = d(q); if (dd <= tol && (!best || dd < best.d - 1e-6) && ok(q, ref)) best = { d: dd, p: q, ref }; };
   // wall end corners
   for (const w of walls) {
+    if (isDivider(w)) { offer([w.x1, w.y1], { w: w.id, end: 0, side: 1 }); offer([w.x2, w.y2], { w: w.id, end: 1, side: 1 }); continue; }
     const c = wallCorners(w, walls);
     for (const [end, side] of [[0, 1], [0, -1], [1, 1], [1, -1]]) offer(c[end ? 's1' : 's0'][side > 0 ? 'plus' : 'minus'], { w: w.id, end, side });
   }
   // crossings of the faces of two walls
   const faces = [];
-  for (const w of walls) for (const side of [1, -1]) { const f = faceLine(w, side, walls); if (f) faces.push([w, side, f]); }
+  for (const w of walls) for (const side of isDivider(w) ? [1] : [1, -1]) { const f = faceLine(w, side, walls); if (f) faces.push([w, side, f]); }
   const near = faces.filter(([, , [A, B]]) => {
     // only faces that pass within reach of the cursor
     const r = [B[0] - A[0], B[1] - A[1]], L2 = r[0] * r[0] + r[1] * r[1] || 1;
@@ -218,7 +223,7 @@ export function outlineSnap(floor, p, tol) {
     const pr = projectOnWall(w, p[0], p[1]);
     const side = pr.d >= 0 ? 1 : -1;
     const q = g.at(pr.t);
-    const h = (w.t || 20) / 2 * side;
+    const h = isDivider(w) ? 0 : (w.t || 20) / 2 * side;
     offer([q.x + q.n[0] * h, q.y + q.n[1] * h], { w: w.id, side, t: Math.round(pr.t * 10) / 10 });
   }
   return best && { p: best.p, ref: best.ref, corner: false };
@@ -226,7 +231,7 @@ export function outlineSnap(floor, p, tol) {
 
 const CELL = 2.5; // cm, raster used to find the room around a point
 const cache = new Map();
-const wallsKey = (floor) => floor.walls.map((w) => `${w.id}:${w.x1},${w.y1},${w.x2},${w.y2},${w.t},${w.cx ?? ''},${w.cy ?? ''}`).join('|');
+const wallsKey = (floor) => floor.walls.map((w) => `${w.id}:${w.kind === 'divider' ? 'd' : ''}${w.x1},${w.y1},${w.x2},${w.y2},${w.t},${w.cx ?? ''},${w.cy ?? ''}`).join('|');
 
 /** Outline of a room in plan cm, or null when the room is not closed. */
 export function roomPolygon(floor, room) {
@@ -261,7 +266,11 @@ const inPoly = (x, y, poly) => {
 
 /** Finds the area enclosed by walls around (x, y): raster, flood fill, outline, simplification. */
 function traceRoom(floor, [sx, sy]) {
-  const polys = floor.walls.map((w) => wallPolygon(w, floor.walls));
+  const real = floor.walls.filter((w) => !isDivider(w));
+  const dividers = floor.walls.filter(isDivider);
+  const solid = real.map((w) => wallPolygon(w, floor.walls));
+  // room dividers are lines: in the raster they get a thickness of two cells, so the fill cannot leak
+  const polys = [...solid, ...dividers.map((w) => wallPolygon({ ...w, t: CELL * 2 }, []))];
   if (!polys.length) return null;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const p of polys) for (const [x, y] of p) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
@@ -310,11 +319,35 @@ function traceRoom(floor, [sx, sy]) {
     if (!best || loop.length > best.length) best = loop;
   }
   if (!best || best.length < 4) return null;
-  const pts = best.map((k) => [x0 + (k % (W + 1)) * CELL, y0 + Math.floor(k / (W + 1)) * CELL]);
+  const pts = best.map((k) => {
+    const q = [x0 + (k % (W + 1)) * CELL, y0 + Math.floor(k / (W + 1)) * CELL];
+    // along a room divider: onto the line itself
+    for (const w of dividers) {
+      const pr = projectOnWall(w, q[0], q[1]);
+      if (Math.abs(pr.d) <= CELL * 1.6 && pr.t > 0 && pr.t < pr.len) return [pr.x, pr.y];
+    }
+    return q;
+  });
   // straight lines from the staircase, then corners pulled onto the real wall corners
   const simple = simplify(pts, CELL * 1.2);
-  const corners = polys.flat();
+  const corners = solid.flat();
   return simple.map(([x, y]) => {
+    // along a room divider: onto the line itself
+    for (const w of dividers) {
+      const pr = projectOnWall(w, x, y);
+      if (Math.abs(pr.d) <= 0.5 && pr.t > 0 && pr.t < pr.len) {
+        // where the divider meets a wall: the crossing with that wall's face
+        let q = [pr.x, pr.y], bd = CELL * 2.5;
+        const line = faceLine(w, 1, floor.walls);
+        for (const o of real) for (const side of [1, -1]) {
+          const f = line && faceLine(o, side, floor.walls);
+          const c = f && lineCross(line, f);
+          const dd = c ? Math.hypot(c[0] - x, c[1] - y) : Infinity;
+          if (dd <= bd) { bd = dd; q = c; }
+        }
+        return q.map((v) => Math.round(v * 10) / 10);
+      }
+    }
     let bestC = null, bd = CELL * 2.5;
     for (const c of corners) { const d = Math.hypot(c[0] - x, c[1] - y); if (d < bd) { bd = d; bestC = c; } }
     return bestC ? [Math.round(bestC[0] * 10) / 10, Math.round(bestC[1] * 10) / 10] : [x, y];

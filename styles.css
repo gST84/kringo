@@ -270,6 +270,11 @@ body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:no
 .plan .wall.inner { fill: #bdbdbd; }
 .plan .wall:hover { fill: #8fb1ea; }
 .plan .wall.sel { fill: var(--sel) !important; }
+.plan .divider path { fill: none; stroke: #333; stroke-linecap: butt; }
+.plan .divider .divhit { stroke: transparent !important; stroke-dasharray: none; }
+.plan .divider.sel .divhit { stroke: rgba(31, 111, 235, .15) !important; }
+.plan .divider:hover path:not(.divhit) { stroke: #3b6fd6; }
+.plan .divider.sel path:not(.divhit) { stroke: var(--sel); }
 .plan .gap { fill: #fff; stroke: none; }
 .plan .stairbox { fill: #fff; }
 .plan polygon.ol { stroke: #000; }
@@ -285,6 +290,7 @@ body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:no
 .clabel { font-weight: bold; fill: #c2410c; }
 .croom { fill: #555; }
 .overlay .ghostwall { fill: rgba(31, 111, 235, .35); stroke: none; }
+.overlay .ghostdiv { stroke: rgba(31, 111, 235, .8); fill: none; }
 .overlay .ghostopen { fill: rgba(31, 111, 235, .35); stroke: none; }
 .overlay .measure { fill: var(--sel); font-weight: bold; }
 .overlay .ghost line, .overlay .ghost circle, .overlay .ghost path, .overlay .ghost rect { stroke: var(--sel); stroke-width: .3; fill: none; }
