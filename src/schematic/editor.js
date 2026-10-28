@@ -96,7 +96,7 @@ export class SchematicEditor {
     const app = this.app;
     if (!app.page) { this.layer.innerHTML = ''; return; }
     const an = app.analysis();
-    this.layer.innerHTML = pageSvg(app.project, app.page, app.pageIdx, an, { selection: app.sel, grid: this.showGrid });
+    this.layer.innerHTML = pageSvg(app.project, app.page, app.pageIdx, an, app.sim ? { sim: app.sim, grid: this.showGrid } : { selection: app.sel, grid: this.showGrid });
     this.renderOverlay();
   }
 
@@ -189,6 +189,19 @@ export class SchematicEditor {
     }
     if (e.button !== 0) return;
     this.svg.setPointerCapture(e.pointerId);
+    // simulation: a click operates push buttons, valves (left / right half) …; Shift keeps it pressed
+    if (app.sim) {
+      const key = this.hitKey(e.target);
+      if (key?.startsWith('c:')) {
+        const c = app.page.comps.find((x) => 'c:' + x.id === key);
+        const info = app.analysis().comps.get(c.id);
+        const wb = worldBox(c, info.geom);
+        app.sim.press(c.id, raw[0] < (wb.x0 + wb.x1) / 2 ? 'L' : 'R', e.shiftKey);
+        this.simPress = true;
+        this.render();
+      }
+      return;
+    }
 
     if (this.tool === 'place') return this.placeSymbol(this.placing.sym, p, this.placing.rot, this.placing.mirror);
     if (this.tool === 'wire') return this.wireClick(p);
@@ -258,6 +271,7 @@ export class SchematicEditor {
   }
 
   onUp(e) {
+    if (this.simPress) { this.simPress = false; this.app.sim?.release(); this.render(); }
     const d = this.drag;
     this.drag = null;
     if (!d) return;
@@ -287,6 +301,7 @@ export class SchematicEditor {
   }
 
   onDbl(e) {
+    if (this.app.sim) return;
     if (this.tool === 'wire') { this.finishWire(); return; }
     if (this.tool !== 'select') return;
     const key = this.hitKey(e.target);
@@ -303,6 +318,7 @@ export class SchematicEditor {
     const app = this.app;
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
+    if (app.sim) { if (k === 'escape') app.emit('simStop'); return; }
     if (e.code === 'Space') { this.space = true; e.preventDefault(); return; }
     if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? app.redo() : app.undo(); return; }
     if (mod && k === 'y') { e.preventDefault(); app.redo(); return; }

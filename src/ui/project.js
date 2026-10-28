@@ -124,6 +124,8 @@ export function companyDefaults() {
   try { return JSON.parse(localStorage.getItem('elecad.company') || 'null') || {}; } catch { return {}; }
 }
 
+const KIND_LABEL = { building: '🏠 Gebouw', schematic: '🗄 Stuurkast', fluid: '💧 Hydraulica / pneumatica' };
+
 export function createProject(name, kind = 'schematic') {
   const p = newProject(name, kind);
   const d = companyDefaults();
@@ -139,7 +141,7 @@ export async function openDialog(app) {
       h('thead', null, h('tr', null, h('th', null, 'Project'), h('th', null, 'Soort'), h('th', null, 'Klant'), h('th', null, 'Gewijzigd'), h('th', null, ''))),
       h('tbody', null, items.map((it) => h('tr', { class: it.id === app.project?.id ? 'current' : '' },
         h('td', null, h('button', { class: 'link', onclick: () => close(it.id) }, it.name)),
-        h('td', null, it.kind === 'building' ? '🏠 Gebouw' : '🗄 Stuurkast'),
+        h('td', null, KIND_LABEL[it.kind] || KIND_LABEL.schematic),
         h('td', null, it.customer || ''), h('td', null, new Date(it.updated).toLocaleString()),
         h('td', null, h('button', {
           class: 'icon danger', title: 'Verwijderen',

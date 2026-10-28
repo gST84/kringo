@@ -58,6 +58,7 @@ export class App {
   }
 
   setProject(p) {
+    if (this.sim) { this.sim = null; this.emit('sim'); }
     this.project = normalizeProject(p);
     this.lib.project = this.project;
     this.pageIdx = 0;
@@ -82,6 +83,7 @@ export class App {
 
   /** Marks the project as modified (after direct edits following a checkpoint). */
   touched() {
+    if (this.sim) { this.sim = null; this.emit('sim'); } // editing ends a running simulation
     this.version++;
     this.project.updated = Date.now();
     this.saveState = 'dirty';

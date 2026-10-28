@@ -164,6 +164,7 @@ export function analyze(project, lib, opts = {}) {
   for (const info of comps.values()) for (const p of info.pins) {
     const net = netOf(`P:${info.comp.id}:${p.id}`);
     net.pins.push({ info, pin: p });
+    if (info.def?.fluid) net.fluid = true; // pneumatic / hydraulic line
     pinNet.set(`${info.comp.id}:${p.id}`, net);
   }
   const wireNet = new Map();
@@ -183,7 +184,7 @@ export function analyze(project, lib, opts = {}) {
 
   // ---------- wire numbers ----------
   const fmt = project.settings.wireFormat ?? '{n}'; // '' = no automatic wire numbers
-  const numbered = [...nets.values()].filter((n) => n.wires.length);
+  const numbered = [...nets.values()].filter((n) => n.wires.length && !n.fluid);
   const firstPos = (n) => {
     let best = null;
     for (const { wire, pageIdx } of n.wires) for (const [x, y] of wire.points) {

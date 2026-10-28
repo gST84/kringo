@@ -22,6 +22,7 @@ import { cursorIcon, DONATE_URL, h, icon, MANUAL_URL } from './util.js';
 import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
 import { initSplitters } from './ui/splitters.js';
 import { checkExpectedVersion, versionButton } from './version.js';
+import { simControls } from './sim/ui.js';
 startAutoTranslate();
 const lib = new Library();
 await lib.init();
@@ -112,6 +113,8 @@ schemTools.append(
   btn('⤢', 'Passend (F)', () => editor.fit()),
   h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: true, onchange: (e) => { editor.showGrid = e.target.checked; editor.render(); } }), 'raster'),
   gridSel,
+  h('span', { class: 'sep kind-sim' }),
+  h('span', { class: 'kind-sim' }, simControls(app, editor)),
   h('span', { class: 'grow' }),
   btn('◀', 'Vorige pagina (PgUp)', () => app.setPage(app.pageIdx - 1)),
   pageLbl,
@@ -234,7 +237,7 @@ app.on('change', () => {
   } else {
     pageLbl.replaceChildren(...pageOpts());
   }
-  kindEl.textContent = app.project.kind === 'building' ? '🏠 Gebouw' : '🗄 Stuurkast';
+  kindEl.textContent = { building: '🏠 Gebouw', fluid: '💧 Hydraulica / pneumatica' }[app.project.kind] || '🗄 Stuurkast';
   document.body.dataset.kind = app.project.kind;
   undoBtn.disabled = !app.undoStack.length;
   redoBtn.disabled = !app.redoStack.length;

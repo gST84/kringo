@@ -63,14 +63,18 @@ export function symbolPreviewSvg(def, size = 40) {
 // ---------- components ----------
 
 function compSvg(info, an, opts) {
-  const { comp: c, geom, def } = info;
+  const { comp: c, def } = info;
+  let { geom } = info;
   const sel = opts.selection?.has('c:' + c.id);
+  // simulation: state shown through extra properties (valve position, piston …) and a class
+  const st = opts.sim?.compState(c.id);
+  if (st?.props) geom = geometry(def, { ...c, props: { ...c.props, ...st.props } });
   const vals = {
-    ...(def?.props || {}), ...(c.props || {}),
+    ...(def?.props || {}), ...(c.props || {}), ...(st?.props || {}),
     tag: info.tag, desc: c.props?.desc ?? '', strip: c.props?.strip ?? '', number: c.props?.number ?? '',
     name: c.props?.name ?? '', addr: c.props?.addr ?? '',
   };
-  let out = `<g class="comp${sel ? ' sel' : ''}" data-k="c:${c.id}">`;
+  let out = `<g class="comp${sel ? ' sel' : ''}${st?.cls ? ' ' + st.cls : ''}" data-k="c:${c.id}">`;
   let shapes = '';
   for (const g of geom.graphics || []) if (g.t !== 'text') shapes += shapeSvg(g);
   out += `<g transform="${svgTransform(c)}">${shapes}</g>`;
@@ -114,7 +118,7 @@ function compSvg(info, an, opts) {
       out += freeTextSvg(c, ta, t, cls);
     });
   } else if (lines.length) {
-    const ta = def?.tagAt || { x: -7, y: 10, anchor: 'end' };
+    const ta = geom.tagAt || def?.tagAt || { x: -7, y: 10, anchor: 'end' };
     const [x, y] = xf(c, ta.x, ta.y);
     const anchor = placeAnchor(c, ta.anchor);
     const rot = (((c.rot || 0) % 360) + 360) % 360;
@@ -172,8 +176,9 @@ function wireSvg(w, an, opts) {
   const pts = w.points.map((p) => p.join(',')).join(' ');
   const net = an.wireNet.get(w.id);
   const own = wireColor(w.color);
-  const color = own || (opts.project.settings.colorWires !== false ? net?.railColor : null);
-  const st = (color ? `stroke:${color};` : '') + (w.w ? `stroke-width:${w.w};` : '');
+  const sim = opts.sim?.wireState(w.id);
+  const color = sim === 'p' ? '#1d4ed8' : sim === 'e' ? '#dc2626' : own || (opts.project.settings.colorWires !== false ? net?.railColor : null);
+  const st = (color ? `stroke:${color};` : '') + (sim ? 'stroke-width:0.6;' : w.w ? `stroke-width:${w.w};` : '');
   let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}"><polyline class="wl" points="${pts}"${st ? ` style="${esc(st)}"` : ''}/>`;
   if (String(w.color).toUpperCase() === 'GNYE') out += `<polyline class="wl gnye" points="${pts}" style="stroke:#e0c000" stroke-dasharray="2 2"/>`;
   const label = net?.label;

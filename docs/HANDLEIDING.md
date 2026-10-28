@@ -1,6 +1,6 @@
 # Handleiding Kringo
 
-Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronden, AREI-symbolen, kringen en het eendraadschema) en **stuurkasten** (industriële schema's). Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
+Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronden, AREI-symbolen, kringen en het eendraadschema), **stuurkasten** (industriële schema's) en **hydraulica / pneumatica** (ISO 1219-schema's die je ook kunt simuleren). Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
 
 > **Voorbeeldproject:** alle schermafbeeldingen komen uit het project [*Woning Voorbeeldstraat 1*](voorbeelden/Woning%20Voorbeeldstraat%201.kringo) – download het en open het in Kringo met **Open bestand**. Je vindt er alle voorbeelden uit deze handleiding in terug.
 
@@ -21,8 +21,9 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
    - [G. Ruimtes en uitwendige invloeden](#g-ruimtes-en-uitwendige-invloeden)
    - [H. Kabeltrace en kabellengtes](#h-kabeltrace-en-kabellengtes)
 7. [Stuurkast](#7-stuurkast)
-8. [Bewaren, openen, afdrukken](#8-bewaren-openen-afdrukken)
-9. [Sneltoetsen](#9-sneltoetsen)
+8. [Hydraulica en pneumatica (met simulatie)](#8-hydraulica-en-pneumatica-met-simulatie)
+9. [Bewaren, openen, afdrukken](#9-bewaren-openen-afdrukken)
+10. [Sneltoetsen](#10-sneltoetsen)
 
 ---
 
@@ -32,7 +33,7 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
 - **Als app:** in Chrome / Edge op *Installeren* in de adresbalk; op iPad / iPhone in Safari via deelknop → *Zet op beginscherm*. Daarna werkt Kringo ook zonder internet.
 - Bij het openen verschijnt het **welkomscherm**: kies de taal (Nederlands, Français, English), maak een **nieuw project** of open een recent project.
 
-Bij een nieuw project kies je de soort: **Gebouw** of **Stuurkast**. Die ligt daarna vast.
+Bij een nieuw project kies je de soort: **Gebouw**, **Stuurkast** of **Hydraulica / pneumatica**. Die ligt daarna vast.
 
 ## 2. Het scherm
 
@@ -291,13 +292,37 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 - **Symbooleditor** voor eigen symbolen; symbolen importeren / exporteren of een map op schijf koppelen.
 - **QElectroTech**: *Open bestand* opent ook `.qet`-projecten.
 
-## 8. Bewaren, openen, afdrukken
+## 8. Hydraulica en pneumatica (met simulatie)
+
+Een project **Hydraulica / pneumatica** start met twee bladen: het pneumatische / hydraulische schema en een blad *Elektrische sturing* (+24V / 0V). Op het welkomscherm opent **Demoproject (elektropneumatica)** een uitgewerkt voorbeeld: drukknop S1 laat cilinder 1A1 uitschuiven, eindschakelaar 1S2 laat hem automatisch terugkeren.
+
+![Simulatie: het ventiel is geschakeld, de leidingen onder druk zijn blauw](img/fluid-sim.png)
+
+**Tekenen**
+
+- De symbolen (ISO 1219) staan in de mappen **Pneumatica** en **Hydraulica**: ventielen, cilinders en motoren, voeding (drukluchtbron, compressor, onderhoudseenheid, hydraulisch aggregaat), leidingelementen (ontluchting, geluiddemper, tank, terugslagklep, smoorventiel, smoor-terugslagventiel) en sensoren (manometer, drukschakelaar). Leidingen teken je met het draadgereedschap (`W`), net als draden.
+- **Ventielen** zijn instelbaar in de eigenschappen: type (2/2, 3/2, 4/2, 5/2, 4/3, 5/3), bediening links en rechts (veer, hand, drukknop, hendel, rol, pneumatisch / hydraulisch gestuurd, elektromagneet) en de middenstand (gesloten, ontlucht, belucht, vrijloop, tandem, open). De poorten staan op de ruststand.
+- **Cilinders**: dubbel- of enkelwerkend, slag (mm), tijd voor de volle slag (s) en **markeringen** voor eindschakelaars, bv. `1S1=0; 1S2=100`.
+- **Elektrisch**: een magneetventiel krijgt een spoelnaam (bv. *Y1*). Op het stuurschema hoort daar een *Magneetventiel* (of spoel) met tag **Y1** bij. Een **eindschakelaar** of **rolventiel** met de naam van een markering (bv. tag *1S2*) wordt bediend als de zuigerstang daar staat. Contacten van een **drukschakelaar** koppel je ermee via *Koppelen aan toestel*.
+
+**Simuleren**
+
+- Klik **▶ Simuleren** in de werkbalk. Het blad krijgt een groene rand en kan niet bewerkt worden.
+- Klik op een **drukknop** om hem in te drukken (zolang je de muis inhoudt), **Shift+klik** houdt hem vast. Noodstop, keuzeschakelaar en sleutelschakelaar wisselen bij elke klik. Klik **links of rechts op een ventiel** om de handbediening (of de spoel) aan die kant te bedienen.
+- Je ziet: leidingen onder druk in **blauw**, spanningvoerende draden in **rood**, bekrachtigde spoelen en lampen in rood / geel, bediende contacten in **groen**, ventielen die verschuiven, zuigers die bewegen en manometers met hun druk.
+- Smoorventielen vertragen de beweging (meter-out met een smoor-terugslagventiel werkt zoals verwacht). Relais met opkom- of afvalvertraging werken ook.
+- **⏸** pauzeert, **⟲** zet alles terug in de beginstand, de snelheid kies je van ¼× tot 2×, **■ Stop** of `Esc` stopt. Wijzig je iets aan het schema, dan stopt de simulatie.
+- De elektrische simulatie werkt ook in een gewoon **stuurkast**-project (relaisschakelingen, drukknoppen, lampen).
+
+> De simulatie is functioneel (zoals de eenvoudige modus van FluidSIM): druk aan / uit en de ingestelde druk, geen krachten of debieten. Ze is zo opgebouwd dat een fysisch model later kan volgen.
+
+## 9. Bewaren, openen, afdrukken
 
 - Projecten worden **automatisch** in de browser bewaard.
 - **Bewaar bestand** (diskette) maakt een `.kringo`-bestand om door te sturen of als back-up; **Open bestand** opent `.kringo` en `.qet`.
 - **Afdrukken / PDF** (printer): kies alles, alle plattegronden, de huidige plattegrond of het eendraadschema; kies in het afdrukvenster *Opslaan als PDF* en zet de marges op *Geen*. Alles op A3 liggend, plattegronden op schaal.
 
-## 9. Sneltoetsen
+## 10. Sneltoetsen
 
 **Grondplan:** `W` muur · `A` gebogen muur · `D` deur · `N` raam · `M` maatlijn · `T` ruimtenaam · `L` koppelen · `R` draaien · `V` selecteren · `H` pannen · `Del` verwijderen · `Ctrl+D` dupliceren · `Ctrl+Z / Y` ongedaan / opnieuw · `F` passend · `Alt` zonder raster / niet tegen de muur · `Backspace` laatste punt terug (vlak, lijn, ledstrip).
 

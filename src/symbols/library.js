@@ -2,6 +2,7 @@
 // on disk (File System Access API, Chrome / Edge). Symbol files: *.ksym (JSON; *.elsym from earlier versions).
 import { BUILTIN } from './builtin.js';
 import { AREI } from '../building/arei.js';
+import { FLUID } from '../fluid/symbols.js';
 import { idb, kvGet, kvSet } from '../storage.js';
 import { uid, safeName, download, clone } from '../util.js';
 
@@ -13,7 +14,7 @@ export const USER_ROOT = 'Mijn symbolen';
 
 export class Library {
   constructor() {
-    this.builtin = new Map([...BUILTIN, ...AREI].map((d) => [d.id, { ...d, source: 'builtin' }]));
+    this.builtin = new Map([...BUILTIN, ...AREI, ...FLUID].map((d) => [d.id, { ...d, source: 'builtin' }]));
     this.user = new Map();
     this.folder = new Map();
     this.dir = null; // FileSystemDirectoryHandle

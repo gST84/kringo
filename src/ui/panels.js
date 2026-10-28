@@ -8,6 +8,7 @@ import { autoTag, needsTag, numberContact, nextTerminal } from '../schematic/tag
 import { confirmDlg, field, modal, prompt, toast } from './dialogs.js';
 import { USER_ROOT } from '../symbols/library.js';
 import { geometry } from '../symbols/geom.js';
+import { parseMarks } from '../fluid/symbols.js';
 
 // ---------- small input helpers ----------
 
@@ -255,7 +256,7 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
     search, statusEl, treeEl);
   lib.onChange(renderTree);
   app.on('tool', renderTree);
-  app.on('project', renderTree);
+  app.on('project', () => { open.clear(); open.add(app.project.kind === 'fluid' ? 'Pneumatica' : 'Standaard'); renderTree(); });
   renderTree();
 }
 
@@ -339,6 +340,41 @@ function multiProps(app, editor, keys) {
       h('button', { class: 'danger', onclick: () => editor.deleteSelection() }, 'Verwijderen')))];
 }
 
+/** Cylinder marks in the project (for limit switches and roller valves). */
+function marksList(an) {
+  const names = new Set();
+  for (const i of an.comps.values()) if (i.def?.fluid?.kind === 'cylinder') for (const m of parseMarks({ ...i.def.props, ...i.comp.props }.marks)) names.add(m.name);
+  return h('datalist', { id: 'marks' }, [...names].map((x) => h('option', { value: x })));
+}
+
+/** Fields declared by a symbol (fluid power valves, cylinders …). */
+function symbolFields(app, an, def, c, setProp) {
+  const val = (k) => c.props[k] ?? def.props?.[k] ?? '';
+  const p = { ...(def.props || {}), ...c.props };
+  const three = String(p.type).endsWith('/3');
+  const out = [];
+  for (const f of def.fields) {
+    if (f.k === 'centre' && !three) continue;
+    if (f.k === 'solL' && p.left !== 'solenoid') continue;
+    if (f.k === 'solR' && p.right !== 'solenoid') continue;
+    if (f.k === 'mark' && p.left !== 'roller' && p.right !== 'roller') continue;
+    const key = 'f_' + f.k;
+    const input = f.options
+      ? sel(val(f.k), f.options.map(([v, l]) => [v, t(l)]), setProp(f.k), key)
+      : inp(val(f.k), setProp(f.k), { type: f.type || 'text', key, list: f.list });
+    out.push(field(f.label, input));
+  }
+  if (def.fields.some((f) => f.list === 'coils')) {
+    const tags = new Set();
+    for (const i of an.comps.values()) if (/^std\/(valve|coil)/.test(i.def?.id) && i.tag) tags.add(i.tag);
+    out.push(h('datalist', { id: 'coils' }, [...tags].map((x) => h('option', { value: x }))));
+  }
+  if (def.fields.some((f) => f.list === 'marks')) out.push(marksList(an));
+  if (def.fluid?.kind === 'valve') out.push(h('p', { class: 'hint' }, 'Een spoel hoort bij het elektrische toestel met dezelfde tag (bv. magneetventiel Y1 op het stuurschema). Simulatie: klik links of rechts op het ventiel om de handbediening te gebruiken; Shift = vasthouden.'));
+  if (def.fluid?.kind === 'cylinder') out.push(h('p', { class: 'hint' }, 'Eindschakelaars en rolventielen met dezelfde naam als een markering worden bediend als de zuigerstang daar staat.'));
+  return out;
+}
+
 function compProps(app, editor, c) {
   if (!c) return [];
   const an = app.analysis();
@@ -395,9 +431,15 @@ function compProps(app, editor, c) {
     if (info.refs?.length) s.push(h('div', { class: 'reflist' }, 'Ook op: ', info.refs.map((l) => `/${refText(l)}`).join(', ')));
   }
   if ('addr' in (def?.props || {})) s.push(field('PLC-adres', inp(c.props.addr, setProp('addr'), { key: 'addr' })));
-  if (def?.build) {
+  if (def?.fields) s.push(...symbolFields(app, an, def, c, setProp));
+  else if (def?.build) {
     s.push(field('Aantal kanalen', inp(c.props.channels, setProp('channels'), { type: 'number', key: 'channels' })));
     s.push(field('Startadres', inp(c.props.start, setProp('start'), { key: 'start' })));
+  }
+  if (/^std\/limit/.test(def?.id)) {
+    s.push(field('Bediend door cilindermarkering (simulatie)', inp(c.props.mark, setProp('mark'), { key: 'mark', list: 'marks', placeholder: c.tag || 'bv. 1S2' }),
+      'Leeg = de tag van de eindschakelaar. De markeringen staan bij de cilinder (bv. 1S1=0; 1S2=100).'));
+    s.push(marksList(an));
   }
   if (needsTag(def)) {
     s.push(field('Fabrikant', inp(c.props.maker, setProp('maker'), { key: 'maker' })));

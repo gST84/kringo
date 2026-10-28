@@ -63,7 +63,7 @@ export function newPage(title = t('Nieuwe pagina'), template = 'empty') {
   };
 }
 
-/** kind: 'schematic' (control cabinets) or 'building' (house installation, AREI). */
+/** kind: 'schematic' (control cabinets), 'building' (house installation, AREI) or 'fluid' (pneumatics / hydraulics). */
 export function newProject(name = 'Nieuw project', kind = 'schematic') {
   const today = new Date().toISOString().slice(0, 10);
   return {
@@ -84,7 +84,7 @@ export function newProject(name = 'Nieuw project', kind = 'schematic') {
       showWireNumbers: kind !== 'building',
       colorWires: true, // wires take the colour of their supply rail
     },
-    pages: kind === 'building' ? [] : [newPage(t('Voorblad')), newPage(t('Stuurstroom'), 'control')],
+    pages: kind === 'building' ? [] : kind === 'fluid' ? [newPage(t('Pneumatisch / hydraulisch schema')), newPage(t('Elektrische sturing'), 'dc')] : [newPage(t('Voorblad')), newPage(t('Stuurstroom'), 'control')],
     symbols: {}, // embedded copies of non-builtin symbol definitions
     building: newBuilding(),
     created: Date.now(),
