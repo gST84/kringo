@@ -30,6 +30,7 @@ export class Simulation {
     this.valvePos = new Map();
     this.cyl = new Map(); // compId -> {x}
     this.motorAngle = new Map();
+    this.count = new Map(); // pulse counters: compId -> {n, last}
     this.coil = new Map(); // compId -> {on, onFor, offFor}
     this.P = new Map(); // net -> {p, k}
     this.V = new Map(); // net -> vent capacity
@@ -44,8 +45,9 @@ export class Simulation {
     for (const i of this.fluid) {
       const k = i.def.fluid.kind;
       if (k === 'valve') this.valvePos.set(i.comp.id, restPosition(this.props(i)));
-      if (k === 'cylinder') this.cyl.set(i.comp.id, { x: 0 });
+      if (k === 'cylinder') this.cyl.set(i.comp.id, { x: this.props(i).acting === 'singleL' ? 1 : 0 });
       if (k === 'motor') this.motorAngle.set(i.comp.id, 0);
+      if (k === 'counter') this.count.set(i.comp.id, { n: 0, last: false });
     }
     for (const i of this.elec) if (/^std\/coil/.test(i.def?.id)) this.coil.set(i.comp.id, { on: false, onFor: 0, offFor: 1e9 });
     this.solve();
@@ -179,7 +181,7 @@ export class Simulation {
   // ---------- fluid ----------
 
   solveFluid() {
-    const press = []; // [from, to, k, cap]
+    const press = []; // [from, to, k, cap, mul]
     const vent = []; // [net, via, k]: `net` can vent through `via`
     const sources = [];
     const caps = new Map();
@@ -211,6 +213,19 @@ export class Simulation {
         }
         case 'regulator': press.push([n('1'), n('2'), 1, +p.p || 6]); vent.push([n('2'), n('1'), 1]); break;
         case 'relief': if (n('P')) caps.set(n('P'), Math.min(caps.get(n('P')) ?? Infinity, +p.p || 50)); break;
+        case 'pass': both(n('1'), n('2')); break;
+        case 'booster': {
+          // pressure intensifier / converter: output pressure = input × ratio, flow only forwards
+          const r = Math.max(0.01, +p.ratio || 1);
+          press.push([n('1'), n('2'), 1, undefined, r]);
+          vent.push([n('2'), n('1'), 1]);
+          break;
+        }
+        case 'counter': {
+          const c = this.count.get(i.comp.id);
+          if (n('A') && c && c.n >= (+p.n || 5)) both(n('P'), n('A'));
+          break;
+        }
         case 'or': press.push([n('X'), n('A'), 1], [n('Y'), n('A'), 1]); vent.push([n('A'), n('X'), 1], [n('A'), n('Y'), 1]); break;
         case 'and': {
           const px = this.pressure(n('X')), py = this.pressure(n('Y'));
@@ -226,12 +241,12 @@ export class Simulation {
     for (const [net, p] of sources) if (net) { const c = caps.get(net) ?? Infinity; P.set(net, { p: Math.max(get(net).p, Math.min(p, c)), k: 1 }); }
     for (let changed = true, it = 0; changed && it < 200; it++) {
       changed = false;
-      for (const [a, b, k, cap] of press) {
+      for (const [a, b, k, cap, mul] of press) {
         if (!a || !b || b === ATM || a === ATM) continue;
         const pa = get(a);
         if (!(pa.p > 0)) continue;
         const pb = get(b);
-        const np = Math.min(pa.p, cap ?? Infinity, caps.get(b) ?? Infinity), nk = Math.min(pa.k, k);
+        const np = Math.min(pa.p * (mul || 1), cap ?? Infinity, caps.get(b) ?? Infinity), nk = Math.min(pa.k, k);
         if (np > pb.p + 1e-9 || nk > pb.k + 1e-9) { P.set(b, { p: Math.max(pb.p, np), k: Math.max(pb.k, nk) }); changed = true; }
       }
     }
@@ -297,17 +312,32 @@ export class Simulation {
       const pa = this.P.get(a), pb = this.P.get(b);
       const va = this.V.get(a) || 0, vb = b ? this.V.get(b) || 0 : 1;
       let speed = 0; // fraction of the full stroke (or turns) per second
-      const single = kind === 'cylinder' && p.acting === 'single';
+      const acting = kind === 'cylinder' ? p.acting || 'double' : 'double';
       const base = kind === 'motor' ? (+p.rpm || 60) / 60 : 1 / Math.max(0.05, +p.time || 1);
-      if (pa?.p > 0 && !(pb?.p > 0)) speed = Math.min(pa.k, single ? 1 : vb) * base;
-      else if (!single && pb?.p > 0 && !(pa?.p > 0)) speed = -Math.min(pb.k, va) * base;
-      else if (single && !(pa?.p > 0)) speed = -va * base;
+      if (acting === 'singleL') {
+        // spring on the cap side: pressure on B retracts, the spring pushes the rod out again
+        speed = pb?.p > 0 ? -pb.k * base : vb * base;
+      } else if (acting === 'single' || acting === 'plain') {
+        // spring (or the load) returns the piston when A can vent
+        speed = pa?.p > 0 ? pa.k * base : -va * base;
+      } else if (pa?.p > 0 && !(pb?.p > 0)) speed = Math.min(pa.k, vb) * base;
+      else if (pb?.p > 0 && !(pa?.p > 0)) speed = -Math.min(pb.k, va) * base;
       if (kind === 'cylinder') {
         const st = this.cyl.get(i.comp.id);
         st.x = Math.max(0, Math.min(1, st.x + speed * dt));
       } else this.motorAngle.set(i.comp.id, ((this.motorAngle.get(i.comp.id) || 0) + speed * dt * 360) % 360);
     }
     this.solve();
+    // pulse counters count every rising pressure edge on X
+    let counted = false;
+    for (const i of this.fluid) {
+      const c = this.count.get(i.comp.id);
+      if (!c) continue;
+      const on = this.pressure(this.net(i, 'X')) > 0;
+      if (on && !c.last) { c.n++; counted = true; }
+      c.last = on;
+    }
+    if (counted) this.solve();
   }
 
   // ---------- view ----------
@@ -322,6 +352,10 @@ export class Simulation {
     if (k === 'motor') return { props: { __a: Math.round(this.motorAngle.get(id)) } };
     if (k === 'gauge') return { props: { __p: `${(this.pressure(this.net(info, '1'))).toFixed(1).replace('.', ',')} bar` } };
     if (k === 'pswitch') return this.deviceAct(info) ? { cls: 'sim-act' } : null;
+    if (k === 'indicator') return this.pressure(this.net(info, '1')) > 0 ? { cls: 'sim-act' } : null;
+    if (k === 'msensor') return this.marks.has(norm(info.comp.props?.mark || info.tag)) ? { cls: 'sim-act' } : null;
+    if (k === 'dgauge') return { props: { __dp: `Δp ${(this.pressure(this.net(info, '1')) - this.pressure(this.net(info, '2'))).toFixed(1).replace('.', ',')} bar` } };
+    if (k === 'counter') { const c = this.count.get(id); return { props: { __n: c?.n ?? 0 }, cls: c && c.n >= (+this.props(info).n || 5) && info.pins.length > 1 ? 'sim-act' : null }; }
     if (this.loadsOn.has(id)) return { cls: info.def?.id === 'std/lamp' ? 'sim-on sim-lamp' : 'sim-on' };
     if (info.def?.contact && this.contactAct(info)) return { cls: 'sim-act' };
     return null;

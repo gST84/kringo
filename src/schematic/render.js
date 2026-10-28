@@ -177,9 +177,10 @@ function wireSvg(w, an, opts) {
   const net = an.wireNet.get(w.id);
   const own = wireColor(w.color);
   const sim = opts.sim?.wireState(w.id);
-  const color = sim === 'p' ? '#1d4ed8' : sim === 'e' ? '#dc2626' : own || (opts.project.settings.colorWires !== false ? net?.railColor : null);
-  const st = (color ? `stroke:${color};` : '') + (sim ? 'stroke-width:0.6;' : w.w ? `stroke-width:${w.w};` : '');
-  let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}"><polyline class="wl" points="${pts}"${st ? ` style="${esc(st)}"` : ''}/>`;
+  const color = sim ? '#22c55e' : own || (opts.project.settings.colorWires !== false ? net?.railColor : null);
+  const st = (color ? `stroke:${color};` : '') + (sim ? 'stroke-width:0.55;' : w.w ? `stroke-width:${w.w};` : '');
+  // simulation: active lines glow green (a wide, pulsing halo under the line)
+  let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}">${sim ? `<polyline class="simglow" points="${pts}"/>` : ''}<polyline class="wl" points="${pts}"${st ? ` style="${esc(st)}"` : ''}/>`;
   if (String(w.color).toUpperCase() === 'GNYE') out += `<polyline class="wl gnye" points="${pts}" style="stroke:#e0c000" stroke-dasharray="2 2"/>`;
   const label = net?.label;
   if (label && opts.project.settings.showWireNumbers !== false && !opts.page?.gen) {

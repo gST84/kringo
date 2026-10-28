@@ -17,7 +17,7 @@ async function newProjectDialog() {
   const renderCards = () => cards.replaceChildren(
     ...[['building', '🏠', 'Gebouw', 'Woning / gebouw volgens AREI: plattegronden, stopcontacten, verlichting, kringen en het eendraadschema.'],
       ['schematic', '🗄', 'Stuurkast', 'Industriële schema\'s: stuurstroom, vermogen, PLC, klemmen, kruisverwijzingen en lijsten.'],
-      ['fluid', '💧', 'Hydraulica / pneumatica', 'Pneumatische en hydraulische schema\'s (ISO 1219) met elektrische sturing – en ze simuleren.']]
+      ['fluid', '💧', 'Hydraulica / pneumatica', 'Pneumatische en hydraulische schema\'s (ISO 1219) tekenen en simuleren.']]
       .map(([k, icon, title, text]) => h('button', { class: 'kind' + (kind === k ? ' active' : ''), onclick: () => { kind = k; renderCards(); } },
         h('span', { class: 'kicon' }, icon), h('b', null, title), h('small', null, text))));
   renderCards();
@@ -55,7 +55,7 @@ export async function startScreen(app) {
     }, h('span', { class: 'kicon' }, KIND_ICON[it.kind] || '🗄'), h('span', { class: 'rname' }, it.name),
     h('small', null, new Date(it.updated).toLocaleDateString())))) : h('p', { class: 'hint' }, 'Nog geen projecten in deze browser.'),
     h('p', { class: 'hint' }, h('button', { class: 'link', onclick: choose(async () => { app.setProject(demoProject(app.lib)); await app.save(); }) }, 'Demoproject (stuurkast) openen'),
-      ' · ', h('button', { class: 'link', onclick: choose(async () => { app.setProject(fluidDemoProject(app.lib)); await app.save(); }) }, 'Demoproject (elektropneumatica) openen')),
+      ' · ', h('button', { class: 'link', onclick: choose(async () => { app.setProject(fluidDemoProject(app.lib)); await app.save(); }) }, 'Demoproject (pneumatica) openen')),
     h('p', { class: 'donate' }, 'Kringo is gratis. Wil je de verdere ontwikkeling steunen? ',
       h('a', { href: DONATE_URL, target: '_blank', rel: 'noopener' }, '♥ Doneer via Ko-fi')));
   const action = await modal({ title: 'Welkom bij Kringo', body, buttons: [], cls: 'start', bind: (c) => { close = c; } });

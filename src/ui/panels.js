@@ -189,9 +189,12 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
     popupMenu(ev.clientX, ev.clientY, items);
   };
 
+  // fluid power projects show only the fluid symbols, other projects never show them
+  const hidden = () => (app.project?.kind === 'fluid' ? new Set(['Standaard', 'AREI']) : new Set(['Pneumatica', 'Hydraulica']));
   const node = (n, depth) => {
     const out = [];
-    for (const f of [...n.folders.values()].sort((a, b) => natCmp(a.name, b.name))) {
+    const hide = depth === 0 ? hidden() : new Set();
+    for (const f of [...n.folders.values()].filter((x) => !hide.has(x.name)).sort((a, b) => natCmp(a.name, b.name))) {
       const isOpen = filter || open.has(f.path);
       out.push(h('div', {
         class: 'folder' + (isOpen ? ' open' : ''), style: { paddingLeft: depth * 12 + 4 + 'px' },
@@ -370,8 +373,8 @@ function symbolFields(app, an, def, c, setProp) {
     out.push(h('datalist', { id: 'coils' }, [...tags].map((x) => h('option', { value: x }))));
   }
   if (def.fields.some((f) => f.list === 'marks')) out.push(marksList(an));
-  if (def.fluid?.kind === 'valve') out.push(h('p', { class: 'hint' }, 'Een spoel hoort bij het elektrische toestel met dezelfde tag (bv. magneetventiel Y1 op het stuurschema). Simulatie: klik links of rechts op het ventiel om de handbediening te gebruiken; Shift = vasthouden.'));
-  if (def.fluid?.kind === 'cylinder') out.push(h('p', { class: 'hint' }, 'Eindschakelaars en rolventielen met dezelfde naam als een markering worden bediend als de zuigerstang daar staat.'));
+  if (def.fluid?.kind === 'valve') out.push(h('p', { class: 'hint' }, 'Simulatie: klik links of rechts op het ventiel om die kant te bedienen (hand, drukknop, hendel of spoel); Shift = vasthouden. Gestuurde ventielen schakelen op druk, rolventielen op een cilindermarkering.'));
+  if (def.fluid?.kind === 'cylinder') out.push(h('p', { class: 'hint' }, 'Rolventielen en eindschakelaars met dezelfde naam als een markering worden bediend als de zuigerstang daar staat.'));
   return out;
 }
 
