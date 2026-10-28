@@ -1,7 +1,7 @@
 // Service worker: makes Kringo installable and usable offline.
 // Strategy: network first (always the newest version when online), cache as fallback.
 // Bump VERSION for every release (0.61 → 0.62 …), equal to APP_VERSION in src/version.js; add new source files to SHELL.
-const VERSION = 'kringo-0.74';
+const VERSION = 'kringo-0.75';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
@@ -11,7 +11,8 @@ const SHELL = [
   'src/fluid/symbols.js',
   'src/fluid/demo.js',
   'src/sim/engine.js',
-  'src/sim/ui.js', 'src/building/model.js',
+  'src/sim/ui.js',
+  'src/ui/demos.js', 'src/building/model.js',
   'src/building/panels.js', 'src/building/render.js', 'src/building/rooms.js', 'src/building/rules.js',
   'src/app.js', 'src/demo.js', 'src/import/qet.js', 'src/i18n.js', 'src/i18n-dict.js', 'src/main.js', 'src/model.js', 'src/pwa.js', 'src/touch.js',
   'src/schematic/analyze.js', 'src/schematic/editor.js', 'src/schematic/render.js', 'src/schematic/tags.js',

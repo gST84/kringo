@@ -32,7 +32,7 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
 - **Online:** <https://gst84.github.io/kringo/> (Chrome, Edge of Safari).
 - **Als app:** in Chrome / Edge op *Installeren* in de adresbalk; op iPad / iPhone in Safari via deelknop → *Zet op beginscherm*. Daarna werkt Kringo ook zonder internet.
 - Bij het openen verschijnt het **welkomscherm**: kies de taal (Nederlands, Français, English), maak een **nieuw project** of open een recent project.
-- Onder **Demoprojecten** open je een uitgewerkt voorbeeld per soort: een **gebouw** (woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), een **stuurkast** (motorstarter, tijdrelais, noodstop en PLC) en **hydraulica / pneumatica** (vier simuleerbare schakelingen). Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
+- Onder **Demoprojecten** open je een uitgewerkt voorbeeld per soort: een **gebouw** (woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), een **stuurkast** (motorstarter, tijdrelais, noodstop en PLC) en **hydraulica / pneumatica** (vier simuleerbare schakelingen). Ze staan ook bovenaan in het venster **Project openen**. Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
 
 Bij een nieuw project kies je de soort: **Gebouw**, **Stuurkast** of **Hydraulica / pneumatica**. Die ligt daarna vast.
 

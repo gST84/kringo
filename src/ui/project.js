@@ -1,4 +1,5 @@
 // Project dialogs: properties, settings, open / new, file import / export, printing.
+import { demoCards } from './demos.js';
 import { t } from '../i18n.js';
 import { h, download, pickFiles, readDataURL, safeName, shrinkImage, uid } from '../util.js';
 import { FORMAT, LEGACY_FORMATS, newProject, SHEET } from '../model.js';
@@ -153,11 +154,13 @@ export async function openDialog(app) {
           },
         }, '🗑')))))) : h('p', null, 'Nog geen projecten in deze browser.'));
   render(await listProjects());
+  const demos = h('div', { class: 'opendemos' }, ...demoCards(app, (fn) => () => close(fn)));
   const result = await modal({
-    title: 'Project openen', wide: true, body,
+    title: 'Project openen', wide: true, body: h('div', null, demos, h('h3', null, 'In deze browser'), body),
     buttons: [{ label: 'Bestand openen…', value: 'file' }, { label: 'Sluiten', value: undefined }],
     bind: (c) => { close = c; },
   });
+  if (typeof result === 'function') return result();
   if (result === 'file') return importProjectFile(app);
   if (result) {
     const p = await loadProject(result);

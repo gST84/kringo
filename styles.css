@@ -521,3 +521,5 @@ body.simulating #canvas { box-shadow: inset 0 0 0 3px #22c55e; }
 .recentitem.demo .rname { flex: none; }
 .recentitem.demo small { font-size: 12px; line-height: 1.35; }
 @media (max-width: 640px) { .recent.demos { grid-template-columns: 1fr; } }
+.opendemos { margin-bottom: 10px; }
+.opendemos h3, .modal .openlist + h3 { margin-top: 0; }

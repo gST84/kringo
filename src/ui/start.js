@@ -1,27 +1,10 @@
 // Start screen and the "new project" dialog.
-import { DONATE_URL, h, uid } from '../util.js';
+import { DONATE_URL, h } from '../util.js';
 import { LANGS, lang, setLang, t } from '../i18n.js';
-import { modal, toast } from './dialogs.js';
+import { modal } from './dialogs.js';
 import { createProject, importProjectFile } from './project.js';
 import { listProjects, loadProject } from '../storage.js';
-import { demoProject } from '../demo.js';
-import { fluidDemoProject } from '../fluid/demo.js';
-
-const KIND_ICON = { building: '🏠', schematic: '🗄', fluid: '💧' };
-
-/** The example house (a project file next to the app; cached by the service worker). */
-async function buildingDemo() {
-  try {
-    const r = await fetch('demos/gebouw.kringo', { cache: 'no-cache' });
-    const p = await r.json();
-    p.id = uid('prj');
-    p.updated = Date.now();
-    return p;
-  } catch {
-    toast('Het voorbeeldproject kon niet geladen worden.');
-    return null;
-  }
-}
+import { demoCards, KIND_ICON } from './demos.js';
 
 /** Asks for name and kind (building / control cabinet / fluid power). */
 async function newProjectDialog() {
@@ -62,15 +45,7 @@ export async function startScreen(app) {
     h('div', { class: 'startbig' },
       h('button', { class: 'primary', onclick: choose(() => startNewProject(app)) }, h('span', { class: 'kicon' }, '＋'), h('b', null, 'Nieuw project'), h('small', null, 'Gebouw (AREI), stuurkast of hydraulica / pneumatica')),
       h('button', { onclick: choose(() => importProjectFile(app)) }, h('span', { class: 'kicon' }, '📂'), h('b', null, 'Bestand openen'), h('small', null, '.kringo, .elecad of QElectroTech (.qet)'))),
-    h('h3', null, 'Demoprojecten'),
-    h('div', { class: 'recent demos' }, [
-      ['building', 'Gebouw', 'Woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema', () => buildingDemo()],
-      ['schematic', 'Stuurkast', 'Motorstarter, tijdrelais, noodstop en PLC – met simulatie', () => demoProject(app.lib)],
-      ['fluid', 'Hydraulica / pneumatica', 'Terugloop, tweehandbediening, hydraulisch heffen en pendelbeweging met teller – met simulatie', () => fluidDemoProject(app.lib)],
-    ].map(([k, name, text, make]) => h('button', {
-      class: 'recentitem demo', title: t(text),
-      onclick: choose(async () => { const p = await make(); if (p) { app.setProject(p); await app.save(); } }),
-    }, h('span', { class: 'kicon' }, KIND_ICON[k]), h('span', { class: 'rname' }, t(name)), h('small', null, t(text))))),
+    ...demoCards(app, choose),
     h('h3', null, 'Recente projecten'),
     recent.length ? h('div', { class: 'recent' }, recent.map((it) => h('button', {
       class: 'recentitem',

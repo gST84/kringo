@@ -1178,4 +1178,5 @@ export const DICT = [
   ["Het voorbeeldproject kon niet geladen worden.", "Le projet d’exemple n’a pas pu être chargé.", "The example project could not be loaded."],
   ["Vertraging (s)", "Temporisation (s)", "Delay (s)"],
   ["Wordt gebruikt in de simulatie.", "Utilisé dans la simulation.", "Used in the simulation."],
+  ["In deze browser", "Dans ce navigateur", "In this browser"],
 ];
