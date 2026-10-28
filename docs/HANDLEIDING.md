@@ -32,6 +32,7 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
 - **Online:** <https://gst84.github.io/kringo/> (Chrome, Edge of Safari).
 - **Als app:** in Chrome / Edge op *Installeren* in de adresbalk; op iPad / iPhone in Safari via deelknop → *Zet op beginscherm*. Daarna werkt Kringo ook zonder internet.
 - Bij het openen verschijnt het **welkomscherm**: kies de taal (Nederlands, Français, English), maak een **nieuw project** of open een recent project.
+- Onder **Demoprojecten** open je een uitgewerkt voorbeeld per soort: een **gebouw** (woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), een **stuurkast** (motorstarter, tijdrelais, noodstop en PLC) en **hydraulica / pneumatica** (vier simuleerbare schakelingen). Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
 
 Bij een nieuw project kies je de soort: **Gebouw**, **Stuurkast** of **Hydraulica / pneumatica**. Die ligt daarna vast.
 
@@ -302,7 +303,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 ## 8. Hydraulica en pneumatica (met simulatie)
 
-Een project **Hydraulica / pneumatica** is zuiver pneumatisch of hydraulisch (zonder elektrische sturing). Op het welkomscherm opent **Demoproject (pneumatica)** een uitgewerkt voorbeeld: drukknopventiel 1S1 laat cilinder 1A1 uitschuiven via een 5/2-impulsventiel, rolventiel 1S2 laat hem automatisch terugkeren.
+Een project **Hydraulica / pneumatica** is zuiver pneumatisch of hydraulisch (zonder elektrische sturing). Het demoproject **Hydraulica / pneumatica** op het welkomscherm heeft vier bladen: automatische terugloop (drukknopventiel, 5/2-impulsventiel, rolventiel, smoor-terugslagventielen), tweehandbediening met een EN-ventiel, hydraulisch heffen (aggregaat, drukbegrenzer op 40 bar, filter, 4/3-hendelventiel) en een pendelbeweging met pulsteller.
 
 ![Simulatie: drukkant rood, retourkant blauw](img/fluid-sim.png)
 

@@ -439,6 +439,7 @@ function compProps(app, editor, c) {
     s.push(field('Aantal kanalen', inp(c.props.channels, setProp('channels'), { type: 'number', key: 'channels' })));
     s.push(field('Startadres', inp(c.props.start, setProp('start'), { key: 'start' })));
   }
+  if (/^std\/coil-(on|off)$/.test(def?.id)) s.push(field('Vertraging (s)', inp(c.props.t ?? 1, (v) => set(() => { c.props.t = v > 0 ? v : 1; }), { type: 'number', key: 't' }), 'Wordt gebruikt in de simulatie.'));
   if (/^std\/limit/.test(def?.id)) {
     s.push(field('Bediend door cilindermarkering (simulatie)', inp(c.props.mark, setProp('mark'), { key: 'mark', list: 'marks', placeholder: c.tag || 'bv. 1S2' }),
       'Leeg = de tag van de eindschakelaar. De markeringen staan bij de cilinder (bv. 1S1=0; 1S2=100).'));

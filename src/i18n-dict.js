@@ -1171,4 +1171,11 @@ export const DICT = [
   ["Temperatuurregelaar (gas)", "Régulateur de température (gaz)", "Temperature controller (gas)"],
   ["Simulatie: klik links of rechts op het ventiel om die kant te bedienen (hand, drukknop, hendel of spoel); Shift = vasthouden. Gestuurde ventielen schakelen op druk, rolventielen op een cilindermarkering.", "Simulation : cliquez à gauche ou à droite du distributeur pour actionner ce côté (manuel, bouton, levier ou bobine) ; Maj = maintenir. Les distributeurs pilotés commutent sous pression, ceux à galet sur un repère du vérin.", "Simulation: click the left or right of the valve to operate that side (manual, button, lever or solenoid); Shift = hold. Piloted valves switch on pressure, roller valves on a cylinder mark."],
   ["Rolventielen en eindschakelaars met dezelfde naam als een markering worden bediend als de zuigerstang daar staat.", "Les distributeurs à galet et fins de course portant le nom d’un repère sont actionnés quand la tige s’y trouve.", "Roller valves and limit switches with the same name as a mark are operated when the piston rod is there."],
+  ["Demoprojecten", "Projets de démonstration", "Demo projects"],
+  ["Woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema", "Maison avec éclairage, prises, panneaux solaires, domotique, data, pièces, tracé des câbles et schéma unifilaire", "House with lighting, sockets, solar panels, home automation, data, rooms, cable routing and single-line diagram"],
+  ["Motorstarter, tijdrelais, noodstop en PLC – met simulatie", "Démarreur moteur, relais temporisé, arrêt d’urgence et API – avec simulation", "Motor starter, time relay, emergency stop and PLC – with simulation"],
+  ["Terugloop, tweehandbediening, hydraulisch heffen en pendelbeweging met teller – met simulatie", "Retour automatique, commande bimanuelle, levage hydraulique et va-et-vient avec compteur – avec simulation", "Automatic return, two-hand control, hydraulic lifting and oscillation with counter – with simulation"],
+  ["Het voorbeeldproject kon niet geladen worden.", "Le projet d’exemple n’a pas pu être chargé.", "The example project could not be loaded."],
+  ["Vertraging (s)", "Temporisation (s)", "Delay (s)"],
+  ["Wordt gebruikt in de simulatie.", "Utilisé dans la simulation.", "Used in the simulation."],
 ];
