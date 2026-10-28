@@ -304,7 +304,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 Een project **Hydraulica / pneumatica** is zuiver pneumatisch of hydraulisch (zonder elektrische sturing). Op het welkomscherm opent **Demoproject (pneumatica)** een uitgewerkt voorbeeld: drukknopventiel 1S1 laat cilinder 1A1 uitschuiven via een 5/2-impulsventiel, rolventiel 1S2 laat hem automatisch terugkeren.
 
-![Simulatie: het ventiel is geschakeld, de leidingen onder druk gloeien groen](img/fluid-sim.png)
+![Simulatie: drukkant rood, retourkant blauw](img/fluid-sim.png)
 
 **Tekenen**
 
@@ -315,7 +315,7 @@ Een project **Hydraulica / pneumatica** is zuiver pneumatisch of hydraulisch (zo
 **Simuleren**
 
 - **▶ Simuleren** werkt zoals bij de stuurkast. Klik **links of rechts op een ventiel** om die kant te bedienen (hand, drukknop, hendel of spoel); Shift = vasthouden. Gestuurde ventielen schakelen op druk, rolventielen op de cilindermarkeringen.
-- Leidingen onder druk **gloeien groen**, ventielen verschuiven, zuigers en motoren bewegen, manometers tonen hun druk en pulstellers tellen.
+- De **drukkant gloeit rood**, de **retourkant** (leidingen die openstaan naar de afvoer of tank) **gloeit blauw**; ventielen verschuiven, zuigers en motoren bewegen, manometers tonen hun druk en pulstellers tellen.
 - Smoorventielen vertragen de beweging (meter-out met een smoor-terugslagventiel werkt zoals verwacht); OF- en EN-ventielen, drukregelaar, drukbegrenzer en drukverhoger werken ook.
 
 > De simulatie is functioneel (zoals de eenvoudige modus van FluidSIM): druk aan / uit en de ingestelde druk, geen krachten of debieten. Accumulatoren, warmtewisselaars en meetinstrumenten zonder druk zijn enkel getekend. Ze is zo opgebouwd dat een fysisch model later kan volgen.

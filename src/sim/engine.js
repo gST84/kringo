@@ -361,11 +361,11 @@ export class Simulation {
     return null;
   }
 
-  /** 'p' = line under pressure, 'v' = venting line, 'e' = live control wire, or null. */
+  /** 'p' = line under pressure, 'v' = return line (open to exhaust / tank), 'e' = live control wire, or null. */
   wireState(wireId) {
     const net = this.an.wireNet.get(wireId);
     if (!net) return null;
-    if (net.fluid) return this.P.get(net)?.p > 0 ? 'p' : null;
+    if (net.fluid) return this.P.get(net)?.p > 0 ? 'p' : this.V.get(net) > 0 ? 'v' : null;
     const g = this.groups.get(net);
     return g?.plus ? 'e' : null;
   }
