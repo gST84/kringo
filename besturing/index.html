@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Kringo Besturing</title>
+  <meta name="theme-color" content="#17457f">
+  <meta name="description" content="Kringo Besturing – stuurkasten, hydraulica en pneumatica tekenen en simuleren in de browser">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kringo Besturing">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="../icons/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div id="app">
+    <header id="top"></header>
+    <main>
+      <aside id="left">
+        <div id="left-tabs" class="tabs"></div>
+        <div id="library" class="panel"></div>
+        <div id="pages" class="panel" hidden></div>
+      </aside>
+      <section id="center">
+        <div id="toolbar"></div>
+        <div id="canvas"></div>
+        <div id="status"></div>
+      </section>
+      <aside id="right"><div id="props" class="panel"></div></aside>
+    </main>
+  </div>
+  <div id="print-root"></div>
+  <noscript>Kringo heeft JavaScript nodig.</noscript>
+  <script type="module" src="../src/apps/besturing.js"></script>
+  <script>
+    // Safety net: when the app does not start (an old or broken offline copy), offer to clear it.
+    setTimeout(function () {
+      if (window.kringo) return;
+      var box = document.createElement('div');
+      box.style.cssText = 'position:fixed;inset:auto 16px 16px 16px;z-index:9999;max-width:520px;margin:auto;padding:14px 16px;border-radius:10px;background:#fff7e6;border:1px solid #f0b44c;color:#3b2a06;font:14px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.2)';
+      box.innerHTML = '<b>Kringo Besturing start niet.</b> Waarschijnlijk is de opgeslagen (offline) versie verouderd. Je projecten blijven bewaard.<br><button style="margin-top:8px;padding:6px 12px;border-radius:6px;border:1px solid #c98a0b;background:#f6b73c;cursor:pointer;font:inherit">Herstellen en herladen</button>';
+      box.querySelector('button').onclick = async function () {
+        try {
+          var regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+          for (var i = 0; i < regs.length; i++) await regs[i].unregister();
+          if (window.caches) { var keys = await caches.keys(); for (var j = 0; j < keys.length; j++) await caches.delete(keys[j]); }
+        } catch (e) { /* reload anyway */ }
+        location.replace(location.pathname + '?r=' + Date.now());
+      };
+      document.body.appendChild(box);
+    }, 8000);
+  </script>
+</body>
+</html>

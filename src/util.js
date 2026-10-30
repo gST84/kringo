@@ -4,6 +4,18 @@
 export const MANUAL_URL = 'https://github.com/gST84/kringo/blob/main/docs/HANDLEIDING.md';
 export const DONATE_URL = 'https://ko-fi.com/gst84';
 
+/** Site root (the folder with sw.js, icons/, demos/), whichever app page loaded the code. */
+export const ROOT = new URL('../', import.meta.url).href;
+
+/** The two apps; projects of a kind always open in their own app. */
+export const APPS = {
+  building: { key: 'gebouw', name: 'Kringo Gebouw', short: 'Gebouw', icon: '🏠', path: 'gebouw/' },
+  schematic: { key: 'besturing', name: 'Kringo Besturing', short: 'Besturing', icon: '⚙️', path: 'besturing/' },
+};
+/** Project kind as an app key: former 'fluid' projects belong to the control app. */
+export const appKind = (kind) => (kind === 'building' ? 'building' : 'schematic');
+export const appUrl = (kind) => ROOT + APPS[appKind(kind)].path;
+
 export const uid = (p = '') =>
   p + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
 

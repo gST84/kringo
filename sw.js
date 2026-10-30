@@ -1,9 +1,13 @@
-// Service worker: makes Kringo installable and usable offline.
+// Service worker for the whole site (registered with scope ROOT by both apps): installing Kringo Gebouw
+// or Kringo Besturing makes both available offline, they share the code in src/.
 // Strategy: network first (always the newest version when online), cache as fallback.
 // Bump VERSION for every release (0.61 → 0.62 …), equal to APP_VERSION in src/version.js; add new source files to SHELL.
-const VERSION = 'kringo-0.76';
+const VERSION = 'kringo-0.77';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
+  'gebouw/', 'gebouw/index.html', 'gebouw/manifest.webmanifest',
+  'besturing/', 'besturing/index.html', 'besturing/manifest.webmanifest',
+  'src/shell.js', 'src/apps/gebouw.js', 'src/apps/besturing.js', 'src/fluid/marks.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
   'src/building/arei.js', 'src/building/background.js', 'src/building/editor.js', 'src/building/eendraad.js', 'src/building/influences.js', 'src/building/traces.js',
   'src/building/align.js',
@@ -14,7 +18,7 @@ const SHELL = [
   'src/sim/ui.js',
   'src/ui/demos.js', 'src/building/model.js',
   'src/building/panels.js', 'src/building/render.js', 'src/building/rooms.js', 'src/building/rules.js',
-  'src/app.js', 'src/demo.js', 'src/import/qet.js', 'src/i18n.js', 'src/i18n-dict.js', 'src/main.js', 'src/model.js', 'src/pwa.js', 'src/touch.js',
+  'src/app.js', 'src/demo.js', 'src/import/qet.js', 'src/i18n.js', 'src/i18n-dict.js', 'src/model.js', 'src/pwa.js', 'src/touch.js',
   'src/schematic/analyze.js', 'src/schematic/editor.js', 'src/schematic/render.js', 'src/schematic/tags.js',
   'src/storage.js', 'src/symbols/builtin.js', 'src/symbols/geom.js', 'src/symbols/library.js',
   'src/ui/splitters.js', 'src/version.js', 'src/ui/dialogs.js', 'src/ui/lists.js', 'src/ui/panels.js', 'src/ui/project.js', 'src/ui/start.js', 'src/ui/symbolEditor.js', 'src/util.js',
@@ -72,7 +76,11 @@ self.addEventListener('fetch', (e) => {
     } catch {
       const hit = await cache.match(req, { ignoreSearch: true });
       if (hit) return hit;
-      if (req.mode === 'navigate') return (await cache.match('index.html')) || Response.error();
+      if (req.mode === 'navigate') {
+        // an app page with a query (?kies, file launch): its cached page, otherwise the choice page
+        const page = new URL(req.url).pathname.endsWith('/') ? new URL('index.html', req.url).href : req.url;
+        return (await cache.match(page, { ignoreSearch: true })) || (await cache.match(new URL('index.html', self.location).href)) || Response.error();
+      }
       return Response.error();
     }
   })());

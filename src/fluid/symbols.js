@@ -3,6 +3,10 @@
 // position; in the simulation the valve body shifts (`__pos`) like in FluidSIM, the ports stay put.
 // Every symbol carries `fluid: {kind, medium}` for the simulation (src/sim/engine.js).
 
+import { parseMarks } from './marks.js';
+
+export { parseMarks };
+
 const L = (x1, y1, x2, y2, o) => ({ t: 'line', x1, y1, x2, y2, ...o });
 const R = (x, y, w, h, o) => ({ t: 'rect', x, y, w, h, ...o });
 const C = (cx, cy, r, o) => ({ t: 'circle', cx, cy, r, ...o });
@@ -201,13 +205,6 @@ const valve = (medium, id, name, props) => ({
 // ---------- cylinders and motors ----------
 
 const ROD = 33; // drawn stroke of the piston, mm
-
-export function parseMarks(s) {
-  return String(s || '').split(/[;,\n]/).map((x) => x.trim()).filter(Boolean).map((x) => {
-    const m = /^(.+?)\s*[=@:]\s*(-?\d+(?:[.,]\d+)?)\s*(%?)$/.exec(x);
-    return m ? { name: m[1].trim(), at: parseFloat(m[2].replace(',', '.')), pct: !!m[3] } : null;
-  }).filter(Boolean);
-}
 
 function buildCylinder(props) {
   const acting = props.acting || 'double';

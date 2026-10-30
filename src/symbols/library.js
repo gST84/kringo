@@ -1,8 +1,6 @@
 // Symbol library: built-in symbols, user symbols (IndexedDB) and an optional linked folder
 // on disk (File System Access API, Chrome / Edge). Symbol files: *.ksym (JSON; *.elsym from earlier versions).
 import { BUILTIN } from './builtin.js';
-import { AREI } from '../building/arei.js';
-import { FLUID } from '../fluid/symbols.js';
 import { idb, kvGet, kvSet } from '../storage.js';
 import { uid, safeName, download, clone } from '../util.js';
 
@@ -13,8 +11,9 @@ const isLibraryFile = (f) => f === LIBRARY_FORMAT || f === 'elecad-library';
 export const USER_ROOT = 'Mijn symbolen';
 
 export class Library {
-  constructor() {
-    this.builtin = new Map([...BUILTIN, ...AREI, ...FLUID].map((d) => [d.id, { ...d, source: 'builtin' }]));
+  /** `extra`: the app's own built-in symbols (AREI for buildings, fluid power for control). */
+  constructor(extra = []) {
+    this.builtin = new Map([...BUILTIN, ...extra].map((d) => [d.id, { ...d, source: 'builtin' }]));
     this.user = new Map();
     this.folder = new Map();
     this.dir = null; // FileSystemDirectoryHandle

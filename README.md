@@ -1,6 +1,25 @@
 # Kringo
 
-CAD-programma in de browser voor elektrische schema's. Geen installatie en geen build-stap: plain JavaScript (ES-modules) + SVG.
+CAD in de browser voor elektrische installaties, als twee apps met een gedeelde basis:
+
+- **🏠 Kringo Gebouw** – <https://gst84.github.io/kringo/gebouw/> – woningen en gebouwen volgens AREI: plattegronden, kringen, domotica, kabeltrace en het eendraadschema.
+- **⚙️ Kringo Besturing** – <https://gst84.github.io/kringo/besturing/> – stuurkasten samen met hydraulica en pneumatica, met simulatie.
+
+Geen installatie en geen build-stap: plain JavaScript (ES-modules) + SVG.
+
+## Opbouw
+
+| Map | Wat |
+|---|---|
+| `index.html` | keuzepagina; opent meteen de laatst gebruikte app (`?kies` toont de keuze) |
+| `gebouw/`, `besturing/` | de pagina en het manifest van elke app |
+| `src/apps/gebouw.js`, `src/apps/besturing.js` | wat elke app toevoegt: eigen symbolen, menu's, werkbalk, panelen, demo |
+| `src/shell.js` | gedeelde schil: bovenbalk, schema-editor, panelen, opstarten |
+| `src/building/` | enkel Gebouw (plattegronden, AREI, eendraadschema, kabels) |
+| `src/fluid/`, `src/sim/`, `src/demo.js` | enkel Besturing (pneumatica / hydraulica, simulatie, demo) |
+| overige `src/` | gedeeld (schema's, symbolen, dialogen, opslag, afdrukken, vertalingen) |
+
+Een aanpassing aan de gedeelde code geldt voor beide apps. Eén service worker (`sw.js`) bewaart de hele site offline, dus wie één app installeert, heeft beide offline. Projecten staan in dezelfde browseropslag; elke app toont zijn eigen soort en stuurt een project van de andere soort door.
 
 ## Handleiding
 
@@ -16,11 +35,11 @@ Kringo is gratis. Wil je de verdere ontwikkeling steunen, dan kan dat via [Ko-fi
 
 ## Starten
 
-**Online, zonder installatie:** <https://gst84.github.io/kringo/> (Chrome of Edge, ook op Windows).
+**Online, zonder installatie:** <https://gst84.github.io/kringo/> (keuzepagina) of rechtstreeks [Gebouw](https://gst84.github.io/kringo/gebouw/) / [Besturing](https://gst84.github.io/kringo/besturing/) (Chrome of Edge, ook op Windows).
 
 **Als app installeren** (werkt daarna ook offline):
 
-- Windows / Mac: Chrome of Edge → knop *Installeren* in de bovenbalk (of het installatie-icoon in de adresbalk). `.kringo`- en `.qet`-bestanden openen dan met een dubbelklik in Kringo.
+- Windows / Mac: Chrome of Edge → knop *Installeren* in de bovenbalk van de app (of het installatie-icoon in de adresbalk). Elke app installeer je apart. `.kringo`-bestanden (en `.qet` in Besturing) openen dan met een dubbelklik.
 - iPad / iPhone: Safari → deelknop → *Zet op beginscherm*. Belangrijk op iPad: alleen zo blijven projecten in de browser bewaard.
 - Android: Chrome → *App installeren*.
 
@@ -38,10 +57,10 @@ Omdat het een statische site is, kan de map ook op elke webserver of GitHub Page
 
 ## Soorten projecten
 
-Bij **Nieuw** kies je de soort; die ligt daarna vast:
+Elke app maakt zijn eigen soort project:
 
-- **Gebouw** – plattegronden, AREI-symbolen, kringen en het eendraadschema (bladen in hetzelfde project).
-- **Stuurkast** – industriële schema's.
+- **Kringo Gebouw** – plattegronden, AREI-symbolen, kringen en het eendraadschema (bladen in hetzelfde project).
+- **Kringo Besturing** – elektrische bladen (stuurkast) en pneumatische / hydraulische bladen in één project, samen te simuleren.
 
 ## Gebouw
 

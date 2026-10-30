@@ -1,9 +1,9 @@
 // Version shown in the top bar. Keep equal to VERSION in sw.js (tools/check.py checks it).
 import { t } from './i18n.js';
-import { h } from './util.js';
+import { h, ROOT } from './util.js';
 import { modal } from './ui/dialogs.js';
 
-export const APP_VERSION = '0.76';
+export const APP_VERSION = '0.77';
 
 /** Compares versions like '0.67' and '0.102' part by part. */
 const newer = (a, b) => {
@@ -15,7 +15,7 @@ const newer = (a, b) => {
 /** Latest version on the server (null when offline). */
 async function onlineVersion() {
   try {
-    const res = await fetch(`src/version.js?t=${Date.now()}`, { cache: 'no-store' });
+    const res = await fetch(`${ROOT}src/version.js?t=${Date.now()}`, { cache: 'no-store' });
     const m = (await res.text()).match(/APP_VERSION\s*=\s*'([\d.]+)'/);
     return m ? m[1] : null;
   } catch { return null; }

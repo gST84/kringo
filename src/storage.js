@@ -47,9 +47,11 @@ export async function listProjects() {
 export const loadProject = (id) => idb.get('projects', id);
 export const saveProject = (p) => idb.put('projects', JSON.parse(JSON.stringify(p)));
 export const deleteProject = (id) => idb.del('projects', id);
-const LAST_KEY = 'elecad.last'; // historic name, kept so the last project keeps opening
-export const lastProjectId = () => { try { return localStorage.getItem(LAST_KEY); } catch { return null; } };
-export const rememberProject = (id) => { try { localStorage.setItem(LAST_KEY, id); } catch { /* private mode */ } };
+const LAST_KEY = 'elecad.last'; // historic name (before the split into two apps), still read as fallback
+const lastKey = (kind) => `kringo.last.${kind === 'building' ? 'building' : 'schematic'}`;
+/** Last project opened in the app for `kind` (the caller checks the kind of the legacy fallback). */
+export const lastProjectId = (kind) => { try { return localStorage.getItem(lastKey(kind)) || localStorage.getItem(LAST_KEY); } catch { return null; } };
+export const rememberProject = (id, kind) => { try { localStorage.setItem(lastKey(kind), id); } catch { /* private mode */ } };
 
 export const kvGet = (k) => idb.get('kv', k);
 export const kvSet = (k, v) => idb.put('kv', v, k);

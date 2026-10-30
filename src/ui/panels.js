@@ -8,7 +8,7 @@ import { autoTag, needsTag, numberContact, nextTerminal } from '../schematic/tag
 import { confirmDlg, field, modal, prompt, toast } from './dialogs.js';
 import { USER_ROOT } from '../symbols/library.js';
 import { geometry } from '../symbols/geom.js';
-import { parseMarks } from '../fluid/symbols.js';
+import { parseMarks } from '../fluid/marks.js';
 
 // ---------- small input helpers ----------
 

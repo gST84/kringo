@@ -1,7 +1,7 @@
 // Project dialogs: properties, settings, open / new, file import / export, printing.
 import { demoCards } from './demos.js';
 import { t } from '../i18n.js';
-import { h, download, pickFiles, readDataURL, safeName, shrinkImage, uid } from '../util.js';
+import { APPS, appKind, appUrl, h, download, pickFiles, readDataURL, safeName, shrinkImage, uid } from '../util.js';
 import { FORMAT, LEGACY_FORMATS, newProject, SHEET } from '../model.js';
 import { deleteProject, listProjects, loadProject } from '../storage.js';
 import { standalonePageSvg } from '../schematic/render.js';
@@ -129,8 +129,6 @@ export function companyDefaults() {
   try { return JSON.parse(localStorage.getItem('elecad.company') || 'null') || {}; } catch { return {}; }
 }
 
-const KIND_LABEL = { building: '🏠 Gebouw', schematic: '⚙️ Besturing', fluid: '⚙️ Besturing' };
-
 export function createProject(name, kind = 'schematic') {
   const p = newProject(name, kind);
   const d = companyDefaults();
@@ -141,12 +139,16 @@ export function createProject(name, kind = 'schematic') {
 export async function openDialog(app) {
   const body = h('div', { class: 'openlist' });
   let close;
+  // only this app's projects; the others are a link away
+  const kind = app.cfg.kind;
+  const other = kind === 'building' ? 'schematic' : 'building';
+  const list = async () => (await listProjects()).filter((it) => appKind(it.kind) === kind);
+  const others = (await listProjects()).filter((it) => appKind(it.kind) === other).length;
   const render = (items) => body.replaceChildren(
     items.length ? h('table', { class: 'list' },
-      h('thead', null, h('tr', null, h('th', null, 'Project'), h('th', null, 'Soort'), h('th', null, 'Klant'), h('th', null, 'Gewijzigd'), h('th', null, ''))),
+      h('thead', null, h('tr', null, h('th', null, 'Project'), h('th', null, 'Klant'), h('th', null, 'Gewijzigd'), h('th', null, ''))),
       h('tbody', null, items.map((it) => h('tr', { class: it.id === app.project?.id ? 'current' : '' },
         h('td', null, h('button', { class: 'link', onclick: () => close(it.id) }, it.name)),
-        h('td', null, KIND_LABEL[it.kind] || KIND_LABEL.schematic),
         h('td', null, it.customer || ''), h('td', null, new Date(it.updated).toLocaleString()),
         h('td', null, h('button', {
           class: 'icon danger', title: 'Verwijderen',
@@ -154,10 +156,12 @@ export async function openDialog(app) {
             if (it.id === app.project?.id) return toast('Het geopende project kan niet verwijderd worden.');
             if (!(await confirmDlg('Project verwijderen', t('"{name}" definitief verwijderen uit de browser?', { name: it.name }), 'Verwijderen', true))) return;
             await deleteProject(it.id);
-            render(await listProjects());
+            render(await list());
           },
-        }, '🗑')))))) : h('p', null, 'Nog geen projecten in deze browser.'));
-  render(await listProjects());
+        }, '🗑')))))) : h('p', null, 'Nog geen projecten in deze browser.'),
+    others ? h('p', { class: 'hint' }, t('{n} project(en) van {app} staan ook in deze browser: ', { n: others, app: APPS[other].name }),
+      h('a', { href: appUrl(other) }, t('open {app}', { app: APPS[other].name }) + ' →')) : null);
+  render(await list());
   const demos = h('div', { class: 'opendemos' }, ...demoCards(app, (fn) => () => close(fn)));
   const result = await modal({
     title: 'Project openen', wide: true, body: h('div', null, demos, h('h3', null, 'In deze browser'), body),

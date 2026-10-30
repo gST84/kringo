@@ -68,7 +68,7 @@ export class App {
     this.undoStack = [];
     this.redoStack = [];
     this.version++;
-    rememberProject(this.project.id);
+    rememberProject(this.project.id, this.project.kind);
     this.emit('project');
     this.emit('mode', this.mode);
     this.emit('change');

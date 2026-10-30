@@ -1,6 +1,6 @@
 # Handleiding Kringo
 
-Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronden, AREI-symbolen, kringen en het eendraadschema) en **besturing**: stuurkasten (industriële schema's) samen met hydraulica en pneumatica (ISO 1219-schema's), die je samen kunt simuleren. Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
+Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Kringo Gebouw** (plattegronden, AREI-symbolen, kringen en het eendraadschema) en **⚙️ Kringo Besturing**: stuurkasten (industriële schema's) samen met hydraulica en pneumatica (ISO 1219-schema's), die je samen kunt simuleren. Hoofdstukken 3–6 gaan over Gebouw, 7–8 over Besturing. Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
 
 > **Voorbeeldproject:** alle schermafbeeldingen komen uit het project [*Woning Voorbeeldstraat 1*](voorbeelden/Woning%20Voorbeeldstraat%201.kringo) – download het en open het in Kringo met **Open bestand**. Je vindt er alle voorbeelden uit deze handleiding in terug.
 
@@ -29,12 +29,13 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
 
 ## 1. Starten
 
-- **Online:** <https://gst84.github.io/kringo/> (Chrome, Edge of Safari).
-- **Als app:** in Chrome / Edge op *Installeren* in de adresbalk; op iPad / iPhone in Safari via deelknop → *Zet op beginscherm*. Daarna werkt Kringo ook zonder internet.
-- Bij het openen verschijnt het **welkomscherm**: kies de taal (Nederlands, Français, English), maak een **nieuw project** of open een recent project.
-- Onder **Demoprojecten** open je een uitgewerkt voorbeeld per soort: een **gebouw** (woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), en **besturing** (motorstarter, tijdrelais, noodstop, PLC, een elektrisch gestuurde cilinder en vier pneumatische / hydraulische schakelingen). Ze staan ook bovenaan in het venster **Project openen**. Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
+- **Online:** <https://gst84.github.io/kringo/> toont de keuze tussen **Kringo Gebouw** en **Kringo Besturing**; daarna opent dat adres meteen de laatst gebruikte app. Rechtstreeks: <https://gst84.github.io/kringo/gebouw/> en <https://gst84.github.io/kringo/besturing/> (Chrome, Edge of Safari).
+- **Andere app:** klik op het **Kringo-logo** linksboven, of op de link onderaan het welkomscherm.
+- **Als app:** open de app en klik in Chrome / Edge op *Installeren* in de adresbalk; op iPad / iPhone in Safari via deelknop → *Zet op beginscherm*. Elke app installeer je apart; wie er één installeert, kan beide zonder internet gebruiken.
+- Bij het openen verschijnt het **welkomscherm**: kies de taal (Nederlands, Français, English), maak een **nieuw project** of open een recent project van deze app.
+- Onder **Demoproject** open je een uitgewerkt voorbeeld: in Gebouw een **woning** (verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), in Besturing een **besturing** (motorstarter, tijdrelais, noodstop, PLC, een elektrisch gestuurde cilinder en vier pneumatische / hydraulische schakelingen). Het staat ook bovenaan in het venster **Project openen**. Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
 
-Bij een nieuw project kies je de soort: **Gebouw** of **Besturing**. Die ligt daarna vast. Oudere projecten van de soort *Hydraulica / pneumatica* openen als besturingsproject met enkel pneumatische / hydraulische bladen.
+Projecten worden in de browser bewaard; elke app toont alleen zijn eigen projecten. Open je een project van de andere soort (bv. een `.kringo`-bestand van een stuurkast in Kringo Gebouw), dan gaat het vanzelf open in de juiste app. Oudere projecten van de soort *Hydraulica / pneumatica* openen in Besturing, met enkel pneumatische / hydraulische bladen.
 
 ## 2. Het scherm
 
