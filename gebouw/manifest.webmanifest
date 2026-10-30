@@ -9,32 +9,32 @@
   "display": "standalone",
   "orientation": "any",
   "background_color": "#eef1f5",
-  "theme_color": "#17457f",
+  "theme_color": "#14706b",
   "categories": [
     "productivity",
     "utilities"
   ],
   "icons": [
     {
-      "src": "../icons/icon-192.png",
+      "src": "../icons/gebouw-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "../icons/icon-512.png",
+      "src": "../icons/gebouw-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "../icons/maskable-512.png",
+      "src": "../icons/gebouw-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "../icons/icon.svg",
+      "src": "../icons/gebouw.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

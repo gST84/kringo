@@ -9,8 +9,8 @@ export const ROOT = new URL('../', import.meta.url).href;
 
 /** The two apps; projects of a kind always open in their own app. */
 export const APPS = {
-  building: { key: 'gebouw', name: 'Kringo Gebouw', short: 'Gebouw', icon: '🏠', path: 'gebouw/' },
-  schematic: { key: 'besturing', name: 'Kringo Besturing', short: 'Besturing', icon: '⚙️', path: 'besturing/' },
+  building: { key: 'gebouw', name: 'Kringo Gebouw', short: 'Gebouw', icon: '🏠', path: 'gebouw/', logo: 'icons/gebouw.svg' },
+  schematic: { key: 'besturing', name: 'Kringo Besturing', short: 'Besturing', icon: '⚙️', path: 'besturing/', logo: 'icons/icon.svg' },
 };
 /** Project kind as an app key: former 'fluid' projects belong to the control app. */
 export const appKind = (kind) => (kind === 'building' ? 'building' : 'schematic');

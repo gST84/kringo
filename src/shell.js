@@ -60,7 +60,7 @@ const undoBtn = btn('↶', 'Ongedaan maken (Ctrl+Z)', () => app.undo());
 const redoBtn = btn('↷', 'Opnieuw (Ctrl+Y)', () => app.redo());
 
 $('#top').append(
-  h('a', { class: 'brand', href: ROOT + '?kies', title: t('Andere Kringo-app kiezen') }, h('img', { class: 'logo', src: ROOT + 'icons/icon.svg', alt: '' }), 'Kringo', h('span', { class: 'appname' }, t(APPS[cfg.kind].short))),
+  h('a', { class: 'brand', href: ROOT + '?kies', title: t('Andere Kringo-app kiezen') }, h('img', { class: 'logo', src: ROOT + APPS[cfg.kind].logo, alt: '' }), 'Kringo', h('span', { class: 'appname' }, t(APPS[cfg.kind].short))),
   h('button', { class: 'menutoggle', onclick: () => document.body.classList.toggle('show-menu') }, 'Menu ▾'),
   nameEl,
   h('div', { class: 'menu' },
