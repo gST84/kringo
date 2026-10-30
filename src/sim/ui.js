@@ -13,7 +13,7 @@ export function simControls(app, editor) {
   const stepBtn = h('button', { title: 'Terug naar de beginstand', onclick: () => { stop(); start(); } }, '⟲');
   const stopBtn = h('button', { class: 'simstop', title: 'Simulatie stoppen (Esc)', onclick: () => stop() }, '■ ' + t('Stop'));
   const speedSel = h('select', { title: 'Snelheid', onchange: (e) => { speed = +e.target.value; } },
-    [[0.25, '¼×'], [0.5, '½×'], [1, '1×'], [2, '2×']].map(([v, l]) => h('option', { value: v, selected: v === 1 }, l)));
+    [[0.25, '¼×'], [0.5, '½×'], [1, '1×'], [2, '2×'], [5, '5×'], [10, '10×']].map(([v, l]) => h('option', { value: v, selected: v === 1 }, l)));
   const clock = h('span', { class: 'simclock' });
   const running = h('span', { class: 'simrun' }, pauseBtn, stepBtn, speedSel, clock, stopBtn);
 

@@ -28,6 +28,12 @@ const DRIVE = { k: 'drive', label: 'Aangestuurd door (spoel / contactor, bv. -6K
 const FAN = { k: 'drive', label: 'Ventilator aangestuurd door (spoel / contactor; leeg = draait altijd)', list: 'coils' };
 const SOL = { k: 'sol', label: 'Spoel (naam van het magneetventiel op een elektrisch blad, bv. -6Y1)', list: 'coils' };
 
+const num = (k, label, unit) => ({ k, label: `${label} (${unit})`, type: 'number' });
+const KW = (k, label) => num(k, label, 'kW');
+const COOLANT = { k: 'medium', label: 'Koelmiddel in de kring', options: [['water', 'Water'], ['glycol30', 'Glycol 30 %'], ['glycol50', 'Glycol 50 %']] };
+/** Value printed under a symbol, e.g. "3 kW". */
+const val = (y, text) => T(0, y, text, 1.9);
+
 const MEDIA = { water: 'Koeling/Koelwater', ref: 'Koeling/Koelmiddel', inst: 'Koeling/Instrumenten' };
 const sym = (medium, id, name, kind, graphics, pins, o = {}) => ({
   id: `cool/${id}`, name, folder: MEDIA[o.folder || medium], prefix: o.prefix || 'Z', role: o.role || 'device',
@@ -69,45 +75,46 @@ const inst = (id, name, kind, code, o = {}) => sym('inst', id, name, kind, bubbl
 
 export const COOLING = [
   // ---------- coolant ----------
-  sym('water', 'pump', 'Pomp (koelwater)', 'pump', inline(5, [C(0, 0, 5, WHITE), P('M -2 -3.2 L 3.6 0 L -2 3.2 Z', INK)]), IN2,
-    { prefix: 'P', props: { drive: '' }, fields: [DRIVE], tagAt: { x: -6, y: -6, anchor: 'end' } }),
-  sym('water', 'tank', 'Reservoir (open)', 'tank', [L(-5, 0, -5, 5), L(5, 0, 5, 12), P('M -10 3 L -10 15 L 10 15 L 10 3'), L(-10, 7, 10, 7, { w: 0.15, dash: true })],
-    [pin('1', -5, 0), pin('2', 5, 0)], { prefix: 'T', tagAt: { x: -12, y: 10, anchor: 'end' } }),
+  sym('water', 'pump', 'Pomp (koelwater)', 'pump', inline(5, [C(0, 0, 5, WHITE), P('M -2 -3.2 L 3.6 0 L -2 3.2 Z', INK), val(8, '{flow} l/min')]), IN2,
+    { prefix: 'P', props: { drive: '', flow: 20, medium: 'water' }, fields: [DRIVE, num('flow', 'Debiet', 'l/min'), COOLANT], tagAt: { x: -6, y: -6, anchor: 'end' } }),
+  sym('water', 'tank', 'Reservoir (open)', 'tank', [L(-5, 0, -5, 5), L(5, 0, 5, 12), P('M -10 3 L -10 15 L 10 15 L 10 3'), L(-10, 7, 10, 7, { w: 0.15, dash: true }), val(18, '{volume} l'), T(12, 11, '{__t}', 1.9, 'start')],
+    [pin('1', -5, 0), pin('2', 5, 0)], { prefix: 'T', props: { volume: 50, t0: 20 }, fields: [num('volume', 'Inhoud', 'liter'), num('t0', 'Begintemperatuur', '°C')], tagAt: { x: -12, y: 10, anchor: 'end' } }),
   sym('water', 'expvessel', 'Expansievat', 'none', [L(0, 0, 0, 3), P('M -4 7 A 4 4 0 0 1 4 7 L 4 14 A 4 4 0 0 1 -4 14 Z', WHITE), L(-4, 10.5, 4, 10.5, THIN)],
     [pin('1', 0, 0)], { role: 'graphic', tagAt: { x: -6, y: 10, anchor: 'end' } }),
   sym('water', 'filter', 'Filter', 'pass', inline(5, [P('M -5 0 L 0 -5 L 5 0 L 0 5 Z', WHITE), L(0, -5, 0, 5, D)]), IN2),
   sym('water', 'strainer', 'Vuilvanger', 'pass', inline(5, [R(-5, -3, 10, 6, WHITE), L(-4, 2.5, 4, -2.5, D)]), IN2),
   sym('water', 'load', 'Verbruiker / warmtebron (spindel, kast, matrijs …)', 'load',
-    inline(6, [R(-6, -5, 12, 10, WHITE), coil(1, -6, 6), L(-2, -2.5, -2, -8, THIN), L(2, -2.5, 2, -8, THIN), P('M -2 -9 L -3 -7.3 L -1 -7.3 Z', INK), P('M 2 -9 L 1 -7.3 L 3 -7.3 Z', INK)]), IN2,
-    { prefix: 'E', props: { desc: '' }, tagAt: { x: -8, y: -6, anchor: 'end' } }),
-  sym('water', 'aircooler', 'Luchtkoeler / droge koeler (ventilator)', 'cooler', inline(6, [R(-6, -4, 12, 8, WHITE), coil(0, -6, 6), ...fan(-10)]), IN2,
-    { prefix: 'E', props: { drive: '' }, fields: [FAN], tagAt: { x: -8, y: -5, anchor: 'end' } }),
-  sym('water', 'chiller', 'Koelaggregaat (chiller, als geheel)', 'cooler', inline(6, [R(-6, -6, 12, 12, WHITE), ...snow(0, 0, 4)]), IN2,
-    { prefix: 'E', props: { drive: '' }, fields: [{ ...DRIVE, label: 'Aangestuurd door (spoel / contactor; leeg = koelt altijd)' }], tagAt: { x: -8, y: -6, anchor: 'end' } }),
+    inline(6, [R(-6, -5, 12, 10, WHITE), coil(1, -6, 6), L(-2, -2.5, -2, -8, THIN), L(2, -2.5, 2, -8, THIN), P('M -2 -9 L -3 -7.3 L -1 -7.3 Z', INK), P('M 2 -9 L 1 -7.3 L 3 -7.3 Z', INK), val(8, '{power} kW')]), IN2,
+    { prefix: 'E', props: { desc: '', power: 2 }, fields: [KW('power', 'Warmtevermogen')], tagAt: { x: -8, y: -6, anchor: 'end' } }),
+  sym('water', 'aircooler', 'Luchtkoeler / droge koeler (ventilator)', 'cooler', inline(6, [R(-6, -4, 12, 8, WHITE), coil(0, -6, 6), ...fan(-10), val(7, '{cap} kW')]), IN2,
+    { prefix: 'E', props: { drive: '', cap: 5, tair: 25 }, fields: [FAN, KW('cap', 'Koelvermogen'), num('tair', 'Luchttemperatuur', '°C')], tagAt: { x: -8, y: -5, anchor: 'end' } }),
+  sym('water', 'chiller', 'Koelaggregaat (chiller, als geheel)', 'cooler', inline(6, [R(-6, -6, 12, 12, WHITE), ...snow(0, 0, 4), val(9, '{cap} kW')]), IN2,
+    { prefix: 'E', props: { drive: '', cap: 5, sp: 15 }, fields: [{ ...DRIVE, label: 'Aangestuurd door (spoel / contactor; leeg = koelt altijd)' }, KW('cap', 'Koelvermogen'), num('sp', 'Vertrektemperatuur (setpoint)', '°C')], tagAt: { x: -8, y: -6, anchor: 'end' } }),
   sym('water', 'phe', 'Platenwarmtewisselaar', 'hx', [...hxLines, R(-6, -8, 12, 16, WHITE), L(-6, -8, 6, 8, THIN), L(-3, -8, 6, 4, THIN), L(-6, -4, 3, 8, THIN)], HX4,
-    { prefix: 'E', tagAt: { x: -8, y: -9, anchor: 'end' } }),
+    { prefix: 'E', props: { eff: 0.7 }, fields: [{ k: 'eff', label: 'Rendement ε (0 – 1)', type: 'number' }], tagAt: { x: -8, y: -9, anchor: 'end' } }),
   sym('water', 'ball', 'Afsluiter (kogelkraan)', 'manual', [], IN2, { prefix: 'V', props: { open: 'yes' }, build: ballValve,
     fields: [{ k: 'open', label: 'Stand', options: [['yes', 'Open'], ['no', 'Dicht']] }], tagAt: { x: -5, y: -4, anchor: 'end' } }),
   sym('water', 'solvalve', 'Magneetventiel (koelwater)', 'solvalve', [], IN2, { prefix: 'V', props: { sol: '', type: 'nc' }, build: solValve,
     fields: [SOL, { k: 'type', label: 'Uitvoering', options: [['nc', 'Normaal gesloten (opent bekrachtigd)'], ['no', 'Normaal open (sluit bekrachtigd)']] }], tagAt: { x: -5, y: -4, anchor: 'end' } }),
   sym('water', '3way', 'Driewegklep (motor / magneet)', 'valve3', [], [], { prefix: 'V', props: { sol: '' }, build: threeWay(false),
     fields: [{ ...SOL, label: 'Aandrijving (spoel; bekrachtigd = weg 1 → 3, anders 1 → 2)' }], tagAt: { x: -5, y: -4, anchor: 'end' } }),
-  sym('water', '3way-t', 'Thermostatische driewegklep', 'valve3t', [], [], { prefix: 'V', build: threeWay(true), tagAt: { x: -5, y: -4, anchor: 'end' } }),
+  sym('water', '3way-t', 'Thermostatische driewegklep', 'valve3t', [], [], { prefix: 'V', props: { sp: 25 }, build: threeWay(true),
+    fields: [num('sp', 'Boven deze temperatuur op poort 1: weg 1 → 3', '°C')], tagAt: { x: -5, y: -4, anchor: 'end' } }),
   sym('water', 'check', 'Terugslagklep', 'check', inline(3, [P('M -3 -3 L 3 0 L -3 3 Z', WHITE), L(3, -3, 3, 3)]), IN2, { prefix: 'V', tagAt: { x: -4, y: -4, anchor: 'end' } }),
   sym('water', 'vent', 'Ontluchter', 'none', [L(0, 0, 0, -4), R(-2, -8, 4, 4, WHITE), L(0, -8, 0, -10), P('M -1.5 -9.5 L 0 -11.5 L 1.5 -9.5', THIN)], [pin('1', 0, 0)], { role: 'graphic' }),
   sym('water', 'drain', 'Aftapkraan', 'none', [L(0, 0, 0, 3), P('M -2 3 L 2 3 L 0 6 Z', WHITE), L(-2, 9, 2, 9), L(0, 6, 0, 9)], [pin('1', 0, 0)], { role: 'graphic' }),
 
   // ---------- refrigerant circuit ----------
   sym('ref', 'compressor', 'Compressor (koelmiddel)', 'comp', inline(6, [C(0, 0, 6, WHITE), L(-3.6, -4.8, 5, -2.2), L(-3.6, 4.8, 5, 2.2)]), IN2,
-    { prefix: 'M', props: { drive: '' }, fields: [DRIVE], tagAt: { x: -7, y: -6, anchor: 'end' } }),
+    { prefix: 'M', props: { drive: '', tevap: 2, tcond: 40 }, fields: [DRIVE, num('tevap', 'Verdampingstemperatuur', '°C'), num('tcond', 'Condensatietemperatuur', '°C')], tagAt: { x: -7, y: -6, anchor: 'end' } }),
   sym('ref', 'cond-air', 'Condensor (luchtgekoeld)', 'cond', inline(6, [R(-6, -4, 12, 8, WHITE), coil(0, -6, 6), ...fan(-10)]), IN2,
     { prefix: 'E', props: { drive: '' }, fields: [FAN], tagAt: { x: -8, y: -5, anchor: 'end' } }),
-  sym('ref', 'cond-w', 'Condensor (watergekoeld)', 'condw', [...hxLines, R(-6, -8, 12, 16, WHITE), coil(-5, -6, 6), L(-6, 5, 6, 5, D)], HX4,
-    { prefix: 'E', tagAt: { x: -8, y: -9, anchor: 'end' } }),
+  sym('ref', 'cond-w', 'Condensor (watergekoeld)', 'condw', [...hxLines, R(-6, -8, 12, 16, WHITE), coil(-5, -6, 6), L(-6, 5, 6, 5, D), val(11, '{power} kW')], HX4,
+    { prefix: 'E', props: { power: 6 }, fields: [KW('power', 'Warmteafgifte aan het koelwater')], tagAt: { x: -8, y: -9, anchor: 'end' } }),
   sym('ref', 'evap-air', 'Verdamper (luchtkoeler, ventilator)', 'evap', inline(6, [R(-6, -4, 12, 8, WHITE), coil(0, -6, 6), ...fan(-10), ...snow(9, 4, 1.5)]), IN2,
     { prefix: 'E', props: { drive: '' }, fields: [FAN], tagAt: { x: -8, y: -5, anchor: 'end' } }),
-  sym('ref', 'evap-w', 'Verdamper (watergekoeld, chiller)', 'evapw', [...hxLines, R(-6, -8, 12, 16, WHITE), coil(-5, -6, 6), L(-6, 5, 6, 5, D), ...snow(0, 1, 1.5)], HX4,
-    { prefix: 'E', tagAt: { x: -8, y: -9, anchor: 'end' } }),
+  sym('ref', 'evap-w', 'Verdamper (watergekoeld, chiller)', 'evapw', [...hxLines, R(-6, -8, 12, 16, WHITE), coil(-5, -6, 6), L(-6, 5, 6, 5, D), ...snow(0, 1, 1.5), val(11, '{cap} kW')], HX4,
+    { prefix: 'E', props: { cap: 5 }, fields: [KW('cap', 'Koelvermogen')], tagAt: { x: -8, y: -9, anchor: 'end' } }),
   sym('ref', 'txv', 'Thermostatisch expansieventiel', 'expansion', inline(4, [bowtie(false), L(0, 0, 0, -6, D), L(0, -6, 6, -6, D), C(7.5, -6, 1.5, INK)]), IN2,
     { prefix: 'V', tagAt: { x: -5, y: -4, anchor: 'end' } }),
   sym('ref', 'capillary', 'Capillair', 'expansion', [L(-10, 0, -6, 0), L(6, 0, 10, 0), P('M -6 0 C -6 -4 -2 -4 -2 0 C -2 4 2 4 2 0 C 2 -4 6 -4 6 0', { w: 0.3 })], IN2,
@@ -125,7 +132,8 @@ export const COOLING = [
     { role: 'graphic' }),
 
   // ---------- instruments ----------
-  inst('ts', 'Thermostaat (TS)', 'tempsw', 'TS', { props: { mode: 'hot' }, fields: [{ k: 'mode', label: 'Schakelt (contact bediend) bij', options: [['hot', 'Warm water (koelvraag)'], ['cold', 'Koud water']] }] }),
+  inst('ts', 'Thermostaat (TS)', 'tempsw', 'TS', { props: { mode: 'hot', sp: 25, hyst: 2 }, extra: [T(7, -2, '{sp} °C', 1.9, 'start')],
+    fields: [{ k: 'mode', label: 'Schakelt (contact bediend) bij', options: [['hot', 'Warm water (koelvraag)'], ['cold', 'Koud water']] }, num('sp', 'Schakeltemperatuur', '°C'), num('hyst', 'Hysterese', 'K')] }),
   inst('fs', 'Debietschakelaar (FS)', 'flowsw', 'FS'),
   inst('ls', 'Niveauschakelaar (LS)', 'levelsw', 'LS'),
   inst('psh', 'Hogedrukpressostaat (PSH)', 'hp', 'PSH'),

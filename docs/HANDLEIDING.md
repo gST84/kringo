@@ -353,15 +353,33 @@ In-lijnonderdelen hebben links en rechts een aansluiting; warmtewisselaars, wate
 - Een **magneetventiel** of **motordriewegklep** volgt de spoel met dezelfde naam (symbool *Magneetventiel* op een elektrisch blad).
 - Een **contact** (maak / verbreek) op een elektrisch blad koppel je met *Koppelen aan toestel* aan een thermostaat, debiet-, niveau- of drukschakelaar.
 
+**Vermogens en temperaturen**
+
+| Onderdeel | Instellingen |
+|---|---|
+| Pomp | debiet (l/min), koelmiddel (water, glycol 30 % of 50 %) |
+| Reservoir | inhoud (l), begintemperatuur (°C) |
+| Verbruiker (warmtebron) | warmtevermogen (kW) |
+| Chiller (als geheel) | koelvermogen (kW), vertrektemperatuur (°C) |
+| Luchtkoeler / droge koeler | koelvermogen (kW), luchttemperatuur (°C) – koelt tot ca. 3 K boven de lucht |
+| Verdamper (watergekoeld) | koelvermogen (kW) – koelt tot ca. 2 K boven de verdampingstemperatuur |
+| Condensor (watergekoeld) | warmteafgifte aan het koelwater (kW) |
+| Platenwarmtewisselaar | rendement ε |
+| Compressor | verdampings- en condensatietemperatuur (°C) |
+| Thermostaat (TS) | schakeltemperatuur (°C), hysterese (K), warm of koud |
+
+Debiet, vermogens en inhoud staan ook bij het symbool. Elk onderdeel verandert de watertemperatuur met ΔT = P / (ṁ · cp); het reservoir en de pomp hebben een inhoud, dus de temperaturen stijgen en dalen in de tijd. Kies een snelheid van 5× of 10× om een volledige koelcyclus te volgen.
+
 **Simuleren**
 
-- Een draaiende pomp laat het water stromen door alle leidingen die op een open weg van de pers- naar de zuigzijde liggen. Verbruikers warmen het water op (**rood**), koelers, chillers en verdampers koelen het af (**blauw**); stromend water zonder bron of koeler is **cyaan**. Een warmtewisselaar wisselt de temperaturen van zijn twee kanalen.
-- In de koelmiddelkring is alles van de compressor tot het expansieventiel de **hogedrukzijde** (rood), de rest de **lagedrukzijde** (blauw).
+- Een draaiende pomp laat het water stromen door alle leidingen die op een open weg van de pers- naar de zuigzijde liggen; bij een aftakking verdeelt het debiet zich, bij een samenkomst mengt het water.
+- Op elke stromende leiding staat de **temperatuur** en de kleur loopt van **blauw** (koudste leiding) naar **rood** (warmste), apart voor het koelwater en het koelmiddel.
+- In de koelmiddelkring is alles van de compressor tot het expansieventiel de **hogedrukzijde** (persgas, vloeistofleiding), de rest de **lagedrukzijde** (na het expansieventiel, zuigleiding).
 - **Afpompen:** sluit het magneetventiel terwijl de compressor draait, dan daalt de zuigdruk en valt de lagedrukpressostaat af; gaat het ventiel weer open, dan stijgt de druk en start de compressor opnieuw. Een compressor zonder werkende condensor (ventilator uit, geen koelwater) bouwt een hogedrukstoring op.
 - Klik op een pomp, compressor of klep om ze met de hand te bedienen, op een **verbruiker** om de machine stil te zetten, op een **niveauschakelaar** om een te laag niveau na te bootsen. Een verbruiker zonder debiet kleurt rood.
-- Thermostaten, debiet- en drukschakelaars schakelen met een korte vertraging.
+- De thermostaat meet met een kleine vertraging (zoals een voeler in een dompelhuls) en schakelt met hysterese; debiet- en drukschakelaars schakelen met een korte vertraging. Plaats de thermostaat bij voorkeur op het reservoir of de zuigleiding van de pomp: na een verbruiker of verdamper verandert de temperatuur te snel.
 
-> Ook deze simulatie is functioneel: warm / koud en hoge / lage druk, geen temperaturen in °C, debieten of vermogens. Ze is zo opgebouwd dat berekeningen (koelvermogen, debiet, drukval) later kunnen volgen.
+> De berekening is een eenvoudige warmtebalans: vaste debieten, geen drukval of warmteverlies in leidingen, en in de koelmiddelkring vaste verdampings- en condensatietemperaturen.
 
 ## 10. Bewaren, openen, afdrukken
 

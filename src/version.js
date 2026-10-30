@@ -3,7 +3,7 @@ import { t } from './i18n.js';
 import { h, ROOT } from './util.js';
 import { modal } from './ui/dialogs.js';
 
-export const APP_VERSION = '0.79';
+export const APP_VERSION = '0.80';
 
 /** Compares versions like '0.67' and '0.102' part by part. */
 const newer = (a, b) => {

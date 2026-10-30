@@ -1,24 +1,33 @@
-// Functional simulation of machine cooling circuits (part of src/sim/engine.js).
+// Simulation of machine cooling circuits (part of src/sim/engine.js).
 //
-// Coolant: a running pump circulates water through every line that lies on an open path from its outlet
-// back to its inlet (through tanks, filters, consumers, open valves …). Along that flow the water is
-// warmed by consumers and cooled by coolers, chillers and evaporators; heat exchangers swap the
-// temperatures of their two channels. Lines are 'hot', 'cold' or just flowing.
+// Flow: a running pump circulates its flow (l/min) through every line that lies on an open path from its
+// outlet back to its inlet (through tanks, filters, consumers, open valves …); at branches the flow
+// divides equally, at junctions it mixes.
+//
+// Temperatures (°C): along the flow every part changes the water temperature with its power,
+// ΔT = P / (ṁ · cp): consumers add their heat (kW), coolers, chillers and evaporators take away their
+// cooling capacity (kW) down to their limit (set point, air temperature, evaporating temperature), plate
+// heat exchangers transfer ε · Cmin · ΔT between their channels. Reservoirs and the pump content store
+// heat, so temperatures rise and fall over time and thermostats switch on real values.
 //
 // Refrigerant: a running compressor circulates refrigerant the same way; lines from the discharge up to
-// the expansion valve are the high-pressure side, the rest the low-pressure side. The suction pressure
-// rises while refrigerant can reach the suction (also when the compressor stands still: equalising) and
-// falls while the compressor runs without feed (pump-down). A compressor without a working condenser
-// builds up a high-pressure fault.
-//
-// Sensors (TS, FS, PSL, PSH, LS) follow with a short delay, so control loops through the electrical
-// sheets do not oscillate within one step.
+// the expansion valve are the high-pressure side, the rest the low-pressure side, with temperatures from
+// the condensing / evaporating temperature of the compressor. The suction pressure rises while
+// refrigerant can reach the suction (also when the compressor stands still: equalising) and falls while
+// the compressor runs without feed (pump-down). A compressor without a working condenser builds up a
+// high-pressure fault.
 
 const norm = (s) => String(s || '').trim().replace(/^-+/, '').toUpperCase();
-const RANK = { cold: 1, hot: 2 };
-const LAG = 0.6; // s, sensor delay
+const num = (v, d) => { const x = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(x) ? x : d; };
+/** Specific heat (J/kg K) per coolant; density ≈ 1 kg/l. */
+export const COOLANTS = { water: ['Water', 4186], glycol30: ['Glycol 30 %', 3850], glycol50: ['Glycol 50 %', 3550] };
+const T0 = 20; // °C, start temperature of lines and loops without a reservoir
+const PUMP_MASS = 2; // kg of water in pump and nearby lines (loops without a reservoir need some mass)
+const LAG = 0.6; // s, delay of flow / pressure / level switches
+const SENSOR_TAU = 3; // s, time constant of a thermostat bulb (in a thermowell)
 const PUMPDOWN = 2; // s, suction pressure falls / rises over about this time
 const HP_TIME = 2.5; // s, until a missing condenser trips the high-pressure switch
+const SENSORS = ['tempsw', 'flowsw', 'levelsw', 'hp', 'lp'];
 
 export class Cooling {
   constructor(sim, infos) {
@@ -27,20 +36,30 @@ export class Cooling {
     this.lp = new Map(); // compressor id -> suction pressure 0..1
     this.hp = new Map(); // compressor id -> high-pressure fault build-up 0..1
     this.sensor = new Map(); // sensor id -> {v (lagged 0..1), act}
+    this.tank = new Map(); // tank id -> °C
+    this.pumpT = new Map(); // pump id -> °C of its content
     for (const i of this.parts) {
-      const k = i.def.cool.kind;
-      if (k === 'comp') { this.lp.set(i.comp.id, 1); this.hp.set(i.comp.id, 0); }
-      if (['tempsw', 'flowsw', 'levelsw', 'hp', 'lp'].includes(k)) this.sensor.set(i.comp.id, { v: k === 'levelsw' || k === 'lp' ? 1 : 0, act: k === 'levelsw' || k === 'lp' });
+      const k = i.def.cool.kind, id = i.comp.id;
+      if (k === 'comp') { this.lp.set(id, 1); this.hp.set(id, 0); }
+      if (k === 'tank') this.tank.set(id, num(this.props(i).t0, T0));
+      if (SENSORS.includes(k)) this.sensor.set(id, { v: k === 'levelsw' || k === 'lp' ? 1 : 0, act: k === 'levelsw' || k === 'lp' });
     }
+    this.T = new Map(); // net -> °C
+    for (const i of this.parts) for (const p of i.pins) { const n = this.net(i, p.id); if (n) this.T.set(n, T0); }
+    this.inT = new Map(); // "id:channel" -> inlet temperature (last step)
+    this.chC = new Map(); // "id:channel" -> heat capacity flow ṁ·cp (W/K, last step)
     this.flow = new Set(); // flowing nets
-    this.temp = new Map(); // net -> 'hot' | 'cold'
     this.high = new Set(); // refrigerant nets on the high-pressure side (compressor running)
     this.low = new Set();
     this.run = new Set(); // ids of running pumps, compressors, fans
     this.open = new Map(); // valve id -> open (2-way) or way '2' / '3'
     this.flowEdges = new Set(); // "compId:channel" with flow
+    this.dir = []; // flowing edges with direction
+    this.paths = [];
     this.circuit = new Map(); // refrigerant net -> compressor id (static topology)
     this.fed = new Map(); // compressor id -> refrigerant can reach the suction
+    this.range = { water: [T0, T0], ref: [T0, T0] };
+    this.labelWire = new Map(); // net -> id of the wire that carries the temperature label
     this.memo = '';
   }
 
@@ -65,7 +84,7 @@ export class Cooling {
       else if (k === 'manual') this.open.set(id, (p.open !== 'no') !== this.manual(i));
       else if (k === 'solvalve') { const e = this.energized(p.sol) || this.manual(i); this.open.set(id, p.type === 'no' ? !e : e); }
       else if (k === 'valve3') this.open.set(id, this.energized(p.sol) || this.manual(i) ? '3' : '2');
-      else if (k === 'valve3t') this.open.set(id, this.temp.get(this.net(i, '1')) === 'hot' ? '3' : '2');
+      else if (k === 'valve3t') this.open.set(id, (this.T.get(this.net(i, '1')) ?? T0) > num(p.sp, 25) ? '3' : '2');
     }
   }
 
@@ -144,14 +163,13 @@ export class Cooling {
         const e = this.edgeList[idx];
         flow.add(u); flow.add(v);
         flowEdges.add(`${e[3]}:${e[4]}`);
-        dir.push({ u, v, id: e[3], ch: e[4], ref: d.ref });
+        dir.push({ u, v, id: e[3], ch: e[4], ref: d.ref, drv: d.i.comp.id });
       }
-      dir.push({ u: d.t, v: d.s, id: d.i.comp.id, ch: 0, driver: true });
     }
     this.flow = flow;
     this.flowEdges = flowEdges;
+    this.dir = dir;
     this.refrigerant(edges, dir);
-    this.temperatures(dir);
   }
 
   refrigerant(edges, dir) {
@@ -160,16 +178,15 @@ export class Cooling {
     const parent = new Map();
     const find = (a) => { while (parent.has(a) && parent.get(a) !== a) a = parent.get(a); return a; };
     const union = (a, b) => { if (a && b) { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); } };
-    const isRef = (i) => i.def.cool.medium === 'ref';
-    for (const i of this.parts) if (isRef(i)) for (const [a, b] of [['1', '2'], ['3', '4']]) {
-      const k = i.def.cool.kind;
-      if ((k === 'condw' || k === 'evapw') && a === '3') continue; // water side
-      union(this.net(i, a), this.net(i, b));
-    }
+    for (const i of this.parts) if (i.def.cool.medium === 'ref') union(this.net(i, '1'), this.net(i, '2'));
     const comps = this.parts.filter((i) => i.def.cool.kind === 'comp');
     for (const c of comps) {
       const root = find(this.net(c, '1'));
-      for (const i of this.parts) for (const p of i.pins) { const n = this.net(i, p.id); if (n && find(n) === root) this.circuit.set(n, c.comp.id); }
+      for (const i of this.parts) for (const p of i.pins) {
+        if ((i.def.cool.kind === 'condw' || i.def.cool.kind === 'evapw') && (p.id === '3' || p.id === '4')) continue; // water side
+        const n = this.net(i, p.id);
+        if (n && find(n) === root) this.circuit.set(n, c.comp.id);
+      }
     }
     // feed: refrigerant from the discharge side can reach the suction through open parts
     this.fed = new Map();
@@ -182,73 +199,176 @@ export class Cooling {
       const s = this.net(c, '2'), t = this.net(c, '1');
       this.fed.set(c.comp.id, !!(s && t && this.reach(adj, s).has(t)));
     }
-    // high / low side of running compressors
+    // high / low side and refrigerant temperatures of running compressors
     this.high = new Set();
     this.low = new Set();
-    const expansion = new Set(this.parts.filter((i) => i.def.cool.kind === 'expansion').map((i) => i.comp.id));
+    const byId = new Map(this.parts.map((i) => [i.comp.id, i]));
     for (const d of this.paths || []) {
       if (!d.ref || !d.flow.length) continue;
+      const p = this.props(d.i);
+      const te = num(p.tevap, 2), tc = num(p.tcond, 40);
+      const T = new Map([[d.s, tc + 25]]); // discharge gas
       const hi = new Set([d.s]);
-      for (let changed = true; changed;) {
-        changed = false;
-        for (const e of dir) if (e.ref && !e.driver && !expansion.has(e.id) && hi.has(e.u) && !hi.has(e.v) && e.v !== d.t) { hi.add(e.v); changed = true; }
+      const own = dir.filter((e) => e.drv === d.i.comp.id);
+      for (let it = 0; it < own.length + 1; it++) {
+        let changed = false;
+        for (const e of own) {
+          if (!T.has(e.u)) continue;
+          const k = byId.get(e.id)?.def.cool.kind;
+          const out = k === 'cond' || k === 'condw' ? tc - 3 : k === 'expansion' ? te : k === 'evap' || k === 'evapw' ? te + 6 : T.get(e.u);
+          if (T.get(e.v) !== out) { T.set(e.v, out); changed = true; }
+          if (hi.has(e.u) && k !== 'expansion' && e.v !== d.t) hi.add(e.v);
+        }
+        if (!changed) break;
       }
-      for (const e of dir) if (e.ref) for (const n of [e.u, e.v]) (hi.has(n) ? this.high : this.low).add(n);
+      for (const [n, v] of T) this.T.set(n, v);
+      for (const e of own) for (const n of [e.u, e.v]) (hi.has(n) ? this.high : this.low).add(n);
       this.low.add(d.t);
       for (const n of hi) this.low.delete(n);
     }
+    this.updateRange();
   }
 
   /** Is refrigerant flowing through the refrigerant side of an exchanger (channel 0)? */
   refFlow(id) { return this.flowEdges.has(`${id}:0`); }
 
-  temperatures(dir) {
-    const kinds = new Map(this.parts.map((i) => [i.comp.id, i]));
-    const temp = new Map();
-    const inOf = new Map(); // "id:ch" -> inlet temperature
-    for (let it = 0; it < 60; it++) {
-      let changed = false;
-      for (const e of dir) {
-        if (e.ref && !e.driver) continue;
-        const tin = temp.get(e.u);
-        inOf.set(`${e.id}:${e.ch}`, tin);
-        let out = tin;
-        const i = kinds.get(e.id);
-        const k = i?.def.cool?.kind;
-        if (k === 'load') out = this.sim.latched.has(e.id) ? tin : 'hot'; // click = machine idle (no heat)
-        else if (k === 'cooler') out = this.run.has(e.id) ? 'cold' : tin;
-        else if (k === 'evapw' && e.ch === 1) out = this.refFlow(e.id) ? 'cold' : tin;
-        else if (k === 'condw' && e.ch === 1) out = this.refFlow(e.id) ? 'hot' : tin;
-        else if (k === 'hx') { const other = inOf.get(`${e.id}:${1 - e.ch}`); out = this.flowEdges.has(`${e.id}:${1 - e.ch}`) && other ? other : tin; }
-        if (out && (RANK[out] || 0) > (RANK[temp.get(e.v)] || 0)) { temp.set(e.v, out); changed = true; }
-      }
-      if (!changed) break;
-    }
-    for (const n of this.high) temp.set(n, 'hot');
-    for (const n of this.low) temp.set(n, 'cold');
-    this.temp = temp;
+  /** Evaporating temperature of the compressor that serves a refrigerant line. */
+  tevap(net) {
+    const c = this.circuit.get(net);
+    const i = c && this.parts.find((x) => x.comp.id === c);
+    return i ? num(this.props(i).tevap, 2) : 2;
   }
 
-  /** Time-dependent parts: suction / high pressure, lagged sensors. */
-  step(dt) {
-    for (const i of this.parts) {
-      const id = i.comp.id, k = i.def.cool.kind;
-      if (k === 'comp') {
-        const running = this.run.has(id), fed = this.fed.get(id);
-        let lp = this.lp.get(id);
-        if (fed) lp = Math.min(1, lp + dt / PUMPDOWN);
-        else if (running) lp = Math.max(0, lp - dt / PUMPDOWN);
-        this.lp.set(id, lp);
-        const condOk = this.parts.some((c) => this.circuit.get(this.net(c, '1')) === id
-          && ((c.def.cool.kind === 'cond' && this.run.has(c.comp.id)) || (c.def.cool.kind === 'condw' && this.flowEdges.has(`${c.comp.id}:1`))));
-        // running without a working condenser: the discharge pressure builds up (pump-down is no fault)
-        const hp = this.hp.get(id);
-        this.hp.set(id, running && !condOk ? Math.min(1, hp + dt / HP_TIME) : Math.max(0, hp - dt / HP_TIME));
+  // ---------- heat ----------
+
+  /** Outlet temperature of one channel of a part for inlet `tin`, flow `q` (kg/s) and `cp`. */
+  outlet(i, ch, tin, q, cp, dt) {
+    const p = this.props(i), id = i.comp.id, C = q * cp;
+    this.inT.set(`${id}:${ch}`, tin);
+    this.chC.set(`${id}:${ch}`, C);
+    const kw = (k, d) => num(p[k], d) * 1000;
+    switch (i.def.cool.kind) {
+      case 'load': return this.sim.latched.has(id) ? tin : tin + kw('power', 2) / C; // click = machine idle
+      case 'tank': {
+        const tt = this.tank.get(id) ?? T0;
+        const mass = Math.max(1, num(p.volume, 50));
+        this.tank.set(id, tt + (q * (tin - tt) * dt) / mass);
+        return tt;
       }
+      case 'cooler': {
+        if (!this.run.has(id)) return tin;
+        const cooled = tin - kw('cap', 5) / C;
+        if (i.def.id === 'cool/aircooler') { const lim = num(p.tair, 25) + 3; return tin > lim ? Math.max(lim, cooled) : tin; }
+        return Math.max(num(p.sp, 15), Math.min(tin, cooled)); // chiller: down to its set point
+      }
+      case 'evapw': if (ch !== 1 || !this.refFlow(id)) return tin; return Math.max(this.tevap(this.net(i, '1')) + 2, Math.min(tin, tin - kw('cap', 5) / C));
+      case 'condw': if (ch !== 1 || !this.refFlow(id)) return tin; return tin + kw('power', 6) / C;
+      case 'hx': {
+        const o = `${id}:${1 - ch}`;
+        if (!this.flowEdges.has(o) || !this.inT.has(o)) return tin;
+        const cmin = Math.min(C, this.chC.get(o) || C);
+        return tin + (Math.max(0, Math.min(1, num(p.eff, 0.7))) * cmin * (this.inT.get(o) - tin)) / C;
+      }
+      default: return tin;
+    }
+  }
+
+  /** Moves the water through every pump loop for one time step. */
+  thermal(dt) {
+    const byId = new Map(this.parts.map((i) => [i.comp.id, i]));
+    for (const d of this.paths || []) {
+      if (d.ref || !d.flow.length) continue;
+      const p = this.props(d.i);
+      const q = Math.max(0.01, num(p.flow, 20)) / 60; // l/min → kg/s
+      const cp = (COOLANTS[p.medium] || COOLANTS.water)[1];
+      const own = this.dir.filter((e) => e.drv === d.i.comp.id);
+      const outs = new Map(), indeg = new Map();
+      for (const e of own) {
+        if (!outs.has(e.u)) outs.set(e.u, []);
+        outs.get(e.u).push(e);
+        indeg.set(e.v, (indeg.get(e.v) || 0) + 1);
+      }
+      // flow split equally at branches, mixed at junctions, in flow order (Kahn; loops broken in order)
+      const tp = this.pumpT.get(d.i.comp.id) ?? this.T.get(d.t) ?? T0;
+      const Q = new Map([[d.s, q]]), H = new Map([[d.s, q * tp]]);
+      const done = new Set();
+      const ready = [d.s];
+      const left = new Map(indeg);
+      left.delete(d.s);
+      const visit = (n) => {
+        done.add(n);
+        const qn = Q.get(n) || 0;
+        if (!qn) return;
+        const tn = H.get(n) / qn;
+        this.T.set(n, tn);
+        const list = outs.get(n) || [];
+        for (const e of list) {
+          const qe = qn / list.length;
+          const tout = this.outlet(byId.get(e.id), e.ch, tn, qe, cp, dt);
+          Q.set(e.v, (Q.get(e.v) || 0) + qe);
+          H.set(e.v, (H.get(e.v) || 0) + qe * tout);
+          left.set(e.v, (left.get(e.v) || 1) - 1);
+          if (left.get(e.v) <= 0 && !done.has(e.v) && e.v !== d.t) ready.push(e.v);
+        }
+      };
+      for (let guard = 0; guard < 500; guard++) {
+        let n = ready.shift();
+        if (!n) n = [...outs.keys()].find((x) => !done.has(x) && Q.get(x)); // loop: take the next reached net
+        if (!n) break;
+        if (!done.has(n)) visit(n);
+      }
+      // the pump content mixes with what arrives at the suction
+      const qt = Q.get(d.t) || 0;
+      if (qt) {
+        const tin = H.get(d.t) / qt;
+        this.T.set(d.t, tin);
+        this.pumpT.set(d.i.comp.id, tp + (q * (tin - tp) * dt) / PUMP_MASS);
+      }
+    }
+    this.updateRange();
+  }
+
+  updateRange() {
+    const r = { water: [Infinity, -Infinity], ref: [Infinity, -Infinity] };
+    for (const n of new Set([...this.flow, ...this.high, ...this.low])) {
+      const t = this.T.get(n);
+      if (t == null) continue;
+      const m = this.circuit.has(n) ? r.ref : r.water;
+      m[0] = Math.min(m[0], t); m[1] = Math.max(m[1], t);
+    }
+    for (const m of Object.values(r)) if (!(m[0] <= m[1])) { m[0] = T0; m[1] = T0; }
+    this.range = r;
+  }
+
+  /** Time-dependent parts: heat, suction / high pressure, sensors. */
+  step(dt) {
+    this.thermal(dt);
+    for (const i of this.parts) {
+      const id = i.comp.id;
+      if (i.def.cool.kind !== 'comp') continue;
+      const running = this.run.has(id), fed = this.fed.get(id);
+      let lp = this.lp.get(id);
+      if (fed) lp = Math.min(1, lp + dt / PUMPDOWN);
+      else if (running) lp = Math.max(0, lp - dt / PUMPDOWN);
+      this.lp.set(id, lp);
+      const condOk = this.parts.some((c) => this.circuit.get(this.net(c, '1')) === id
+        && ((c.def.cool.kind === 'cond' && this.run.has(c.comp.id)) || (c.def.cool.kind === 'condw' && this.flowEdges.has(`${c.comp.id}:1`))));
+      // running without a working condenser: the discharge pressure builds up (pump-down is no fault)
+      const hp = this.hp.get(id);
+      this.hp.set(id, running && !condOk ? Math.min(1, hp + dt / HP_TIME) : Math.max(0, hp - dt / HP_TIME));
     }
     for (const i of this.parts) {
       const st = this.sensor.get(i.comp.id);
       if (!st) continue;
+      if (i.def.cool.kind === 'tempsw') {
+        // thermostat: set point and hysteresis on the line temperature, measured with a bulb lag
+        const p = this.props(i), sp = num(p.sp, 25), hy = Math.abs(num(p.hyst, 2));
+        const line = this.T.get(this.net(i, '1')) ?? T0;
+        st.t = (st.t ?? line) + (line - (st.t ?? line)) * Math.min(1, dt / SENSOR_TAU);
+        const t = st.t;
+        st.act = p.mode === 'cold' ? (st.act ? t < sp + hy : t <= sp) : (st.act ? t > sp - hy : t >= sp);
+        continue;
+      }
       const target = this.raw(i) ? 1 : 0;
       st.v += Math.sign(target - st.v) * Math.min(Math.abs(target - st.v), dt / LAG);
       if (st.v >= 0.99) st.act = true;
@@ -256,11 +376,10 @@ export class Cooling {
     }
   }
 
-  /** Instantaneous sensor input. */
+  /** Instantaneous input of the delayed switches. */
   raw(i) {
     const n = this.net(i, '1');
     switch (i.def.cool.kind) {
-      case 'tempsw': return this.temp.get(n) === (this.props(i).mode === 'cold' ? 'cold' : 'hot');
       case 'flowsw': return this.flow.has(n);
       case 'levelsw': return !this.sim.latched.has(i.comp.id); // click = level too low
       case 'lp': { const c = this.circuit.get(n); return c ? (this.lp.get(c) ?? 1) > 0.5 : true; }
@@ -273,7 +392,7 @@ export class Cooling {
   act(i) { return !!this.sensor.get(i.comp.id)?.act; }
 
   signature() {
-    return [...this.run].sort().join(',') + '|' + [...this.open].map(([k, v]) => `${k}=${v}`).join(',') + '|' + [...this.temp].map(([n, v]) => `${n.id}${v[0]}`).sort().join(',') + '|' + this.flow.size;
+    return [...this.run].sort().join(',') + '|' + [...this.open].map(([k, v]) => `${k}=${v}`).join(',') + '|' + this.flow.size + '|' + this.high.size;
   }
 
   compState(info) {
@@ -284,24 +403,39 @@ export class Cooling {
       case 'cooler': case 'cond': case 'evap': return cls(this.run.has(id) && (this.flow.has(n) || !!this.props(info).drive));
       case 'manual': case 'solvalve': return { props: { __open: !!this.open.get(id) }, cls: this.open.get(id) && this.flow.has(n) ? 'sim-act' : null };
       case 'valve3': case 'valve3t': return { props: { __to: this.open.get(id) || '2' } };
-      case 'load': return this.sim.latched.has(id) ? null : this.flow.has(n) ? { cls: 'sim-act' } : this.anyFlow() ? { cls: 'sim-warn' } : null;
-      case 'sight': return cls(this.flow.has(n));
-      case 'flowind': return cls(this.flow.has(n));
-      case 'thermo': return { props: { __t: { hot: 'warm', cold: 'koud' }[this.temp.get(n)] || '–' } };
+      case 'load': return this.sim.latched.has(id) ? null : this.flow.has(n) ? { cls: 'sim-act' } : this.flow.size ? { cls: 'sim-warn' } : null;
+      case 'tank': return { props: { __t: fmtT(this.tank.get(id)) } };
+      case 'sight': case 'flowind': return cls(this.flow.has(n));
+      case 'thermo': return { props: { __t: this.T.has(n) ? fmtT(this.T.get(n)) : '–' } };
       case 'gauge': return { props: { __p: this.high.has(n) ? 'hoog' : this.low.has(n) ? 'laag' : this.flow.has(n) ? 'druk' : '–' } };
       case 'tempsw': case 'flowsw': case 'levelsw': case 'hp': case 'lp': return this.act(info) ? { cls: k === 'hp' ? 'sim-warn' : 'sim-act' } : null;
       default: return null;
     }
   }
 
-  anyFlow() { return this.flow.size > 0; }
-
-  /** 'p' hot / high pressure, 'v' cold / low pressure, 'f' flowing coolant of unknown temperature. */
-  wireState(net) {
-    if (this.high.has(net)) return 'p';
-    if (this.low.has(net)) return 'v';
-    if (!this.flow.has(net)) return null;
-    const t = this.temp.get(net);
-    return t === 'hot' ? 'p' : t === 'cold' ? 'v' : 'f';
+  /**
+   * Colour and label of a cooling line: from blue (coldest) to red (warmest line of the same medium),
+   * with the temperature on the longest wire of the line; null when nothing flows.
+   */
+  wireState(net, wireId) {
+    if (!this.flow.has(net) && !this.high.has(net) && !this.low.has(net)) return null;
+    const t = this.T.get(net);
+    if (t == null) return null;
+    const [lo, hi] = this.range[this.circuit.has(net) ? 'ref' : 'water'];
+    const span = Math.max(2, hi - lo);
+    const f = Math.max(0, Math.min(1, (t - (hi + lo) / 2) / span + 0.5));
+    const hue = Math.round(240 + 120 * f) % 360; // 240 blue → 300 magenta → 360 red
+    if (!this.labelWire.has(net)) {
+      let best = null, len = -1;
+      for (const { wire } of net.wires) for (let k = 0; k + 1 < wire.points.length; k++) {
+        const [a, b] = [wire.points[k], wire.points[k + 1]];
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (l > len) { len = l; best = wire.id; }
+      }
+      this.labelWire.set(net, best);
+    }
+    return { c: `hsl(${hue} 80% 47%)`, g: `hsl(${hue} 90% 66%)`, label: this.labelWire.get(net) === wireId ? fmtT(t) : null };
   }
 }
+
+const fmtT = (t) => (t == null ? '–' : `${t.toFixed(1).replace('.', ',')} °C`);

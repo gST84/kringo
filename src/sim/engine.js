@@ -370,12 +370,12 @@ export class Simulation {
 
   /**
    * 'p' = line under pressure, 'v' = return line (open to exhaust / tank), 'e' = live control wire;
-   * cooling: 'p' hot / high pressure, 'v' cold / low pressure, 'f' flowing coolant; or null.
+   * cooling lines: {c: colour, g: glow, label: temperature on one wire of the line}; or null.
    */
   wireState(wireId) {
     const net = this.an.wireNet.get(wireId);
     if (!net) return null;
-    if (net.cool) return this.cooling.wireState(net);
+    if (net.cool) return this.cooling.wireState(net, wireId);
     if (net.fluid) return this.P.get(net)?.p > 0 ? 'p' : this.V.get(net) > 0 ? 'v' : null;
     const g = this.groups.get(net);
     return g?.plus ? 'e' : null;

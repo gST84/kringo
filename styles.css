@@ -525,6 +525,7 @@ body.simulating #canvas { box-shadow: inset 0 0 0 3px #22c55e; }
 .ink .comp.sim-act line, .ink .comp.sim-act path, .ink .comp.sim-act rect:not(.hit), .ink .comp.sim-act circle { stroke: #16a34a; }
 .ink .comp.sim-on, .ink .comp.sim-act { filter: drop-shadow(0 0 0.6px #4ade80); }
 .ink .comp.sim-lamp circle { fill: #fde047; }
+.ink text.simtemp { font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 0.6px; stroke-linejoin: round; }
 .ink .comp.sim-warn line, .ink .comp.sim-warn path, .ink .comp.sim-warn rect:not(.hit), .ink .comp.sim-warn circle { stroke: #dc2626; }
 .ink .comp.sim-warn { filter: drop-shadow(0 0 0.8px #f87171); }
 .ink polyline.simglow { stroke: #4ade80; stroke-width: 2.2; opacity: .35; fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; animation: simglow 1.4s ease-in-out infinite; }
