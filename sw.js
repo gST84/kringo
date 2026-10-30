@@ -2,7 +2,7 @@
 // or Kringo Besturing makes both available offline, they share the code in src/.
 // Strategy: network first (always the newest version when online), cache as fallback.
 // Bump VERSION for every release (0.61 → 0.62 …), equal to APP_VERSION in src/version.js; add new source files to SHELL.
-const VERSION = 'kringo-0.81';
+const VERSION = 'kringo-0.82';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'gebouw/', 'gebouw/index.html', 'gebouw/manifest.webmanifest',

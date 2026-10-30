@@ -265,6 +265,11 @@ export class Cooling {
       case 'cooler': {
         if (!this.run.has(id)) return tin;
         const cooled = tin - kw('cap', 5) / C;
+        if (i.def.id === 'cool/radiator') {
+          // passive radiator: heat transfer proportional to the difference with the air (capacity at 10 K)
+          const ta = num(p.tair, 25), ua = kw('cap', 2) / 10;
+          return ta + (tin - ta) * Math.exp(-ua / C);
+        }
         if (i.def.id === 'cool/aircooler') { const lim = num(p.tair, 25) + 3; return tin > lim ? Math.max(lim, cooled) : tin; }
         return Math.max(num(p.sp, 15), Math.min(tin, cooled)); // chiller: down to its set point
       }
@@ -297,7 +302,9 @@ export class Cooling {
         indeg.set(e.v, (indeg.get(e.v) || 0) + 1);
       }
       // flow split equally at branches, mixed at junctions, in flow order (Kahn; loops broken in order)
-      const tp = this.pumpT.get(d.i.comp.id) ?? this.T.get(d.t) ?? T0;
+      // the pump content starts at the temperature of the reservoir in its loop
+      const tank = own.find((e) => this.tank.has(e.id));
+      const tp = this.pumpT.get(d.i.comp.id) ?? (tank ? this.tank.get(tank.id) : this.T.get(d.t) ?? T0);
       const Q = new Map([[d.s, q]]), H = new Map([[d.s, q * tp]]);
       const done = new Set();
       const ready = [d.s];

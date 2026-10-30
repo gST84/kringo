@@ -1287,4 +1287,6 @@ export const DICT = [
   ["Glycol 30 %", "Glycol 30 %", "Glycol 30 %"],
   ["Glycol 50 %", "Glycol 50 %", "Glycol 50 %"],
   ["Water", "Eau", "Water"],
+  ["Koelradiator (passief)", "Radiateur de refroidissement (passif)", "Cooling radiator (passive)"],
+  ["Koelvermogen bij 10 K verschil met de lucht (kW)", "Puissance frigorifique pour 10 K d'écart avec l'air (kW)", "Cooling capacity at 10 K above the air (kW)"],
 ];

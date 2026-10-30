@@ -341,7 +341,7 @@ Koelcircuits teken je op de bladen van de groep **❄ Koeling**: het koelwater (
 
 **Symbolen** (map *Koeling*)
 
-- **Koelwater:** pomp, open reservoir, expansievat, filter, vuilvanger, verbruiker / warmtebron (spindel, kast, matrijs …), luchtkoeler / droge koeler met ventilator, koelaggregaat (chiller als geheel), platenwarmtewisselaar, kogelkraan, magneetventiel, driewegklep (motor of thermostatisch), terugslagklep, ontluchter en aftapkraan.
+- **Koelwater:** pomp, open reservoir, expansievat, filter, vuilvanger, verbruiker / warmtebron (spindel, kast, matrijs …), koelradiator (passief), luchtkoeler / droge koeler met ventilator, koelaggregaat (chiller als geheel), platenwarmtewisselaar, kogelkraan, magneetventiel, driewegklep (motor of thermostatisch), terugslagklep, ontluchter en aftapkraan.
 - **Koelmiddel:** compressor, condensor (lucht- of watergekoeld), verdamper (luchtkoeler of watergekoeld), thermostatisch expansieventiel, capillair, magneetventiel, afsluiter, terugslagklep, filterdroger, kijkglas, vloeistofvat en zuiggasafscheider.
 - **Instrumenten** (P&ID-bol op de leiding): thermostaat **TS**, debietschakelaar **FS**, niveauschakelaar **LS**, hoge- en lagedrukpressostaat **PSH** / **PSL**, thermometer **TI**, manometer **PI** en debietindicator **FI**.
 
@@ -361,6 +361,7 @@ In-lijnonderdelen hebben links en rechts een aansluiting; warmtewisselaars, wate
 | Reservoir | inhoud (l), begintemperatuur (°C) |
 | Verbruiker (warmtebron) | warmtevermogen (kW) |
 | Chiller (als geheel) | koelvermogen (kW), vertrektemperatuur (°C) |
+| Koelradiator (passief) | koelvermogen bij 10 K verschil met de lucht (kW), luchttemperatuur (°C) – het vermogen daalt naarmate het water de luchttemperatuur nadert, het water wordt nooit kouder dan de lucht |
 | Luchtkoeler / droge koeler | koelvermogen (kW), luchttemperatuur (°C) – koelt tot ca. 3 K boven de lucht |
 | Verdamper (watergekoeld) | koelvermogen (kW) – koelt tot ca. 2 K boven de verdampingstemperatuur |
 | Condensor (watergekoeld) | warmteafgifte aan het koelwater (kW) |
