@@ -28,6 +28,9 @@ const SENSOR_TAU = 3; // s, time constant of a thermostat bulb (in a thermowell)
 const PUMPDOWN = 2; // s, suction pressure falls / rises over about this time
 const HP_TIME = 2.5; // s, until a missing condenser trips the high-pressure switch
 const SENSORS = ['tempsw', 'flowsw', 'levelsw', 'hp', 'lp'];
+const DOT_SPACING = 5; // mm between the flow dots on a line
+const DOT_SPEED = 0.6; // mm/s on the sheet per l/min of flow
+const REF_DOT_SPEED = 12; // mm/s for refrigerant lines
 
 export class Cooling {
   constructor(sim, infos) {
@@ -60,6 +63,10 @@ export class Cooling {
     this.fed = new Map(); // compressor id -> refrigerant can reach the suction
     this.range = { water: [T0, T0], ref: [T0, T0] };
     this.labelWire = new Map(); // net -> id of the wire that carries the temperature label
+    this.qNet = new Map(); // net -> water flow (kg/s)
+    this.travel = new Map(); // net -> distance the flow dots moved (mm)
+    this.wireFwd = new Map(); // wire id -> flow runs along its points (true) or against them (false)
+    this.dirKey = '';
     this.memo = '';
   }
 
@@ -276,6 +283,7 @@ export class Cooling {
   /** Moves the water through every pump loop for one time step. */
   thermal(dt) {
     const byId = new Map(this.parts.map((i) => [i.comp.id, i]));
+    this.qNet = new Map();
     for (const d of this.paths || []) {
       if (d.ref || !d.flow.length) continue;
       const p = this.props(d.i);
@@ -317,6 +325,7 @@ export class Cooling {
         if (!n) break;
         if (!done.has(n)) visit(n);
       }
+      for (const [n, qn] of Q) this.qNet.set(n, (this.qNet.get(n) || 0) + qn);
       // the pump content mixes with what arrives at the suction
       const qt = Q.get(d.t) || 0;
       if (qt) {
@@ -343,6 +352,11 @@ export class Cooling {
   /** Time-dependent parts: heat, suction / high pressure, sensors. */
   step(dt) {
     this.thermal(dt);
+    // flow dots: water moves with its flow, refrigerant at a fixed speed
+    for (const n of new Set([...this.flow, ...this.high, ...this.low])) {
+      const v = this.circuit.has(n) ? REF_DOT_SPEED : (this.qNet.get(n) || 0) * 60 * DOT_SPEED;
+      this.travel.set(n, ((this.travel.get(n) || 0) + v * dt) % 1000);
+    }
     for (const i of this.parts) {
       const id = i.comp.id;
       if (i.def.cool.kind !== 'comp') continue;
@@ -414,8 +428,62 @@ export class Cooling {
   }
 
   /**
+   * Direction of the flow along every wire of the flowing lines: shortest distance over the wires from
+   * the points where the flow enters the line (the outlet port of the part before it).
+   */
+  wireDirections() {
+    if (this.dirKey === this.memo) return;
+    this.dirKey = this.memo;
+    this.wireFwd = new Map();
+    const byId = new Map(this.parts.map((i) => [i.comp.id, i]));
+    const ports = (i, ch) => (i.def.cool.kind === 'hx' || i.def.cool.kind === 'condw' || i.def.cool.kind === 'evapw') ? (ch ? ['3', '4'] : ['1', '2']) : null;
+    /** Position of the port of part `id` (channel `ch`) on line `net`. */
+    const portAt = (id, ch, net) => {
+      const i = byId.get(id);
+      if (!i) return null;
+      const allowed = ports(i, ch);
+      return i.pins.find((p) => (!allowed || allowed.includes(p.id)) && this.net(i, p.id) === net) || null;
+    };
+    const entries = new Map(); // net -> [[x, y]]
+    const addEntry = (net, p) => { if (!p) return; if (!entries.has(net)) entries.set(net, []); entries.get(net).push([p.x, p.y]); };
+    for (const e of this.dir) addEntry(e.v, portAt(e.id, e.ch, e.v));
+    for (const d of this.paths) if (d.flow.length) addEntry(d.s, portAt(d.i.comp.id, 0, d.s));
+    const key = (x, y) => `${Math.round(x * 100)},${Math.round(y * 100)}`;
+    for (const [net, starts] of entries) {
+      // graph of the wire points of this line; entry points on a segment are spliced in
+      const adj = new Map();
+      const link = (a, b, l) => { for (const [p, q] of [[a, b], [b, a]]) { if (!adj.has(p)) adj.set(p, []); adj.get(p).push([q, l]); } };
+      for (const { wire } of net.wires) for (let k = 0; k + 1 < wire.points.length; k++) {
+        const [[ax, ay], [bx, by]] = [wire.points[k], wire.points[k + 1]];
+        link(key(ax, ay), key(bx, by), Math.hypot(bx - ax, by - ay));
+        for (const [sx, sy] of starts) {
+          const t = Math.abs(bx - ax) > Math.abs(by - ay) ? (sx - ax) / (bx - ax) : (sy - ay) / (by - ay);
+          if (t > 0 && t < 1 && Math.hypot(ax + (bx - ax) * t - sx, ay + (by - ay) * t - sy) < 0.05) {
+            link(key(sx, sy), key(ax, ay), Math.hypot(sx - ax, sy - ay));
+            link(key(sx, sy), key(bx, by), Math.hypot(bx - sx, by - sy));
+          }
+        }
+      }
+      const dist = new Map(starts.map(([x, y]) => [key(x, y), 0]));
+      const todo = [...dist.keys()];
+      while (todo.length) {
+        todo.sort((a, b) => dist.get(b) - dist.get(a));
+        const n = todo.pop();
+        for (const [m, l] of adj.get(n) || []) {
+          const d = dist.get(n) + l;
+          if (d < (dist.get(m) ?? Infinity)) { dist.set(m, d); todo.push(m); }
+        }
+      }
+      for (const { wire } of net.wires) {
+        const a = dist.get(key(...wire.points[0])), b = dist.get(key(...wire.points[wire.points.length - 1]));
+        if (a != null || b != null) this.wireFwd.set(wire.id, (a ?? Infinity) <= (b ?? Infinity));
+      }
+    }
+  }
+
+  /**
    * Colour and label of a cooling line: from blue (coldest) to red (warmest line of the same medium),
-   * with the temperature on the longest wire of the line; null when nothing flows.
+   * with the temperature on the longest wire of the line and moving flow dots; null when nothing flows.
    */
   wireState(net, wireId) {
     if (!this.flow.has(net) && !this.high.has(net) && !this.low.has(net)) return null;
@@ -434,7 +502,10 @@ export class Cooling {
       }
       this.labelWire.set(net, best);
     }
-    return { c: `hsl(${hue} 80% 47%)`, g: `hsl(${hue} 90% 66%)`, label: this.labelWire.get(net) === wireId ? fmtT(t) : null };
+    this.wireDirections();
+    const fwd = this.wireFwd.get(wireId);
+    const dots = fwd == null ? null : { fwd, off: -((this.travel.get(net) || 0) % DOT_SPACING), gap: DOT_SPACING };
+    return { c: `hsl(${hue} 80% 47%)`, g: `hsl(${hue} 90% 66%)`, label: this.labelWire.get(net) === wireId ? fmtT(t) : null, dots };
   }
 }
 

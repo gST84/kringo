@@ -185,6 +185,12 @@ function wireSvg(w, an, opts) {
   // simulation: active lines glow green (a wide, pulsing halo under the line)
   let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}">${SIMC ? `<polyline class="simglow" points="${pts}" style="stroke:${SIMC[1]}"/>` : ''}<polyline class="wl" points="${pts}"${st ? ` style="${esc(st)}"` : ''}/>`;
   if (String(w.color).toUpperCase() === 'GNYE') out += `<polyline class="wl gnye" points="${pts}" style="stroke:#e0c000" stroke-dasharray="2 2"/>`;
+  if (sim?.dots) {
+    // flow dots (simulation): a dotted line in the flow direction, shifted with the distance travelled
+    const dp = (sim.dots.fwd ? w.points : [...w.points].reverse()).map((p) => p.join(',')).join(' ');
+    const da = `stroke-dasharray:0 ${sim.dots.gap};stroke-dashoffset:${r2(sim.dots.off)}`;
+    out += `<polyline class="simdots" points="${dp}" style="stroke:${sim.c};${da}"/><polyline class="simdots in" points="${dp}" style="${da}"/>`;
+  }
   if (sim?.label) {
     const pos = wireLabelPos(w.points);
     if (pos) {
