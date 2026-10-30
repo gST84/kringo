@@ -1,6 +1,6 @@
 # Handleiding Kringo
 
-Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Kringo Gebouw** (plattegronden, AREI-symbolen, kringen en het eendraadschema) en **⚙️ Kringo Besturing**: stuurkasten (industriële schema's) samen met hydraulica en pneumatica (ISO 1219-schema's), die je samen kunt simuleren. Hoofdstukken 3–6 gaan over Gebouw, 7–8 over Besturing. Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
+Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Kringo Gebouw** (plattegronden, AREI-symbolen, kringen en het eendraadschema) en **⚙️ Kringo Besturing**: stuurkasten (industriële schema's) samen met hydraulica en pneumatica (ISO 1219-schema's), die je samen kunt simuleren. Hoofdstukken 3–6 gaan over Gebouw, 7–9 over Besturing. Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
 
 > **Voorbeeldproject:** alle schermafbeeldingen komen uit het project [*Woning Voorbeeldstraat 1*](voorbeelden/Woning%20Voorbeeldstraat%201.kringo) – download het en open het in Kringo met **Open bestand**. Je vindt er alle voorbeelden uit deze handleiding in terug.
 
@@ -22,8 +22,9 @@ Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Krin
    - [H. Kabeltrace en kabellengtes](#h-kabeltrace-en-kabellengtes)
 7. [Besturing: stuurkast](#7-besturing-stuurkast)
 8. [Besturing: hydraulica en pneumatica](#8-besturing-hydraulica-en-pneumatica)
-9. [Bewaren, openen, afdrukken](#9-bewaren-openen-afdrukken)
-10. [Sneltoetsen](#10-sneltoetsen)
+9. [Besturing: koelcircuits van machines](#9-besturing-koelcircuits-van-machines)
+10. [Bewaren, openen, afdrukken](#10-bewaren-openen-afdrukken)
+11. [Sneltoetsen](#11-sneltoetsen)
 
 ---
 
@@ -33,7 +34,7 @@ Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Krin
 - **Andere app:** klik op het **Kringo-logo** linksboven, of op de link onderaan het welkomscherm.
 - **Als app:** open de app en klik in Chrome / Edge op *Installeren* in de adresbalk; op iPad / iPhone in Safari via deelknop → *Zet op beginscherm*. Elke app installeer je apart; wie er één installeert, kan beide zonder internet gebruiken.
 - Bij het openen verschijnt het **welkomscherm**: kies de taal (Nederlands, Français, English), maak een **nieuw project** of open een recent project van deze app.
-- Onder **Demoproject** open je een uitgewerkt voorbeeld: in Gebouw een **woning** (verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), in Besturing een **besturing** (motorstarter, tijdrelais, noodstop, PLC, een elektrisch gestuurde cilinder en vier pneumatische / hydraulische schakelingen). Het staat ook bovenaan in het venster **Project openen**. Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
+- Onder **Demoproject** open je een uitgewerkt voorbeeld: in Gebouw een **woning** (verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), in Besturing een **besturing** (motorstarter, tijdrelais, noodstop, PLC, een elektrisch gestuurde cilinder, vier pneumatische / hydraulische schakelingen en de koeling van een spindel met een chiller). Het staat ook bovenaan in het venster **Project openen**. Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
 
 Projecten worden in de browser bewaard; elke app toont alleen zijn eigen projecten. Open je een project van de andere soort (bv. een `.kringo`-bestand van een stuurkast in Kringo Gebouw), dan gaat het vanzelf open in de juiste app. Oudere projecten van de soort *Hydraulica / pneumatica* openen in Besturing, met enkel pneumatische / hydraulische bladen.
 
@@ -286,7 +287,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 ## 7. Besturing: stuurkast
 
-Een besturingsproject heeft twee soorten bladen. In de lijst **Pagina's** staan ze in twee groepen: **⚡ Elektrisch** en **💧 Hydraulica / pneumatica**; met de **＋** naast een groep voeg je een blad van die soort toe. De bibliotheek toont enkel de symbolen die bij het actieve blad horen: *Standaard* en *AREI* op elektrische bladen, *Pneumatica* en *Hydraulica* op pneumatische / hydraulische bladen. Toestellen op die laatste krijgen een eigen codering (standaard `{prefix}{n}` → *V1*, *A1*; in *Instellingen*).
+Een besturingsproject heeft drie soorten bladen. In de lijst **Pagina's** staan ze in groepen: **⚡ Elektrisch**, **💧 Hydraulica / pneumatica** en **❄ Koeling**; met de **＋** naast een groep voeg je een blad van die soort toe. De bibliotheek toont enkel de symbolen die bij het actieve blad horen: *Standaard* en *AREI* op elektrische bladen, *Pneumatica* en *Hydraulica* op pneumatische / hydraulische bladen, *Koeling* op koelbladen. Toestellen op die laatste krijgen een eigen codering (standaard `{prefix}{n}` → *V1*, *A1*; in *Instellingen*).
 
 - **Pagina's** op A3 met kolommen en rijen, titelblok met bedrijf en logo (*Gegevens*).
 - **Voedingslijnen** (L1 L2 L3 N PE, +24V / 0V …) in de pagina-eigenschappen; zelfde naam = zelfde potentiaal over alle pagina's.
@@ -332,13 +333,43 @@ De simulatie loopt over alle bladen tegelijk, dus de elektrische bladen sturen d
 
 > De simulatie is functioneel (zoals de eenvoudige modus van FluidSIM): druk aan / uit en de ingestelde druk, geen krachten of debieten. Accumulatoren, warmtewisselaars en meetinstrumenten zonder druk zijn enkel getekend. Ze is zo opgebouwd dat een fysisch model later kan volgen.
 
-## 9. Bewaren, openen, afdrukken
+## 9. Besturing: koelcircuits van machines
+
+Koelcircuits teken je op de bladen van de groep **❄ Koeling**: het koelwater (of glycol) van een machine én de koelmiddelkring van een chiller. Het demoproject **Besturing** heeft er een voorbeeld van: *Koelwater spindel met chiller*, gestuurd vanaf het elektrische blad *Koeling – sturing*.
+
+![Simulatie van een chiller: persleiding en warm water rood, zuigleiding en koud water blauw](img/cooling-sim.png)
+
+**Symbolen** (map *Koeling*)
+
+- **Koelwater:** pomp, open reservoir, expansievat, filter, vuilvanger, verbruiker / warmtebron (spindel, kast, matrijs …), luchtkoeler / droge koeler met ventilator, koelaggregaat (chiller als geheel), platenwarmtewisselaar, kogelkraan, magneetventiel, driewegklep (motor of thermostatisch), terugslagklep, ontluchter en aftapkraan.
+- **Koelmiddel:** compressor, condensor (lucht- of watergekoeld), verdamper (luchtkoeler of watergekoeld), thermostatisch expansieventiel, capillair, magneetventiel, afsluiter, terugslagklep, filterdroger, kijkglas, vloeistofvat en zuiggasafscheider.
+- **Instrumenten** (P&ID-bol op de leiding): thermostaat **TS**, debietschakelaar **FS**, niveauschakelaar **LS**, hoge- en lagedrukpressostaat **PSH** / **PSL**, thermometer **TI**, manometer **PI** en debietindicator **FI**.
+
+In-lijnonderdelen hebben links en rechts een aansluiting; warmtewisselaars, watergekoelde condensors en verdampers hebben er vier (boven het ene medium, onder het andere). Leidingen teken je met het draadgereedschap (`W`).
+
+**Elektrisch sturen**
+
+- Bij een **pomp**, **compressor** of **ventilator** vul je in door welke spoel (contactor) hij aangestuurd wordt, bv. `-6K2`; de keuzelijst toont de spoelen in het project. Een ventilator zonder spoel draait altijd.
+- Een **magneetventiel** of **motordriewegklep** volgt de spoel met dezelfde naam (symbool *Magneetventiel* op een elektrisch blad).
+- Een **contact** (maak / verbreek) op een elektrisch blad koppel je met *Koppelen aan toestel* aan een thermostaat, debiet-, niveau- of drukschakelaar.
+
+**Simuleren**
+
+- Een draaiende pomp laat het water stromen door alle leidingen die op een open weg van de pers- naar de zuigzijde liggen. Verbruikers warmen het water op (**rood**), koelers, chillers en verdampers koelen het af (**blauw**); stromend water zonder bron of koeler is **cyaan**. Een warmtewisselaar wisselt de temperaturen van zijn twee kanalen.
+- In de koelmiddelkring is alles van de compressor tot het expansieventiel de **hogedrukzijde** (rood), de rest de **lagedrukzijde** (blauw).
+- **Afpompen:** sluit het magneetventiel terwijl de compressor draait, dan daalt de zuigdruk en valt de lagedrukpressostaat af; gaat het ventiel weer open, dan stijgt de druk en start de compressor opnieuw. Een compressor zonder werkende condensor (ventilator uit, geen koelwater) bouwt een hogedrukstoring op.
+- Klik op een pomp, compressor of klep om ze met de hand te bedienen, op een **verbruiker** om de machine stil te zetten, op een **niveauschakelaar** om een te laag niveau na te bootsen. Een verbruiker zonder debiet kleurt rood.
+- Thermostaten, debiet- en drukschakelaars schakelen met een korte vertraging.
+
+> Ook deze simulatie is functioneel: warm / koud en hoge / lage druk, geen temperaturen in °C, debieten of vermogens. Ze is zo opgebouwd dat berekeningen (koelvermogen, debiet, drukval) later kunnen volgen.
+
+## 10. Bewaren, openen, afdrukken
 
 - Projecten worden **automatisch** in de browser bewaard.
 - **Bewaar bestand** (diskette) maakt een `.kringo`-bestand om door te sturen of als back-up; **Open bestand** opent `.kringo` en `.qet`.
 - **Afdrukken / PDF** (printer): kies alles, alle plattegronden, de huidige plattegrond of het eendraadschema; kies in het afdrukvenster *Opslaan als PDF* en zet de marges op *Geen*. Alles op A3 liggend, plattegronden op schaal.
 
-## 10. Sneltoetsen
+## 11. Sneltoetsen
 
 **Grondplan:** `W` muur · `A` gebogen muur · `D` deur · `N` raam · `M` maatlijn · `T` ruimtenaam · `L` koppelen · `R` draaien · `V` selecteren · `H` pannen · `Del` verwijderen · `Ctrl+D` dupliceren · `Ctrl+Z / Y` ongedaan / opnieuw · `F` passend · `Alt` zonder raster / niet tegen de muur · `Backspace` laatste punt terug (vlak, lijn, ledstrip).
 

@@ -6,6 +6,7 @@
 // min(k of the supply side, vent of the exhaust side). The model is kept small on purpose, so it can
 // grow into a physical one later (forces, flows, pressure drops) without changing the editor.
 import { parseMarks, restPosition, valvePaths } from '../fluid/symbols.js';
+import { Cooling } from '../cooling/sim.js';
 
 const ATM = '__atm';
 const norm = (s) => String(s || '').trim().replace(/^-+/, '').toUpperCase();
@@ -41,7 +42,8 @@ export class Simulation {
     this.short = false;
     const infos = [...an.comps.values()];
     this.fluid = infos.filter((i) => i.def?.fluid);
-    this.elec = infos.filter((i) => !i.def?.fluid && i.pins.length);
+    this.elec = infos.filter((i) => !i.def?.fluid && !i.def?.cool && i.pins.length);
+    this.cooling = new Cooling(this, infos); // machine cooling circuits (src/cooling/sim.js)
     for (const i of this.fluid) {
       const k = i.def.fluid.kind;
       if (k === 'valve') this.valvePos.set(i.comp.id, restPosition(this.props(i)));
@@ -66,7 +68,8 @@ export class Simulation {
     const info = this.an.comps.get(id);
     if (!info) return;
     const key = info.def?.fluid?.kind === 'valve' ? `${id}:${side}` : id;
-    const toggle = /^std\/(estop|selector|keyswitch)$/.test(info.def?.id);
+    // switches that stay, and cooling parts (pumps, valves, machine on / off, low level) toggle per click
+    const toggle = /^std\/(estop|selector|keyswitch)$/.test(info.def?.id) || !!info.def?.cool;
     if (toggle || latch) { if (this.latched.has(key)) this.latched.delete(key); else this.latched.add(key); }
     else this.pressed.add(key);
     this.solve();
@@ -88,6 +91,7 @@ export class Simulation {
         return st.on;
       }
       if (m.def?.fluid?.kind === 'pswitch') return this.pressure(this.net(m, 'X')) >= (+this.props(m).p || 0.1) - 1e-9;
+      if (m.def?.cool) return this.cooling.act(m);
       return this.deviceAct(m);
     }
     return this.deviceAct(info, c);
@@ -293,7 +297,8 @@ export class Simulation {
       this.solveElectric();
       this.updateValves();
       this.solveFluid();
-      const s = [...this.valvePos.values()].join(',') + '|' + [...this.loadsOn].sort().join(',') + '|' + [...this.P].map(([n, v]) => `${n.id}:${v.p}`).sort().join(',');
+      this.cooling.solve();
+      const s = this.cooling.signature() + '|' + [...this.valvePos.values()].join(',') + '|' + [...this.loadsOn].sort().join(',') + '|' + [...this.P].map(([n, v]) => `${n.id}:${v.p}`).sort().join(',');
       if (s === sig) break;
       sig = s;
     }
@@ -301,6 +306,7 @@ export class Simulation {
 
   step(dt) {
     this.time += dt;
+    this.cooling.step(dt);
     for (const st of this.coil.values()) {
       if (st.on) { st.onFor += dt; st.offFor = 0; } else { st.offFor += dt; st.onFor = 0; }
     }
@@ -346,6 +352,7 @@ export class Simulation {
   compState(id) {
     const info = this.an.comps.get(id);
     if (!info) return null;
+    if (info.def?.cool) return this.cooling.compState(info);
     const k = info.def?.fluid?.kind;
     if (k === 'valve') return { props: { __pos: this.valvePos.get(id) } };
     if (k === 'cylinder') return { props: { __x: Math.round(this.cyl.get(id).x * 1000) / 1000 } };
@@ -361,10 +368,14 @@ export class Simulation {
     return null;
   }
 
-  /** 'p' = line under pressure, 'v' = return line (open to exhaust / tank), 'e' = live control wire, or null. */
+  /**
+   * 'p' = line under pressure, 'v' = return line (open to exhaust / tank), 'e' = live control wire;
+   * cooling: 'p' hot / high pressure, 'v' cold / low pressure, 'f' flowing coolant; or null.
+   */
   wireState(wireId) {
     const net = this.an.wireNet.get(wireId);
     if (!net) return null;
+    if (net.cool) return this.cooling.wireState(net);
     if (net.fluid) return this.P.get(net)?.p > 0 ? 'p' : this.V.get(net) > 0 ? 'v' : null;
     const g = this.groups.get(net);
     return g?.plus ? 'e' : null;

@@ -28,7 +28,8 @@ export function simControls(app, editor) {
     timer = requestAnimationFrame(frame);
     const sim = app.sim;
     if (!sim) return;
-    const dt = Math.min(0.1, (now - last) / 1000);
+    // the first frame can carry a timestamp from before start(): never step backwards
+    const dt = Math.max(0, Math.min(0.1, (now - last) / 1000));
     last = now;
     if (paused) return;
     // small steps so fast cylinders do not jump over their marks

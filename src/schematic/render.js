@@ -177,8 +177,8 @@ function wireSvg(w, an, opts) {
   const net = an.wireNet.get(w.id);
   const own = wireColor(w.color);
   const sim = opts.sim?.wireState(w.id);
-  // simulation colours: pressure side red, return side blue, live control wires green
-  const SIMC = { p: ['#ef4444', '#f87171'], v: ['#2563eb', '#60a5fa'], e: ['#22c55e', '#4ade80'] }[sim];
+  // simulation colours: pressure side / hot red, return side / cold blue, live control wires green, flowing coolant cyan
+  const SIMC = { p: ['#ef4444', '#f87171'], v: ['#2563eb', '#60a5fa'], e: ['#22c55e', '#4ade80'], f: ['#0891b2', '#22d3ee'] }[sim];
   const color = SIMC ? SIMC[0] : own || (opts.project.settings.colorWires !== false ? net?.railColor : null);
   const st = (color ? `stroke:${color};` : '') + (sim ? 'stroke-width:0.55;' : w.w ? `stroke-width:${w.w};` : '');
   // simulation: active lines glow green (a wide, pulsing halo under the line)

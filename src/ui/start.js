@@ -51,7 +51,7 @@ export async function startScreen(app) {
       h('span', { class: 'kicon' }, other.icon),
       h('span', null, h('b', null, other.name), h('small', null, t(otherApp(cfg.kind) === 'building'
         ? 'Woningen en gebouwen volgens AREI: plattegronden, kringen, eendraadschema'
-        : 'Stuurkasten, hydraulica en pneumatica – met simulatie'))),
+        : 'Stuurkasten, hydraulica, pneumatica en koeling – met simulatie'))),
       h('span', { class: 'arrow' }, '→')),
     h('p', { class: 'donate' }, 'Kringo is gratis. Wil je de verdere ontwikkeling steunen? ',
       h('a', { href: DONATE_URL, target: '_blank', rel: 'noopener' }, '♥ Doneer via Ko-fi')));

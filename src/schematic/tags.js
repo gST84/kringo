@@ -1,5 +1,5 @@
 // Device tags (page / column / row based), terminal numbers and contact numbering.
-import { isFluidPage, locate } from '../model.js';
+import { isProcessPage, locate } from '../model.js';
 
 const NO_TAG_ROLES = new Set(['terminal', 'link', 'graphic']);
 
@@ -11,7 +11,7 @@ function baseTag(project, fmt, prefix, pageIdx, x, y) {
 }
 
 /** Tag format of a sheet: fluid sheets have their own (ISO 1219 style) format. */
-const tagFormat = (project, pageIdx) => (isFluidPage(project.pages[pageIdx])
+const tagFormat = (project, pageIdx) => (isProcessPage(project.pages[pageIdx])
   ? project.settings.fluidTagFormat || '{prefix}{n}'
   : project.settings.tagFormat || '-{prefix}{n}');
 

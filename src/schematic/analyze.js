@@ -165,6 +165,7 @@ export function analyze(project, lib, opts = {}) {
     const net = netOf(`P:${info.comp.id}:${p.id}`);
     net.pins.push({ info, pin: p });
     if (info.def?.fluid) net.fluid = true; // pneumatic / hydraulic line
+    if (info.def?.cool) net.fluid = net.cool = true; // cooling pipe (no wire number)
     pinNet.set(`${info.comp.id}:${p.id}`, net);
   }
   const wireNet = new Map();

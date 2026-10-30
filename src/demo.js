@@ -1,17 +1,20 @@
 // Example control project: direct-on-line motor starter (power + control), a 24 V page with
 // emergency stop, selector, time relay, lamps and buzzer, a PLC page, an electrical sheet that drives
-// a pneumatic cylinder, and the pneumatic / hydraulic sheets. All pages can be simulated together.
+// a pneumatic cylinder, the pneumatic / hydraulic sheets, and a machine cooling circuit (chiller) with
+// its control. All pages can be simulated together.
 import { newPage, newProject } from './model.js';
 import { fluidDemoPages } from './fluid/demo.js';
+import { coolingDemoPage } from './cooling/demo.js';
 import { autoTag, numberContact, nextTerminal } from './schematic/tags.js';
 import { uid } from './util.js';
 
 export function demoProject(lib) {
   const p = newProject('Demo – besturing');
-  p.meta.description = 'Motorstarter, tijdrelais, PLC, elektropneumatiek en hydraulica / pneumatica – met simulatie';
+  p.meta.description = 'Motorstarter, tijdrelais, PLC, elektropneumatiek, hydraulica / pneumatica en machinekoeling – met simulatie';
   p.pages = [newPage('Vermogen', 'power'), newPage('Stuurstroom', 'control'), newPage('Ventilatie 24 V (tijdrelais)', 'dc'), newPage('PLC', 'dc'),
-    newPage('Elektropneumatiek – sturing', 'dc')];
-  const [pw, ctl, vent, plc, ep] = p.pages;
+    newPage('Elektropneumatiek – sturing', 'dc'), newPage('Koeling – sturing', 'dc')];
+  const [pw, ctl, vent, plc, ep, ks] = p.pages;
+  const cool = coolingDemoPage(lib);
   const comps = {};
   const place = (pi, key, sym, x, y, props = {}) => {
     const def = lib.get(sym);
@@ -104,6 +107,44 @@ export function demoProject(lib) {
   for (const x of [120, 180]) wire(ep, [x, 25], [x, 90]);
   ep.texts.push({ id: uid('t'), x: 230, y: 60, text: 'Start → spoel van ventiel 5V1 (blad "Elektropneumatiek – cilinder")\nschuift de cilinder uit; de eindschakelaar keert hem terug.', size: 2.5, anchor: 'start' });
 
+  // cooling: Stop / Start (self-holding) → K pump; thermostat → liquid-line solenoid valve;
+  // flow switch, low-pressure (closes with pressure) and high-pressure switch (NC) → K compressor
+  place(5, 'kStop', 'std/pb-nc', 60, 40, { desc: 'Stop pomp' });
+  place(5, 'kStart', 'std/pb-no', 60, 75, { desc: 'Start pomp' });
+  place(5, 'kHold', 'std/no', 80, 75);
+  place(5, 'kPump', 'std/coil', 60, 150, { desc: 'Pomp koelwater' });
+  place(5, 'kTs', 'std/no', 120, 40, { desc: 'Koelvraag' });
+  place(5, 'kY', 'std/valve', 120, 150, { desc: 'Magneetventiel V1' });
+  place(5, 'kFs', 'std/no', 180, 40, { desc: 'Debiet' });
+  place(5, 'kLp', 'std/no', 180, 75, { desc: 'Lage druk' });
+  place(5, 'kHp', 'std/nc', 180, 110, { desc: 'Hoge druk' });
+  place(5, 'kComp', 'std/coil', 180, 150, { desc: 'Compressor + ventilator' });
+  place(5, 'kHpL', 'std/no', 240, 40);
+  place(5, 'kHpLamp', 'std/lamp', 240, 150, { desc: 'Storing hoge druk' });
+  place(5, 'kFsL', 'std/nc', 300, 40);
+  place(5, 'kFsLamp', 'std/lamp', 300, 150, { desc: 'Geen debiet' });
+  wire(ks, [60, 25], [60, 40]);
+  wire(ks, [60, 60], [60, 70]);
+  wire(ks, [60, 70], [60, 75]);
+  wire(ks, [60, 70], [80, 70], [80, 75]);
+  wire(ks, [60, 95], [60, 105]);
+  wire(ks, [80, 95], [80, 105], [60, 105]);
+  wire(ks, [60, 105], [60, 150]);
+  for (const x of [120, 240, 300]) { wire(ks, [x, 25], [x, 40]); wire(ks, [x, 60], [x, 150]); }
+  wire(ks, [180, 25], [180, 40]);
+  wire(ks, [180, 60], [180, 75]);
+  wire(ks, [180, 95], [180, 110]);
+  wire(ks, [180, 130], [180, 150]);
+  for (const x of [60, 120, 180, 240, 300]) wire(ks, [x, 170], [x, 245]);
+  ks.texts.push({ id: uid('t'), x: 320, y: 70, text: 'Het koelcircuit staat op het blad\n"Koelwater spindel met chiller".', size: 2.5, anchor: 'start' });
+  comps.kHold.link = comps.kPump.id;
+  comps.kTs.link = cool.comps.ts.id;
+  comps.kFs.link = cool.comps.fs.id;
+  comps.kFsL.link = cool.comps.fs.id;
+  comps.kLp.link = cool.comps.psl.id;
+  comps.kHp.link = cool.comps.psh.id;
+  comps.kHpL.link = cool.comps.psh.id;
+
   comps.epHold.link = comps.epK.id;
   comps.epKno.link = comps.epK.id;
   comps.kton.link = comps.kt.id;
@@ -121,6 +162,12 @@ export function demoProject(lib) {
   numberContact(p, lib, comps.epKno);
   // the limit switches react to cylinder marks with their own name
   const mark = (c) => (c.props.mark = c.tag.replace(/^-+/, ''));
-  p.pages.push(...fluidDemoPages(lib, { sol: comps.epY.tag, marks: [mark(comps.epIn), mark(comps.epEnd)] }));
+  p.pages.push(...fluidDemoPages(lib, { sol: comps.epY.tag, marks: [mark(comps.epIn), mark(comps.epEnd)] }), cool.page);
+  // the cooling parts follow the contactors and the solenoid of the electrical sheet
+  cool.comps.pump.props.drive = comps.kPump.tag;
+  cool.comps.comp.props.drive = comps.kComp.tag;
+  cool.comps.cond.props.drive = comps.kComp.tag;
+  cool.comps.sol.props.sol = comps.kY.tag;
+  for (const k of ['kHold', 'kTs', 'kFs', 'kFsL', 'kLp', 'kHp', 'kHpL']) numberContact(p, lib, comps[k]);
   return p;
 }

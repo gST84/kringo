@@ -1,7 +1,7 @@
 {
   "name": "Kringo Besturing",
   "short_name": "Kringo Besturing",
-  "description": "Kringo Besturing – stuurkasten, hydraulica en pneumatica tekenen en simuleren in de browser",
+  "description": "Kringo Besturing – stuurkasten, hydraulica, pneumatica en machinekoeling tekenen en simuleren in de browser",
   "lang": "nl",
   "start_url": "./",
   "scope": "./",

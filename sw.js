@@ -2,12 +2,12 @@
 // or Kringo Besturing makes both available offline, they share the code in src/.
 // Strategy: network first (always the newest version when online), cache as fallback.
 // Bump VERSION for every release (0.61 → 0.62 …), equal to APP_VERSION in src/version.js; add new source files to SHELL.
-const VERSION = 'kringo-0.78';
+const VERSION = 'kringo-0.79';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'gebouw/', 'gebouw/index.html', 'gebouw/manifest.webmanifest',
   'besturing/', 'besturing/index.html', 'besturing/manifest.webmanifest',
-  'src/shell.js', 'src/apps/gebouw.js', 'src/apps/besturing.js', 'src/fluid/marks.js',
+  'src/shell.js', 'src/apps/gebouw.js', 'src/apps/besturing.js', 'src/fluid/marks.js', 'src/cooling/symbols.js', 'src/cooling/sim.js', 'src/cooling/demo.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
   'icons/gebouw.svg', 'icons/gebouw-192.png', 'icons/gebouw-512.png', 'icons/gebouw-maskable-512.png', 'icons/gebouw-apple-touch-icon.png',
   'src/building/arei.js', 'src/building/background.js', 'src/building/editor.js', 'src/building/eendraad.js', 'src/building/influences.js', 'src/building/traces.js',

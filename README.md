@@ -3,7 +3,7 @@
 CAD in de browser voor elektrische installaties, als twee apps met een gedeelde basis:
 
 - **🏠 Kringo Gebouw** – <https://gst84.github.io/kringo/gebouw/> – woningen en gebouwen volgens AREI: plattegronden, kringen, domotica, kabeltrace en het eendraadschema.
-- **⚙️ Kringo Besturing** – <https://gst84.github.io/kringo/besturing/> – stuurkasten samen met hydraulica en pneumatica, met simulatie.
+- **⚙️ Kringo Besturing** – <https://gst84.github.io/kringo/besturing/> – stuurkasten samen met hydraulica, pneumatica en koelcircuits van machines, met simulatie.
 
 Geen installatie en geen build-stap: plain JavaScript (ES-modules) + SVG.
 
@@ -16,7 +16,7 @@ Geen installatie en geen build-stap: plain JavaScript (ES-modules) + SVG.
 | `src/apps/gebouw.js`, `src/apps/besturing.js` | wat elke app toevoegt: eigen symbolen, menu's, werkbalk, panelen, demo |
 | `src/shell.js` | gedeelde schil: bovenbalk, schema-editor, panelen, opstarten |
 | `src/building/` | enkel Gebouw (plattegronden, AREI, eendraadschema, kabels) |
-| `src/fluid/`, `src/sim/`, `src/demo.js` | enkel Besturing (pneumatica / hydraulica, simulatie, demo) |
+| `src/fluid/`, `src/cooling/`, `src/sim/`, `src/demo.js` | enkel Besturing (pneumatica / hydraulica, koeling, simulatie, demo) |
 | overige `src/` | gedeeld (schema's, symbolen, dialogen, opslag, afdrukken, vertalingen) |
 
 Een aanpassing aan de gedeelde code geldt voor beide apps. Eén service worker (`sw.js`) bewaart de hele site offline, dus wie één app installeert, heeft beide offline. Projecten staan in dezelfde browseropslag; elke app toont zijn eigen soort en stuurt een project van de andere soort door.
@@ -60,7 +60,7 @@ Omdat het een statische site is, kan de map ook op elke webserver of GitHub Page
 Elke app maakt zijn eigen soort project:
 
 - **Kringo Gebouw** – plattegronden, AREI-symbolen, kringen en het eendraadschema (bladen in hetzelfde project).
-- **Kringo Besturing** – elektrische bladen (stuurkast) en pneumatische / hydraulische bladen in één project, samen te simuleren.
+- **Kringo Besturing** – elektrische bladen (stuurkast), pneumatische / hydraulische bladen en koelbladen in één project, samen te simuleren.
 
 ## Gebouw
 

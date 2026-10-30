@@ -50,14 +50,18 @@ export function newRail(name, y) {
   return { id: uid('r'), name, y, x0: FRAME.area.x0, x1: FRAME.area.x1, color: RAIL_PRESETS[name] || '#444444' };
 }
 
-/** Sheet types in control projects: electrical (default) or pneumatic / hydraulic. */
+/** Sheet types in control projects: electrical (default), pneumatic / hydraulic ('fluid') or cooling ('cool'). */
+export const PAGE_TYPES = ['electric', 'fluid', 'cool'];
+export const pageType = (pg) => (pg?.type === 'fluid' || pg?.type === 'cool' ? pg.type : 'electric');
 export const isFluidPage = (pg) => pg?.type === 'fluid';
+/** Sheets with process symbols (pneumatics, hydraulics, cooling): own tag format, no supply rails. */
+export const isProcessPage = (pg) => pageType(pg) !== 'electric';
 
 export function newPage(title = t('Nieuwe pagina'), template = 'empty', type) {
   const t = PAGE_TEMPLATES[template] || PAGE_TEMPLATES.empty;
   return {
     id: uid('p'),
-    ...(type === 'fluid' ? { type } : {}),
+    ...(type === 'fluid' || type === 'cool' ? { type } : {}),
     title,
     rails: t.rails.map(([n, y]) => newRail(n, y)),
     comps: [],
@@ -134,10 +138,10 @@ export function normalizeProject(p) {
   return p;
 }
 
-/** Keeps the electrical sheets before the pneumatic / hydraulic ones (stable). */
+/** Keeps the sheets grouped: electrical, then pneumatic / hydraulic, then cooling (stable). */
 export function sortPages(p) {
-  const fluid = p.pages.filter(isFluidPage);
-  if (fluid.length && fluid.length < p.pages.length) p.pages = [...p.pages.filter((pg) => !isFluidPage(pg)), ...fluid];
+  const order = (pg) => PAGE_TYPES.indexOf(pageType(pg));
+  if (p.pages.some((pg, i) => i && order(pg) < order(p.pages[i - 1]))) p.pages = [...p.pages].sort((a, b) => order(a) - order(b));
   return p;
 }
 
