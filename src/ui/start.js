@@ -6,15 +6,14 @@ import { createProject, importProjectFile } from './project.js';
 import { listProjects, loadProject } from '../storage.js';
 import { demoCards, KIND_ICON } from './demos.js';
 
-/** Asks for name and kind (building / control cabinet / fluid power). */
+/** Asks for name and kind (building / control: cabinets plus pneumatics and hydraulics). */
 async function newProjectDialog() {
   const name = h('input', { type: 'text', value: t('Nieuw project') });
   let kind = 'building';
   const cards = h('div', { class: 'kinds' });
   const renderCards = () => cards.replaceChildren(
     ...[['building', '🏠', 'Gebouw', 'Woning / gebouw volgens AREI: plattegronden, stopcontacten, verlichting, kringen en het eendraadschema.'],
-      ['schematic', '🗄', 'Stuurkast', 'Industriële schema\'s: stuurstroom, vermogen, PLC, klemmen, kruisverwijzingen en lijsten.'],
-      ['fluid', '💧', 'Hydraulica / pneumatica', 'Pneumatische en hydraulische schema\'s (ISO 1219) tekenen en simuleren.']]
+      ['schematic', '⚙️', 'Besturing', 'Stuurkasten (stuurstroom, vermogen, PLC, klemmen, lijsten) en pneumatische / hydraulische schema\'s (ISO 1219) – samen te simuleren.']]
       .map(([k, icon, title, text]) => h('button', { class: 'kind' + (kind === k ? ' active' : ''), onclick: () => { kind = k; renderCards(); } },
         h('span', { class: 'kicon' }, icon), h('b', null, title), h('small', null, text))));
   renderCards();
@@ -43,7 +42,7 @@ export async function startScreen(app) {
     h('div', { class: 'langs' }, Object.entries(LANGS).map(([k, label]) =>
       h('button', { class: k === lang ? 'active' : '', onclick: () => { if (k !== lang) setLang(k); } }, label))),
     h('div', { class: 'startbig' },
-      h('button', { class: 'primary', onclick: choose(() => startNewProject(app)) }, h('span', { class: 'kicon' }, '＋'), h('b', null, 'Nieuw project'), h('small', null, 'Gebouw (AREI), stuurkast of hydraulica / pneumatica')),
+      h('button', { class: 'primary', onclick: choose(() => startNewProject(app)) }, h('span', { class: 'kicon' }, '＋'), h('b', null, 'Nieuw project'), h('small', null, 'Gebouw (AREI) of besturing (stuurkast, hydraulica, pneumatica)')),
       h('button', { onclick: choose(() => importProjectFile(app)) }, h('span', { class: 'kicon' }, '📂'), h('b', null, 'Bestand openen'), h('small', null, '.kringo, .elecad of QElectroTech (.qet)'))),
     ...demoCards(app, choose),
     h('h3', null, 'Recente projecten'),

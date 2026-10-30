@@ -1,6 +1,6 @@
 # Handleiding Kringo
 
-Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronden, AREI-symbolen, kringen en het eendraadschema), **stuurkasten** (industriële schema's) en **hydraulica / pneumatica** (ISO 1219-schema's); stuurkasten en hydraulische / pneumatische schema's kun je ook simuleren. Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
+Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronden, AREI-symbolen, kringen en het eendraadschema) en **besturing**: stuurkasten (industriële schema's) samen met hydraulica en pneumatica (ISO 1219-schema's), die je samen kunt simuleren. Deze handleiding legt uit hoe je werkt, met uitgewerkte voorbeelden.
 
 > **Voorbeeldproject:** alle schermafbeeldingen komen uit het project [*Woning Voorbeeldstraat 1*](voorbeelden/Woning%20Voorbeeldstraat%201.kringo) – download het en open het in Kringo met **Open bestand**. Je vindt er alle voorbeelden uit deze handleiding in terug.
 
@@ -20,8 +20,8 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
    - [F. Een bestaand plan overtekenen (PDF als achtergrond)](#f-een-bestaand-plan-overtekenen-pdf-als-achtergrond)
    - [G. Ruimtes en uitwendige invloeden](#g-ruimtes-en-uitwendige-invloeden)
    - [H. Kabeltrace en kabellengtes](#h-kabeltrace-en-kabellengtes)
-7. [Stuurkast](#7-stuurkast)
-8. [Hydraulica en pneumatica (met simulatie)](#8-hydraulica-en-pneumatica-met-simulatie)
+7. [Besturing: stuurkast](#7-besturing-stuurkast)
+8. [Besturing: hydraulica en pneumatica](#8-besturing-hydraulica-en-pneumatica)
 9. [Bewaren, openen, afdrukken](#9-bewaren-openen-afdrukken)
 10. [Sneltoetsen](#10-sneltoetsen)
 
@@ -32,9 +32,9 @@ Kringo tekent elektrische installaties in de browser: **gebouwen** (plattegronde
 - **Online:** <https://gst84.github.io/kringo/> (Chrome, Edge of Safari).
 - **Als app:** in Chrome / Edge op *Installeren* in de adresbalk; op iPad / iPhone in Safari via deelknop → *Zet op beginscherm*. Daarna werkt Kringo ook zonder internet.
 - Bij het openen verschijnt het **welkomscherm**: kies de taal (Nederlands, Français, English), maak een **nieuw project** of open een recent project.
-- Onder **Demoprojecten** open je een uitgewerkt voorbeeld per soort: een **gebouw** (woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), een **stuurkast** (motorstarter, tijdrelais, noodstop en PLC) en **hydraulica / pneumatica** (vier simuleerbare schakelingen). Ze staan ook bovenaan in het venster **Project openen**. Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
+- Onder **Demoprojecten** open je een uitgewerkt voorbeeld per soort: een **gebouw** (woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), en **besturing** (motorstarter, tijdrelais, noodstop, PLC, een elektrisch gestuurde cilinder en vier pneumatische / hydraulische schakelingen). Ze staan ook bovenaan in het venster **Project openen**. Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
 
-Bij een nieuw project kies je de soort: **Gebouw**, **Stuurkast** of **Hydraulica / pneumatica**. Die ligt daarna vast.
+Bij een nieuw project kies je de soort: **Gebouw** of **Besturing**. Die ligt daarna vast. Oudere projecten van de soort *Hydraulica / pneumatica* openen als besturingsproject met enkel pneumatische / hydraulische bladen.
 
 ## 2. Het scherm
 
@@ -283,7 +283,9 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 > Het is een schatting: de routes volgen een raster van 10 cm door de ruimtes. Wijzig je het plan of de kringen, dan meldt Kringo dat je opnieuw moet genereren.
 
-## 7. Stuurkast
+## 7. Besturing: stuurkast
+
+Een besturingsproject heeft twee soorten bladen. In de lijst **Pagina's** staan ze in twee groepen: **⚡ Elektrisch** en **💧 Hydraulica / pneumatica**; met de **＋** naast een groep voeg je een blad van die soort toe. De bibliotheek toont enkel de symbolen die bij het actieve blad horen: *Standaard* en *AREI* op elektrische bladen, *Pneumatica* en *Hydraulica* op pneumatische / hydraulische bladen. Toestellen op die laatste krijgen een eigen codering (standaard `{prefix}{n}` → *V1*, *A1*; in *Instellingen*).
 
 - **Pagina's** op A3 met kolommen en rijen, titelblok met bedrijf en logo (*Gegevens*).
 - **Voedingslijnen** (L1 L2 L3 N PE, +24V / 0V …) in de pagina-eigenschappen; zelfde naam = zelfde potentiaal over alle pagina's.
@@ -301,9 +303,9 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 - De voeding komt van de voedingslijnen: *L, L1–L3, +24V* zijn de plus, *N, 0V* de min.
 - **⏸** pauzeert, **⟲** zet alles terug in de beginstand, de snelheid kies je van ¼× tot 2×, **■ Stop** of `Esc` stopt. Wijzig je iets aan het schema, dan stopt de simulatie.
 
-## 8. Hydraulica en pneumatica (met simulatie)
+## 8. Besturing: hydraulica en pneumatica
 
-Een project **Hydraulica / pneumatica** is zuiver pneumatisch of hydraulisch (zonder elektrische sturing). Het demoproject **Hydraulica / pneumatica** op het welkomscherm heeft vier bladen: automatische terugloop (drukknopventiel, 5/2-impulsventiel, rolventiel, smoor-terugslagventielen), tweehandbediening met een EN-ventiel, hydraulisch heffen (aggregaat, drukbegrenzer op 40 bar, filter, 4/3-hendelventiel) en een pendelbeweging met pulsteller.
+Pneumatische en hydraulische schema's teken je op de bladen van de groep **💧 Hydraulica / pneumatica** van een besturingsproject. Het demoproject **Besturing** heeft er vijf: een elektrisch gestuurde cilinder (zie *Elektrisch sturen* hieronder), automatische terugloop (drukknopventiel, 5/2-impulsventiel, rolventiel, smoor-terugslagventielen), tweehandbediening met een EN-ventiel, hydraulisch heffen (aggregaat, drukbegrenzer op 40 bar, filter, 4/3-hendelventiel) en een pendelbeweging met pulsteller.
 
 ![Simulatie: drukkant rood, retourkant blauw](img/fluid-sim.png)
 
@@ -312,6 +314,14 @@ Een project **Hydraulica / pneumatica** is zuiver pneumatisch of hydraulisch (zo
 - De symbolen (ISO 1219) staan in de mappen **Pneumatica** en **Hydraulica**: ventielen; cilinders en motoren (enkel- en dubbelwerkend, veer links of rechts, doorgaande zuigerstang, eindstanddemping, instelbaar, magnetische zuiger, telescoopcilinders, zwenkaandrijving, drukverhogers en omvormers); voeding (drukluchtbron, energiebron, compressor, luchtketel, onderhoudseenheid, hydraulisch aggregaat); filters en luchtbehandeling (filters, waterafscheiders, droger, olievernevelaar, onderhoudseenheden); warmtewisselaars (verwarmer, koeler, temperatuurregelaar); tanks en accumulatoren; leidingelementen; sensoren (manometers, drukindicator, thermometer, niveaumeter, debietmeters, drukschakelaar, eindschakelaar, pulstellers). Leidingen teken je met het draadgereedschap (`W`).
 - **Ventielen** zijn instelbaar in de eigenschappen: type (2/2, 3/2, 4/2, 5/2, 4/3, 5/3), bediening links en rechts (veer, hand, drukknop, hendel, rol, pneumatisch / hydraulisch gestuurd, elektromagneet) en de middenstand (gesloten, ontlucht, belucht, vrijloop, tandem, open). De poorten staan op de ruststand.
 - **Cilinders**: uitvoering, zuigerstang, demping, slag (mm), tijd voor de volle slag (s) en **markeringen**, bv. `1S1=0; 1S2=100`. Een **rolventiel** of **eindschakelaar** met de naam van een markering (bv. tag *1S2*) wordt bediend als de zuigerstang daar staat.
+
+**Elektrisch sturen**
+
+De simulatie loopt over alle bladen tegelijk, dus de elektrische bladen sturen de pneumatiek en hydraulica aan:
+
+- Een ventiel met **elektromagneet** schakelt als de spoel met dezelfde naam onder spanning staat, bv. *Spoel links* = `-5Y3` volgt het magneetventiel (symbool *Magneetventiel*) met tag *-5Y3* op een elektrisch blad. De keuzelijst bij het veld toont de spoelen in het project.
+- Een **eindschakelaar** (maak / verbreek) op een elektrisch blad volgt de **markering** van een cilinder met dezelfde naam (veld *Markering*), en een contact gekoppeld aan een **drukschakelaar** schakelt op de druk.
+- Voorbeeld in het demoproject: op *Elektropneumatiek – sturing* zet **Start** relais K onder spanning (zelfhouding); K bekrachtigt de spoel van ventiel 5V1 op *Elektropneumatiek – cilinder*, de cilinder schuift uit tot de eindschakelaar (verbreek) K laat afvallen, en de veer zet het ventiel terug.
 
 **Simuleren**
 

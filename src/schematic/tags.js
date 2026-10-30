@@ -1,5 +1,5 @@
 // Device tags (page / column / row based), terminal numbers and contact numbering.
-import { locate } from '../model.js';
+import { isFluidPage, locate } from '../model.js';
 
 const NO_TAG_ROLES = new Set(['terminal', 'link', 'graphic']);
 
@@ -9,6 +9,11 @@ function baseTag(project, fmt, prefix, pageIdx, x, y) {
   const { col, row } = locate(project, x, y, project.pages[pageIdx]);
   return fmt.replace('{prefix}', prefix || '').replace('{page}', pageIdx + 1).replace('{col}', col).replace('{row}', row);
 }
+
+/** Tag format of a sheet: fluid sheets have their own (ISO 1219 style) format. */
+const tagFormat = (project, pageIdx) => (isFluidPage(project.pages[pageIdx])
+  ? project.settings.fluidTagFormat || '{prefix}{n}'
+  : project.settings.tagFormat || '-{prefix}{n}');
 
 function uniqueTag(base, used) {
   if (base.includes('{n}')) {
@@ -32,13 +37,12 @@ function usedTags(project, exceptId) {
 export function autoTag(project, lib, comp, pageIdx) {
   const def = lib.get(comp.sym);
   if (!needsTag(def)) return '';
-  const fmt = project.settings.tagFormat || '-{prefix}{n}';
+  const fmt = tagFormat(project, pageIdx);
   return uniqueTag(baseTag(project, fmt, comp.props?.prefix || def.prefix || 'A', pageIdx, comp.x, comp.y), usedTags(project, comp.id));
 }
 
 /** Re-tags every component with automatic tags, in page / column / row order. */
 export function renumberDevices(project, lib) {
-  const fmt = project.settings.tagFormat || '-{prefix}{n}';
   const list = [];
   project.pages.forEach((pg, pi) => {
     for (const c of pg.comps) {
@@ -52,7 +56,7 @@ export function renumberDevices(project, lib) {
   let changed = 0;
   for (const { c, pi, def } of list) {
     if (c.autoTag === false) continue;
-    const t = uniqueTag(baseTag(project, fmt, c.props?.prefix || def.prefix || 'A', pi, c.x, c.y), used);
+    const t = uniqueTag(baseTag(project, tagFormat(project, pi), c.props?.prefix || def.prefix || 'A', pi, c.x, c.y), used);
     used.add(t);
     if (c.tag !== t) { c.tag = t; changed++; }
   }

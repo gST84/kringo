@@ -16,7 +16,7 @@ import { prompt, toast } from './ui/dialogs.js';
 import { guessPreset, newRoom, presetInfl, presetOf, syncPresets } from './building/rooms.js';
 import { lastProjectId, listProjects, loadProject } from './storage.js';
 import { demoProject } from './demo.js';
-import { locate } from './model.js';
+import { isFluidPage, locate } from './model.js';
 import { cursorIcon, DONATE_URL, h, icon, MANUAL_URL } from './util.js';
 
 import { LANGS, lang, setLang, startAutoTranslate, t } from './i18n.js';
@@ -234,10 +234,18 @@ app.on('change', () => {
     ];
     floorLbl.replaceChildren(...grouped());
     pageLbl.replaceChildren(...grouped());
+  } else if (pages.some(isFluidPage)) {
+    // electrical and pneumatic / hydraulic sheets in separate groups
+    const opts = pageOpts();
+    const grp = (label, fluid) => {
+      const o = opts.filter((_, i) => isFluidPage(pages[i]) === fluid);
+      return o.length ? h('optgroup', { label: t(label) }, o) : null;
+    };
+    pageLbl.replaceChildren(...[grp('Elektrisch', false), grp('Hydraulica / pneumatica', true)].filter(Boolean));
   } else {
     pageLbl.replaceChildren(...pageOpts());
   }
-  kindEl.textContent = { building: '🏠 Gebouw', fluid: '💧 Hydraulica / pneumatica' }[app.project.kind] || '🗄 Stuurkast';
+  kindEl.textContent = t(app.project.kind === 'building' ? '🏠 Gebouw' : '⚙️ Besturing');
   document.body.dataset.kind = app.project.kind;
   undoBtn.disabled = !app.undoStack.length;
   redoBtn.disabled = !app.redoStack.length;

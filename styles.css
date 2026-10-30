@@ -260,6 +260,10 @@ body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:no
 .kind small { color: var(--muted); }
 .kind .kicon { font-size: 22px; }
 .kind.active { background: var(--accent-soft); border-color: var(--accent); }
+.pagegroup { margin-bottom: 10px; }
+.pagegrouphead { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 2px; padding: 2px 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--line, #ddd); }
+.pagegrouphead button { padding: 0 7px; font-size: 13px; line-height: 20px; }
+.pagegroup .hint { margin: 4px 6px; }
 .pagelist h4 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
 
 /* ---------- plan ---------- */
@@ -500,7 +504,6 @@ button .icon svg { display: block; }
 .alignrow .alignbtn:disabled { opacity: .35; }
 
 /* hydraulics / pneumatics projects and the simulation */
-body[data-kind=fluid] .kind-building { display: none !important; }
 body[data-kind=building] .kind-sim { display: none !important; }
 .simctl { display: inline-flex; align-items: center; gap: 4px; }
 .simctl .simrun { display: inline-flex; align-items: center; gap: 4px; }
@@ -516,7 +519,7 @@ body.simulating #canvas { box-shadow: inset 0 0 0 3px #22c55e; }
 .ink .comp.sim-lamp circle { fill: #fde047; }
 .ink polyline.simglow { stroke: #4ade80; stroke-width: 2.2; opacity: .35; fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; animation: simglow 1.4s ease-in-out infinite; }
 @keyframes simglow { 0%, 100% { opacity: .22; } 50% { opacity: .5; } }
-.recent.demos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-height: none; overflow: visible; }
+.recent.demos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-height: none; overflow: visible; }
 .recentitem.demo { flex-direction: column; align-items: flex-start; gap: 4px; white-space: normal; min-width: 0; }
 .recentitem.demo .rname { flex: none; }
 .recentitem.demo small { font-size: 12px; line-height: 1.35; }

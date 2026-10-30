@@ -1,14 +1,17 @@
-// Example control cabinet project: direct-on-line motor starter (power + control), a 24 V page with
-// emergency stop, selector, time relay, lamps and buzzer, and a PLC page. All pages can be simulated.
+// Example control project: direct-on-line motor starter (power + control), a 24 V page with
+// emergency stop, selector, time relay, lamps and buzzer, a PLC page, an electrical sheet that drives
+// a pneumatic cylinder, and the pneumatic / hydraulic sheets. All pages can be simulated together.
 import { newPage, newProject } from './model.js';
+import { fluidDemoPages } from './fluid/demo.js';
 import { autoTag, numberContact, nextTerminal } from './schematic/tags.js';
 import { uid } from './util.js';
 
 export function demoProject(lib) {
-  const p = newProject('Demo – stuurkast');
-  p.meta.description = 'Motorstarter, tijdrelais en PLC – met simulatie';
-  p.pages = [newPage('Vermogen', 'power'), newPage('Stuurstroom', 'control'), newPage('Ventilatie 24 V (tijdrelais)', 'dc'), newPage('PLC', 'dc')];
-  const [pw, ctl, vent, plc] = p.pages;
+  const p = newProject('Demo – besturing');
+  p.meta.description = 'Motorstarter, tijdrelais, PLC, elektropneumatiek en hydraulica / pneumatica – met simulatie';
+  p.pages = [newPage('Vermogen', 'power'), newPage('Stuurstroom', 'control'), newPage('Ventilatie 24 V (tijdrelais)', 'dc'), newPage('PLC', 'dc'),
+    newPage('Elektropneumatiek – sturing', 'dc')];
+  const [pw, ctl, vent, plc, ep] = p.pages;
   const comps = {};
   const place = (pi, key, sym, x, y, props = {}) => {
     const def = lib.get(sym);
@@ -81,6 +84,28 @@ export function demoProject(lib) {
   wire(plc, [60, 220], [60, 245]);
   plc.texts.push({ id: uid('t'), x: 150, y: 110, text: 'De PLC-logica zelf wordt niet gesimuleerd;\nde kaarten tonen de adressen en aansluitingen.', size: 2.5, anchor: 'start' });
 
+  // electro-pneumatics: Start (self-holding) → K energizes solenoid Y of valve 5V1 on the fluid sheet;
+  // limit switch at the extended end (NC) drops K, the cylinder returns; a lamp shows "retracted"
+  place(4, 'epStart', 'std/pb-no', 60, 40, { desc: 'Start cilinder' });
+  place(4, 'epHold', 'std/no', 80, 40);
+  place(4, 'epEnd', 'std/limit-nc', 60, 90, { desc: 'Cilinder uit' });
+  place(4, 'epK', 'std/coil', 60, 150, { desc: 'Cilinder uitsturen' });
+  place(4, 'epKno', 'std/no', 120, 90);
+  place(4, 'epY', 'std/valve', 120, 150, { desc: 'Ventiel 5V1' });
+  place(4, 'epIn', 'std/limit-no', 180, 90, { desc: 'Cilinder in' });
+  place(4, 'epLamp', 'std/lamp', 180, 150, { desc: 'Cilinder ingetrokken' });
+  wire(ep, [60, 25], [60, 35]);
+  wire(ep, [60, 35], [60, 40]);
+  wire(ep, [60, 35], [80, 35], [80, 40]);
+  wire(ep, [60, 60], [60, 75]);
+  wire(ep, [80, 60], [80, 75], [60, 75]);
+  wire(ep, [60, 75], [60, 90]);
+  for (const x of [60, 120, 180]) { wire(ep, [x, 110], [x, 150]); wire(ep, [x, 170], [x, 245]); }
+  for (const x of [120, 180]) wire(ep, [x, 25], [x, 90]);
+  ep.texts.push({ id: uid('t'), x: 230, y: 60, text: 'Start → spoel van ventiel 5V1 (blad "Elektropneumatiek – cilinder")\nschuift de cilinder uit; de eindschakelaar keert hem terug.', size: 2.5, anchor: 'start' });
+
+  comps.epHold.link = comps.epK.id;
+  comps.epKno.link = comps.epK.id;
   comps.kton.link = comps.kt.id;
   comps.ktnc.link = comps.kt.id;
   comps.kmain.link = comps.coil.id;
@@ -92,5 +117,10 @@ export function demoProject(lib) {
   numberContact(p, lib, comps.aux);
   numberContact(p, lib, comps.kton);
   numberContact(p, lib, comps.ktnc);
+  numberContact(p, lib, comps.epHold);
+  numberContact(p, lib, comps.epKno);
+  // the limit switches react to cylinder marks with their own name
+  const mark = (c) => (c.props.mark = c.tag.replace(/^-+/, ''));
+  p.pages.push(...fluidDemoPages(lib, { sol: comps.epY.tag, marks: [mark(comps.epIn), mark(comps.epEnd)] }));
   return p;
 }

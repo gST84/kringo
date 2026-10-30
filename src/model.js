@@ -50,10 +50,14 @@ export function newRail(name, y) {
   return { id: uid('r'), name, y, x0: FRAME.area.x0, x1: FRAME.area.x1, color: RAIL_PRESETS[name] || '#444444' };
 }
 
-export function newPage(title = t('Nieuwe pagina'), template = 'empty') {
+/** Sheet types in control projects: electrical (default) or pneumatic / hydraulic. */
+export const isFluidPage = (pg) => pg?.type === 'fluid';
+
+export function newPage(title = t('Nieuwe pagina'), template = 'empty', type) {
   const t = PAGE_TEMPLATES[template] || PAGE_TEMPLATES.empty;
   return {
     id: uid('p'),
+    ...(type === 'fluid' ? { type } : {}),
     title,
     rails: t.rails.map(([n, y]) => newRail(n, y)),
     comps: [],
@@ -63,7 +67,10 @@ export function newPage(title = t('Nieuwe pagina'), template = 'empty') {
   };
 }
 
-/** kind: 'schematic' (control cabinets), 'building' (house installation, AREI) or 'fluid' (pneumatics / hydraulics). */
+/**
+ * kind: 'schematic' (control: electrical sheets plus pneumatic / hydraulic sheets, simulated together)
+ * or 'building' (house installation, AREI). Projects of the former kind 'fluid' load as 'schematic'.
+ */
 export function newProject(name = 'Nieuw project', kind = 'schematic') {
   const today = new Date().toISOString().slice(0, 10);
   return {
@@ -78,13 +85,14 @@ export function newProject(name = 'Nieuw project', kind = 'schematic') {
     },
     settings: {
       tagFormat: '-{page}{prefix}{col}',
+      fluidTagFormat: '{prefix}{n}', // devices on pneumatic / hydraulic sheets (ISO 1219 style: 1V1, 1A1 …)
       wireFormat: '{n}',
       columns: 10,
       rows: 6,
       showWireNumbers: kind !== 'building',
       colorWires: true, // wires take the colour of their supply rail
     },
-    pages: kind === 'building' ? [] : kind === 'fluid' ? [newPage(t('Pneumatisch / hydraulisch schema'))] : [newPage(t('Voorblad')), newPage(t('Stuurstroom'), 'control')],
+    pages: kind === 'building' ? [] : [newPage(t('Voorblad')), newPage(t('Stuurstroom'), 'control')],
     symbols: {}, // embedded copies of non-builtin symbol definitions
     building: newBuilding(),
     created: Date.now(),
@@ -109,12 +117,27 @@ export function normalizeProject(p) {
     const hasPlan = (p.building?.floors || []).some((f) => f.walls?.length || f.symbols?.length);
     p.kind = hasPlan && !p.pages.some((pg) => !pg.gen && pg.comps.length) ? 'building' : 'schematic';
   }
+  if (p.kind === 'fluid') {
+    // former pneumatics / hydraulics projects: all sheets are fluid sheets in a control project
+    for (const pg of p.pages) pg.type = 'fluid';
+    p.settings.fluidTagFormat = p.settings.tagFormat && p.settings.tagFormat !== d.settings.tagFormat ? p.settings.tagFormat : d.settings.fluidTagFormat;
+    p.settings.tagFormat = d.settings.tagFormat;
+    p.kind = 'schematic';
+  }
   if (!p.pages.length && p.kind !== 'building') p.pages.push(newPage('Pagina 1'));
+  sortPages(p);
   p.building = normalizeBuilding(p.building);
   // background images of floor plans (data URLs), kept apart so undo snapshots stay small
   p.images ||= {};
   const used = new Set(p.building.floors.map((f) => f.bg?.img).filter(Boolean));
   for (const k of Object.keys(p.images)) if (!used.has(k)) delete p.images[k];
+  return p;
+}
+
+/** Keeps the electrical sheets before the pneumatic / hydraulic ones (stable). */
+export function sortPages(p) {
+  const fluid = p.pages.filter(isFluidPage);
+  if (fluid.length && fluid.length < p.pages.length) p.pages = [...p.pages.filter((pg) => !isFluidPage(pg)), ...fluid];
   return p;
 }
 

@@ -1,16 +1,20 @@
-// Example fluid power project with four sheets that can all be simulated:
+// Pneumatic / hydraulic sheets of the control demo project, all simulated:
+// 0. electro-pneumatics: cylinder 5A1 with solenoid valve 5V1 and limit switches, driven from an electrical sheet
 // 1. automatic return with meter-out speed control (5/2 impulse valve, push button and roller valve)
 // 2. two-hand control with a two-pressure (AND) valve and a single-acting cylinder
 // 3. hydraulics: power unit, pressure relief valve, gauge, filter, 4/3 lever valve and cylinder
 // 4. oscillating cylinder (start latched with Shift) with a pulse counter
-import { newPage, newProject } from '../model.js';
+import { newPage } from '../model.js';
 import { uid } from '../util.js';
 
-export function fluidDemoProject(lib) {
-  const p = newProject('Demo – hydraulica en pneumatica', 'fluid');
-  p.meta.description = 'Vier simuleerbare voorbeelden: terugloop, tweehandbediening, hydraulisch heffen en pendelbeweging met teller';
-  p.settings.tagFormat = '{prefix}{n}';
-  p.pages = [newPage('1 Automatische terugloop'), newPage('2 Tweehandbediening (EN)'), newPage('3 Hydraulisch heffen'), newPage('4 Pendelbeweging met teller')];
+/**
+ * `sol`: tag of the electrical solenoid that switches valve 5V1; `marks`: names of the limit switches
+ * at the retracted / extended end of cylinder 5A1.
+ */
+export function fluidDemoPages(lib, { sol, marks: [m0, m1] }) {
+  const pages = ['Elektropneumatiek – cilinder', '1 Automatische terugloop', '2 Tweehandbediening (EN)', '3 Hydraulisch heffen', '4 Pendelbeweging met teller']
+    .map((title) => newPage(title, 'empty', 'fluid'));
+  const p = { pages };
   let pg = p.pages[0];
   const place = (sym, x, y, tag, props = {}, o = {}) => {
     const def = lib.get(sym);
@@ -19,7 +23,20 @@ export function fluidDemoProject(lib) {
   const wire = (...points) => pg.wires.push({ id: uid('w'), points });
   const note = (x, y, text) => pg.texts.push({ id: uid('t'), x, y, text, size: 3, anchor: 'start' });
 
+  // 0 – electro-pneumatics
+  place('flu/p/cyl2', 180, 50, '5A1', { marks: `${m0}=0; ${m1}=100`, time: 1.5 });
+  place('flu/p/v52-sol', 180, 120, '5V1', { solL: sol });
+  place('flu/p/exhaust', 185, 135, '');
+  place('flu/p/exhaust', 195, 135, '');
+  place('flu/p/source', 190, 215, '0Z5', { p: 6 });
+  wire([185, 65], [185, 115]);
+  wire([215, 65], [215, 95], [195, 95], [195, 115]);
+  wire([190, 135], [190, 215]);
+  note(40, 32, `Spoel ${sol} zit op het elektrische blad "Elektropneumatiek – sturing": druk daar op Start.`);
+  note(40, 38, `De eindschakelaars ${m0} en ${m1} op dat blad worden bediend door de markeringen van 5A1.`);
+
   // 1 – automatic return
+  pg = p.pages[1];
   place('flu/p/cyl2', 180, 50, '1A1', { marks: '1S2=100', time: 1.5 });
   place('flu/p/flowcheck', 185, 75, '1V2', { open: 60 });
   place('flu/p/flowcheck', 215, 75, '1V3', { open: 40 });
@@ -44,7 +61,7 @@ export function fluidDemoProject(lib) {
   note(40, 32, 'Klik 1S1: cilinder 1A1 schuift uit (vertraagd door 1V3) en keert automatisch terug bij 1S2.');
 
   // 2 – two-hand control
-  pg = p.pages[1];
+  pg = p.pages[2];
   place('flu/p/cyl1', 200, 50, '2A1', { time: 0.8 });
   place('flu/p/v32-pil', 200, 110, '2V1');
   place('flu/p/exhaust', 215, 125, '');
@@ -65,7 +82,7 @@ export function fluidDemoProject(lib) {
   note(40, 32, 'Shift+klik 2S1 en klik 2S2: de cilinder schuift pas uit als beide knoppen bediend zijn (EN-ventiel 2V2).');
 
   // 3 – hydraulic lifting
-  pg = p.pages[2];
+  pg = p.pages[3];
   place('flu/h/cyl2', 180, 50, '3A1', { time: 2, marks: '' });
   place('flu/h/v43-hand', 180, 120, '3V1');
   place('flu/h/powerpack', 185, 190, '0P1', { p: 60 });
@@ -84,7 +101,7 @@ export function fluidDemoProject(lib) {
   note(40, 32, 'Klik links of rechts op de hendel van 3V1: heffen of dalen. 3V2 begrenst de druk op 40 bar (zie manometer).');
 
   // 4 – oscillating cylinder with pulse counter
-  pg = p.pages[3];
+  pg = p.pages[4];
   place('flu/p/cyl2', 180, 40, '4A1', { marks: '4S1=0; 4S2=100', time: 1 });
   place('flu/p/v52-pil', 180, 110, '4V1');
   place('flu/p/exhaust', 185, 125, '');
@@ -110,5 +127,5 @@ export function fluidDemoProject(lib) {
   wire([190, 195], [190, 210]);
   wire([155, 175], [155, 195]);
   note(40, 25, 'Shift+klik 4S0 (start vasthouden): 4A1 pendelt tussen 4S1 en 4S2; pulsteller 4C1 telt de slagen.');
-  return p;
+  return pages;
 }

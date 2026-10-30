@@ -1,7 +1,7 @@
 // Side panels: pages, symbol library and properties.
 import { t } from '../i18n.js';
 import { h, natCmp, pickFiles, uid } from '../util.js';
-import { newPage, newRail, PAGE_TEMPLATES, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
+import { isFluidPage, newPage, newRail, PAGE_TEMPLATES, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { refText } from '../schematic/analyze.js';
 import { autoTag, needsTag, numberContact, nextTerminal } from '../schematic/tags.js';
@@ -76,28 +76,37 @@ export function toggleFolder(open, path) {
 
 // ---------- pages ----------
 
+/** Page list. Control projects group the sheets: electrical first, then pneumatic / hydraulic. */
 export function pagesPanel(app, el) {
   const render = () => rebuild(el, () => {
     const p = app.project;
-    const list = h('ol', { class: 'pagelist' }, p.pages.map((pg, i) =>
-      h('li', {
-        class: i === app.pageIdx ? 'active' : '',
-        onclick: () => app.setPage(i),
-        ondblclick: async () => {
-          const t = await prompt('Paginatitel', pg.title);
-          if (t !== null) app.mutate(() => { pg.title = t; });
-        },
-      }, h('span', { class: 'no' }, i + 1), h('span', { class: 'ttl' }, pg.title || '—'))));
+    const item = (pg, i) => h('li', {
+      class: i === app.pageIdx ? 'active' : '',
+      onclick: () => app.setPage(i),
+      ondblclick: async () => {
+        const t = await prompt('Paginatitel', pg.title);
+        if (t !== null) app.mutate(() => { pg.title = t; });
+      },
+    }, h('span', { class: 'no' }, i + 1), h('span', { class: 'ttl' }, pg.title || '—'));
+    const grouped = p.kind !== 'building';
+    const group = (fluid, label) => {
+      const items = p.pages.map((pg, i) => [pg, i]).filter(([pg]) => isFluidPage(pg) === fluid);
+      return h('div', { class: 'pagegroup' + (fluid ? ' fluid' : '') },
+        h('div', { class: 'pagegrouphead' }, h('span', null, t(label)),
+          h('button', { title: fluid ? 'Nieuw pneumatisch / hydraulisch blad' : 'Nieuw elektrisch blad', onclick: () => addPageDialog(app, fluid ? 'fluid' : undefined) }, '＋')),
+        items.length ? h('ol', { class: 'pagelist' }, items.map(([pg, i]) => item(pg, i)))
+          : h('p', { class: 'hint' }, fluid ? 'Nog geen bladen – klik ＋ voor een pneumatisch of hydraulisch schema.' : 'Nog geen elektrische bladen.'));
+    };
     const move = (d) => {
       const i = app.pageIdx, j = i + d;
-      if (j < 0 || j >= p.pages.length) return;
+      if (j < 0 || j >= p.pages.length || isFluidPage(p.pages[i]) !== isFluidPage(p.pages[j])) return;
       app.mutate(() => { const [pg] = p.pages.splice(i, 1); p.pages.splice(j, 0, pg); });
       app.pageIdx = j;
       app.emit('change');
     };
     return [
       h('div', { class: 'panel-tools' },
-        h('button', { title: 'Nieuwe pagina', onclick: () => addPageDialog(app) }, '＋ Pagina'),
+        h('button', { title: 'Nieuwe pagina van hetzelfde soort', onclick: () => addPageDialog(app, isFluidPage(app.page) ? 'fluid' : undefined) }, '＋ Pagina'),
         h('button', { title: 'Pagina dupliceren', onclick: () => duplicatePage(app) }, '⧉'),
         h('button', { title: 'Omhoog', onclick: () => move(-1) }, '↑'),
         h('button', { title: 'Omlaag', onclick: () => move(1) }, '↓'),
@@ -113,10 +122,12 @@ export function pagesPanel(app, el) {
             });
             app.pageIdx = Math.min(app.pageIdx, p.pages.length - 1);
             app.sel.clear();
+            app.emit('page');
             app.emit('change');
           },
         }, '🗑')),
-      list,
+      ...(grouped ? [group(false, '⚡ Elektrisch'), group(true, '💧 Hydraulica / pneumatica')]
+        : [h('ol', { class: 'pagelist' }, p.pages.map(item))]),
       h('p', { class: 'hint' }, 'Dubbelklik om te hernoemen · PgUp / PgDn wisselt pagina'),
     ];
   });
@@ -124,18 +135,23 @@ export function pagesPanel(app, el) {
   return render;
 }
 
-async function addPageDialog(app) {
-  const title = h('input', { type: 'text', value: 'Nieuwe pagina' });
+/** New sheet; `type` 'fluid' for a pneumatic / hydraulic sheet (no supply rails). */
+async function addPageDialog(app, type) {
+  const fluid = type === 'fluid';
+  const title = h('input', { type: 'text', value: t(fluid ? 'Pneumatisch / hydraulisch schema' : 'Nieuwe pagina') });
   const tpl = h('select', null, Object.entries(PAGE_TEMPLATES).map(([k, t]) => h('option', { value: k }, t.label)));
   const ok = await modal({
-    title: 'Nieuwe pagina',
-    body: h('div', { class: 'form' }, field('Titel', title), field('Sjabloon (voedingslijnen)', tpl)),
+    title: fluid ? 'Nieuw pneumatisch / hydraulisch blad' : 'Nieuwe pagina',
+    body: h('div', { class: 'form' }, field('Titel', title), fluid ? null : field('Sjabloon (voedingslijnen)', tpl)),
     buttons: [{ label: 'Annuleren', value: false }, { label: 'Toevoegen', value: true, primary: true }],
   });
   if (!ok) return;
-  const pg = newPage(title.value, tpl.value);
-  app.mutate((p) => p.pages.splice(app.pageIdx + 1, 0, pg));
-  app.setPage(app.pageIdx + 1);
+  const pg = newPage(title.value, fluid ? 'empty' : tpl.value, type);
+  // after the current sheet when it is of the same type, otherwise at the end of that group
+  const pages = app.project.pages;
+  let at = isFluidPage(app.page) === fluid ? app.pageIdx + 1 : fluid ? pages.length : pages.filter((x) => !isFluidPage(x)).length;
+  app.mutate((p) => p.pages.splice(at, 0, pg));
+  app.setPage(at);
 }
 
 function duplicatePage(app) {
@@ -189,8 +205,9 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
     popupMenu(ev.clientX, ev.clientY, items);
   };
 
-  // fluid power projects show only the fluid symbols, other projects never show them
-  const hidden = () => (app.project?.kind === 'fluid' ? new Set(['Standaard', 'AREI']) : new Set(['Pneumatica', 'Hydraulica']));
+  // pneumatic / hydraulic sheets show only the fluid symbols, electrical sheets and buildings never show them
+  const fluidSheet = () => !!app.project && app.project.kind !== 'building' && app.mode === 'schematic' && isFluidPage(app.page);
+  const hidden = () => (fluidSheet() ? new Set(['Standaard', 'AREI']) : new Set(['Pneumatica', 'Hydraulica']));
   const node = (n, depth) => {
     const out = [];
     const hide = depth === 0 ? hidden() : new Set();
@@ -259,7 +276,16 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
     search, statusEl, treeEl);
   lib.onChange(renderTree);
   app.on('tool', renderTree);
-  app.on('project', () => { open.clear(); open.add(app.project.kind === 'fluid' ? 'Pneumatica' : 'Standaard'); renderTree(); });
+  // switching between electrical and fluid sheets opens the matching main folder
+  let shown = null;
+  const sync = () => {
+    const f = fluidSheet();
+    if (f !== shown) { shown = f; open.clear(); open.add(f ? 'Pneumatica' : 'Standaard'); }
+    renderTree();
+  };
+  app.on('project', () => { shown = null; sync(); });
+  app.on('page', sync);
+  app.on('mode', sync);
   renderTree();
 }
 
@@ -306,9 +332,10 @@ function pageProps(app) {
   const set = (fn) => app.mutate(fn);
   return [
     section(t('Pagina {n}', { n: app.pageIdx + 1 }),
-      field('Titel', inp(pg.title, (v) => set(() => { pg.title = v; }), { key: 'ptitle' }))),
-    // single-line sheets have no supply rails to manage
-    pg.gen ? null : section('Voedingslijnen',
+      field('Titel', inp(pg.title, (v) => set(() => { pg.title = v; }), { key: 'ptitle' })),
+      isFluidPage(pg) ? h('p', { class: 'hint' }, 'Pneumatisch / hydraulisch blad: de bibliotheek toont de symbolen voor pneumatica en hydraulica. Ventielen met een elektromagneet volgen de spoel met dezelfde naam op een elektrisch blad.') : null),
+    // single-line sheets and fluid sheets have no supply rails to manage
+    pg.gen || (isFluidPage(pg) && !pg.rails.length) ? null : section('Voedingslijnen',
       ...pg.rails.map((r) => h('div', { class: 'railrow' },
         inp(r.color, (v) => set(() => { r.color = v; }), { type: 'color', key: 'rc' + r.id }),
         inp(r.name, (v) => set(() => { r.name = v; if (RAIL_PRESETS[v]) r.color = RAIL_PRESETS[v]; }), { key: 'rn' + r.id }),

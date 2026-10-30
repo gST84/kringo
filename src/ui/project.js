@@ -70,6 +70,7 @@ export async function projectDialog(app) {
 export async function settingsDialog(app) {
   const s = app.project.settings;
   const tagFmt = h('input', { value: s.tagFormat, list: 'tagfmts' });
+  const fluidFmt = h('input', { value: s.fluidTagFormat || '{prefix}{n}', list: 'fluidfmts' });
   const wireFmt = h('input', { value: s.wireFormat, list: 'wirefmts' });
   const cols = h('input', { type: 'number', min: 4, max: 20, value: s.columns });
   const rows = h('input', { type: 'number', min: 2, max: 12, value: s.rows });
@@ -78,6 +79,8 @@ export async function settingsDialog(app) {
     h('h3', null, 'Componentnummering'),
     field('Formaat', tagFmt, t('Tokens: {prefix} letter (K, S, Q …), {page} pagina, {col} kolom, {row} rij-letter, {n} volgnummer. Voorbeelden: -{page}{prefix}{col} → -2K4 · -{prefix}{page}.{col}{row} → -K2.4C · -{prefix}{n} → -K1')),
     h('datalist', { id: 'tagfmts' }, ['-{page}{prefix}{col}', '-{prefix}{page}.{col}', '-{prefix}{page}.{col}{row}', '-{prefix}{page}{col}{n}', '-{prefix}{n}'].map((x) => h('option', { value: x }))),
+    field('Formaat hydraulica / pneumatica', fluidFmt, t('Voor toestellen op pneumatische en hydraulische bladen. Voorbeelden: {prefix}{n} → V1, A1 · {page}{prefix}{n} → 6V1')),
+    h('datalist', { id: 'fluidfmts' }, ['{prefix}{n}', '{page}{prefix}{n}', '-{prefix}{n}'].map((x) => h('option', { value: x }))),
     h('h3', null, 'Draadnummering'),
     field('Formaat', wireFmt, t('Tokens: {page}, {col}, {row}, {n}. Voedingslijnen krijgen hun naam (L1, N, +24V …). Voorbeelden: {n} → 1, 2, 3 · {page}.{col}{n} → 2.41 · leeg = geen automatische nummers')),
     h('datalist', { id: 'wirefmts' }, ['{n}', '{page}.{col}', '{page}{col}{n}', '{page}.{col}.{n}'].map((x) => h('option', { value: x }))),
@@ -91,6 +94,7 @@ export async function settingsDialog(app) {
   if (!r) return;
   app.mutate((p) => {
     p.settings.tagFormat = tagFmt.value || '-{prefix}{n}';
+    p.settings.fluidTagFormat = fluidFmt.value || '{prefix}{n}';
     p.settings.wireFormat = wireFmt.value.trim();
     p.settings.columns = Math.max(4, Math.min(20, +cols.value || 10));
     p.settings.rows = Math.max(2, Math.min(12, +rows.value || 6));
@@ -125,7 +129,7 @@ export function companyDefaults() {
   try { return JSON.parse(localStorage.getItem('elecad.company') || 'null') || {}; } catch { return {}; }
 }
 
-const KIND_LABEL = { building: '🏠 Gebouw', schematic: '🗄 Stuurkast', fluid: '💧 Hydraulica / pneumatica' };
+const KIND_LABEL = { building: '🏠 Gebouw', schematic: '⚙️ Besturing', fluid: '⚙️ Besturing' };
 
 export function createProject(name, kind = 'schematic') {
   const p = newProject(name, kind);
