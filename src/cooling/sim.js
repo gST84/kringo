@@ -28,7 +28,7 @@ const SENSOR_TAU = 3; // s, time constant of a thermostat bulb (in a thermowell)
 const PUMPDOWN = 2; // s, suction pressure falls / rises over about this time
 const HP_TIME = 2.5; // s, until a missing condenser trips the high-pressure switch
 const SENSORS = ['tempsw', 'flowsw', 'levelsw', 'hp', 'lp'];
-const DOT_SPACING = 5; // mm between the flow dots on a line
+const DOT_SPACING = 6; // mm between the flow dots on a line
 const DOT_SPEED = 0.6; // mm/s on the sheet per l/min of flow
 const REF_DOT_SPEED = 12; // mm/s for refrigerant lines
 
@@ -482,8 +482,8 @@ export class Cooling {
   }
 
   /**
-   * Colour and label of a cooling line: from blue (coldest) to red (warmest line of the same medium),
-   * with the temperature on the longest wire of the line and moving flow dots; null when nothing flows.
+   * Colour of the flow dots of a cooling line, from blue (coldest) to red (warmest line of the same medium),
+   * with the temperature on the longest wire of the line; null when nothing flows.
    */
   wireState(net, wireId) {
     if (!this.flow.has(net) && !this.high.has(net) && !this.low.has(net)) return null;

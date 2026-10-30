@@ -178,10 +178,10 @@ function wireSvg(w, an, opts) {
   const own = wireColor(w.color);
   const sim = opts.sim?.wireState(w.id);
   // simulation colours: pressure side red, return side blue, live control wires green
-  // cooling lines bring their own colour (temperature gradient) and a temperature label
-  const SIMC = sim && typeof sim === 'object' ? [sim.c, sim.g] : { p: ['#ef4444', '#f87171'], v: ['#2563eb', '#60a5fa'], e: ['#22c55e', '#4ade80'] }[sim];
+  // cooling lines keep their normal look: the temperature colour goes to the flow dots and the label
+  const SIMC = sim && typeof sim === 'object' ? null : { p: ['#ef4444', '#f87171'], v: ['#2563eb', '#60a5fa'], e: ['#22c55e', '#4ade80'] }[sim];
   const color = SIMC ? SIMC[0] : own || (opts.project.settings.colorWires !== false ? net?.railColor : null);
-  const st = (color ? `stroke:${color};` : '') + (sim ? 'stroke-width:0.55;' : w.w ? `stroke-width:${w.w};` : '');
+  const st = (color ? `stroke:${color};` : '') + (SIMC ? 'stroke-width:0.55;' : w.w ? `stroke-width:${w.w};` : '');
   // simulation: active lines glow green (a wide, pulsing halo under the line)
   let out = `<g class="wire${sel ? ' sel' : ''}" data-k="w:${w.id}">${SIMC ? `<polyline class="simglow" points="${pts}" style="stroke:${SIMC[1]}"/>` : ''}<polyline class="wl" points="${pts}"${st ? ` style="${esc(st)}"` : ''}/>`;
   if (String(w.color).toUpperCase() === 'GNYE') out += `<polyline class="wl gnye" points="${pts}" style="stroke:#e0c000" stroke-dasharray="2 2"/>`;
@@ -189,7 +189,7 @@ function wireSvg(w, an, opts) {
     // flow dots (simulation): a dotted line in the flow direction, shifted with the distance travelled
     const dp = (sim.dots.fwd ? w.points : [...w.points].reverse()).map((p) => p.join(',')).join(' ');
     const da = `stroke-dasharray:0 ${sim.dots.gap};stroke-dashoffset:${r2(sim.dots.off)}`;
-    out += `<polyline class="simdots" points="${dp}" style="stroke:${sim.c};${da}"/><polyline class="simdots in" points="${dp}" style="${da}"/>`;
+    out += `<polyline class="simdots edge" points="${dp}" style="${da}"/><polyline class="simdots" points="${dp}" style="stroke:${sim.c};${da}"/>`;
   }
   if (sim?.label) {
     const pos = wireLabelPos(w.points);

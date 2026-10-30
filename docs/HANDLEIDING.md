@@ -373,8 +373,7 @@ Debiet, vermogens en inhoud staan ook bij het symbool. Elk onderdeel verandert d
 **Simuleren**
 
 - Een draaiende pomp laat het water stromen door alle leidingen die op een open weg van de pers- naar de zuigzijde liggen; bij een aftakking verdeelt het debiet zich, bij een samenkomst mengt het water.
-- Op elke stromende leiding staat de **temperatuur** en de kleur loopt van **blauw** (koudste leiding) naar **rood** (warmste), apart voor het koelwater en het koelmiddel.
-- **Stroombolletjes** lopen over de leidingen in de richting van de stroming; hun snelheid volgt het debiet van de pomp (en de simulatiesnelheid). Ook een leiding die tegen de stroomrichting in getekend is, toont de juiste richting.
+- Op elke stromende leiding staat de **temperatuur**, en **stroombolletjes** lopen over de leiding in de richting van de stroming. Hun kleur loopt van **blauw** (koudste leiding) naar **rood** (warmste), apart voor het koelwater en het koelmiddel; hun snelheid volgt het debiet van de pomp (en de simulatiesnelheid). Ook een leiding die tegen de stroomrichting in getekend is, toont de juiste richting.
 - In de koelmiddelkring is alles van de compressor tot het expansieventiel de **hogedrukzijde** (persgas, vloeistofleiding), de rest de **lagedrukzijde** (na het expansieventiel, zuigleiding).
 - **Afpompen:** sluit het magneetventiel terwijl de compressor draait, dan daalt de zuigdruk en valt de lagedrukpressostaat af; gaat het ventiel weer open, dan stijgt de druk en start de compressor opnieuw. Een compressor zonder werkende condensor (ventilator uit, geen koelwater) bouwt een hogedrukstoring op.
 - Klik op een pomp, compressor of klep om ze met de hand te bedienen, op een **verbruiker** om de machine stil te zetten, op een **niveauschakelaar** om een te laag niveau na te bootsen. Een verbruiker zonder debiet kleurt rood.
