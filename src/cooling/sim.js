@@ -17,6 +17,8 @@
 // the compressor runs without feed (pump-down). A compressor without a working condenser builds up a
 // high-pressure fault.
 
+import { flowDirections, gradient, labelWire } from '../sim/dots.js';
+
 const norm = (s) => String(s || '').trim().replace(/^-+/, '').toUpperCase();
 const num = (v, d) => { const x = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(x) ? x : d; };
 /** Specific heat (J/kg K) per coolant; density ≈ 1 kg/l. */
@@ -62,7 +64,6 @@ export class Cooling {
     this.circuit = new Map(); // refrigerant net -> compressor id (static topology)
     this.fed = new Map(); // compressor id -> refrigerant can reach the suction
     this.range = { water: [T0, T0], ref: [T0, T0] };
-    this.labelWire = new Map(); // net -> id of the wire that carries the temperature label
     this.qNet = new Map(); // net -> water flow (kg/s)
     this.travel = new Map(); // net -> distance the flow dots moved (mm)
     this.wireFwd = new Map(); // wire id -> flow runs along its points (true) or against them (false)
@@ -451,41 +452,11 @@ export class Cooling {
       const allowed = ports(i, ch);
       return i.pins.find((p) => (!allowed || allowed.includes(p.id)) && this.net(i, p.id) === net) || null;
     };
-    const entries = new Map(); // net -> [[x, y]]
-    const addEntry = (net, p) => { if (!p) return; if (!entries.has(net)) entries.set(net, []); entries.get(net).push([p.x, p.y]); };
-    for (const e of this.dir) addEntry(e.v, portAt(e.id, e.ch, e.v));
-    for (const d of this.paths) if (d.flow.length) addEntry(d.s, portAt(d.i.comp.id, 0, d.s));
-    const key = (x, y) => `${Math.round(x * 100)},${Math.round(y * 100)}`;
-    for (const [net, starts] of entries) {
-      // graph of the wire points of this line; entry points on a segment are spliced in
-      const adj = new Map();
-      const link = (a, b, l) => { for (const [p, q] of [[a, b], [b, a]]) { if (!adj.has(p)) adj.set(p, []); adj.get(p).push([q, l]); } };
-      for (const { wire } of net.wires) for (let k = 0; k + 1 < wire.points.length; k++) {
-        const [[ax, ay], [bx, by]] = [wire.points[k], wire.points[k + 1]];
-        link(key(ax, ay), key(bx, by), Math.hypot(bx - ax, by - ay));
-        for (const [sx, sy] of starts) {
-          const t = Math.abs(bx - ax) > Math.abs(by - ay) ? (sx - ax) / (bx - ax) : (sy - ay) / (by - ay);
-          if (t > 0 && t < 1 && Math.hypot(ax + (bx - ax) * t - sx, ay + (by - ay) * t - sy) < 0.05) {
-            link(key(sx, sy), key(ax, ay), Math.hypot(sx - ax, sy - ay));
-            link(key(sx, sy), key(bx, by), Math.hypot(bx - sx, by - sy));
-          }
-        }
-      }
-      const dist = new Map(starts.map(([x, y]) => [key(x, y), 0]));
-      const todo = [...dist.keys()];
-      while (todo.length) {
-        todo.sort((a, b) => dist.get(b) - dist.get(a));
-        const n = todo.pop();
-        for (const [m, l] of adj.get(n) || []) {
-          const d = dist.get(n) + l;
-          if (d < (dist.get(m) ?? Infinity)) { dist.set(m, d); todo.push(m); }
-        }
-      }
-      for (const { wire } of net.wires) {
-        const a = dist.get(key(...wire.points[0])), b = dist.get(key(...wire.points[wire.points.length - 1]));
-        if (a != null || b != null) this.wireFwd.set(wire.id, (a ?? Infinity) <= (b ?? Infinity));
-      }
-    }
+    const entries = new Map(), exits = new Map(); // net -> [[x, y]]
+    const add = (m, net, p) => { if (!p) return; if (!m.has(net)) m.set(net, []); m.get(net).push([p.x, p.y]); };
+    for (const e of this.dir) { add(entries, e.v, portAt(e.id, e.ch, e.v)); add(exits, e.u, portAt(e.id, e.ch, e.u)); }
+    for (const d of this.paths) if (d.flow.length) { add(entries, d.s, portAt(d.i.comp.id, 0, d.s)); add(exits, d.t, portAt(d.i.comp.id, 0, d.t)); }
+    for (const [net, starts] of entries) for (const [w, fwd] of flowDirections(net, starts, exits.get(net) || [])) this.wireFwd.set(w, fwd);
   }
 
   /**
@@ -498,21 +469,11 @@ export class Cooling {
     if (t == null) return null;
     const [lo, hi] = this.range[this.circuit.has(net) ? 'ref' : 'water'];
     const span = Math.max(2, hi - lo);
-    const f = Math.max(0, Math.min(1, (t - (hi + lo) / 2) / span + 0.5));
-    const hue = Math.round(240 + 120 * f) % 360; // 240 blue → 300 magenta → 360 red
-    if (!this.labelWire.has(net)) {
-      let best = null, len = -1;
-      for (const { wire } of net.wires) for (let k = 0; k + 1 < wire.points.length; k++) {
-        const [a, b] = [wire.points[k], wire.points[k + 1]];
-        const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
-        if (l > len) { len = l; best = wire.id; }
-      }
-      this.labelWire.set(net, best);
-    }
     this.wireDirections();
     const fwd = this.wireFwd.get(wireId);
-    const dots = fwd == null ? null : { fwd, off: -((this.travel.get(net) || 0) % DOT_SPACING), gap: DOT_SPACING };
-    return { c: `hsl(${hue} 80% 47%)`, g: `hsl(${hue} 90% 66%)`, label: this.labelWire.get(net) === wireId ? fmtT(t) : null, dots };
+    // wires off the flow path (side branches) show still dots
+    const dots = { fwd: fwd ?? true, off: fwd == null ? 0 : -((this.travel.get(net) || 0) % DOT_SPACING), gap: DOT_SPACING };
+    return { c: gradient((t - (hi + lo) / 2) / span + 0.5), label: labelWire(net) === wireId ? fmtT(t) : null, dots };
   }
 }
 

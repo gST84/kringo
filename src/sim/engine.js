@@ -7,6 +7,10 @@
 // grow into a physical one later (forces, flows, pressure drops) without changing the editor.
 import { parseMarks, restPosition, valvePaths } from '../fluid/symbols.js';
 import { Cooling } from '../cooling/sim.js';
+import { flowDirections, gradient, labelWire } from './dots.js';
+
+const DOT_GAP = 6; // mm between flow dots
+const DOT_SPEED = 25; // mm/s of the dots per full stroke (or turn) per second
 
 const ATM = '__atm';
 const norm = (s) => String(s || '').trim().replace(/^-+/, '').toUpperCase();
@@ -268,6 +272,19 @@ export class Simulation {
     }
     this.P = P;
     this.V = V;
+    this.pressE = press;
+    this.ventE = vent;
+    this.sourceNets = sources.map(([n]) => n).filter(Boolean);
+    // highest pressure per medium (colour scale of the flow dots)
+    this.pmax = {};
+    for (const [n, v] of P) { const m = this.medium(n); if (m) this.pmax[m] = Math.max(this.pmax[m] || 0, v.p); }
+  }
+
+  /** 'pneu' or 'hydr' for a fluid line. */
+  medium(net) {
+    if (!net?.fluid || net.cool) return null;
+    if (!('medium' in net)) net.medium = net.pins.map((x) => x.info.def?.fluid?.medium).find(Boolean) || null;
+    return net.medium;
   }
 
   // ---------- step ----------
@@ -310,6 +327,7 @@ export class Simulation {
     for (const st of this.coil.values()) {
       if (st.on) { st.onFor += dt; st.offFor = 0; } else { st.offFor += dt; st.onFor = 0; }
     }
+    const moving = [];
     for (const i of this.fluid) {
       const kind = i.def.fluid.kind;
       if (kind !== 'cylinder' && kind !== 'motor') continue;
@@ -330,10 +348,15 @@ export class Simulation {
       else if (pb?.p > 0 && !(pa?.p > 0)) speed = -Math.min(pb.k, va) * base;
       if (kind === 'cylinder') {
         const st = this.cyl.get(i.comp.id);
+        const x0 = st.x;
         st.x = Math.max(0, Math.min(1, st.x + speed * dt));
+        speed = dt > 0 ? (st.x - x0) / dt : 0; // nothing flows once the piston is at its end
       } else this.motorAngle.set(i.comp.id, ((this.motorAngle.get(i.comp.id) || 0) + speed * dt * 360) % 360);
+      if (Math.abs(speed) > 1e-6) moving.push({ i, speed, a, b });
     }
+    this.moving = moving;
     this.solve();
+    this.fluidFlow(dt);
     // pulse counters count every rising pressure edge on X
     let counted = false;
     for (const i of this.fluid) {
@@ -344,6 +367,87 @@ export class Simulation {
       c.last = on;
     }
     if (counted) this.solve();
+  }
+
+  // ---------- flow dots (pneumatics / hydraulics) ----------
+
+  /**
+   * Lines with flow: from the sources to the pressurised port of every moving cylinder / motor, and from
+   * its other port to the exhaust or tank. The dots move with the speed of the actuators.
+   */
+  fluidFlow(dt) {
+    const back = new Map(), fwd = new Map(), ventTo = new Map(), toAtm = new Map();
+    const push = (m, a, b) => { if (!m.has(a)) m.set(a, []); m.get(a).push(b); };
+    for (const [a, b] of this.pressE || []) if (a && b && a !== ATM && b !== ATM && this.pressure(a) > 0 && this.pressure(b) > 0) { push(back, b, a); push(fwd, a, b); }
+    for (const [a, via] of this.ventE || []) if (a && via && a !== ATM && !(this.pressure(a) > 0)) { push(ventTo, a, via); push(toAtm, via, a); }
+    // hops from the sources (supply side) and to the exhaust / tank (return side)
+    const bfs = (starts, adj) => {
+      const d = new Map(starts.map((n) => [n, 0]));
+      for (const q = [...starts]; q.length;) { const n = q.shift(); for (const m of adj.get(n) || []) if (!d.has(m)) { d.set(m, d.get(n) + 1); q.push(m); } }
+      return d;
+    };
+    const dS = bfs(this.sourceNets || [], fwd), dV = bfs([ATM], toAtm);
+    const flow = new Map(); // net -> {v, side: 's' supply | 'x' exhaust}
+    /** From an actuator port towards the sources (dist dS) or the exhaust (dist dV), only downhill. */
+    const walk = (start, adj, dist, side, v) => {
+      const seen = new Set([start]);
+      for (const todo = [start]; todo.length;) {
+        const n = todo.pop();
+        const f = flow.get(n) || { v: 0, side };
+        f.v += v;
+        flow.set(n, f);
+        for (const m of adj.get(n) || []) if (m !== ATM && !seen.has(m) && (dist.get(m) ?? Infinity) < (dist.get(n) ?? Infinity)) { seen.add(m); todo.push(m); }
+      }
+    };
+    const ends = [];
+    for (const m of this.moving || []) {
+      const v = DOT_SPEED * Math.abs(m.speed);
+      const pa = this.pressure(m.a) > 0, pb = this.pressure(m.b) > 0;
+      const inNet = pa && !pb ? m.a : pb && !pa ? m.b : null;
+      const outNet = inNet === m.a ? m.b : inNet === m.b ? m.a : (this.V.get(m.a) > 0 ? m.a : m.b);
+      if (inNet) walk(inNet, back, dS, 's', v);
+      if (outNet && this.V.get(outNet) > 0) { walk(outNet, ventTo, dV, 'x', v); ends.push([m.i, outNet]); }
+    }
+    this.fflow = flow;
+    if (!this.ftravel) this.ftravel = new Map();
+    for (const [n, f] of flow) this.ftravel.set(n, ((this.ftravel.get(n) || 0) + f.v * dt) % 1000);
+    // directions per wire, recomputed when the flow pattern changes: the flow enters a line through the
+    // part on the side of the source (supply) or of the actuator (return)
+    const sig = [...flow].map(([n, f]) => n.id + f.side).sort().join(',');
+    if (sig === this.fsig) return;
+    this.fsig = sig;
+    this.fdir = new Map();
+    for (const [net, f] of flow) {
+      const starts = [], exits = [];
+      const inFlow = (m) => flow.get(m)?.side === f.side;
+      for (const { info, pin } of net.pins) {
+        const others = info.pins.filter((p) => p.id !== pin.id).map((p) => this.net(info, p.id)).filter((m) => m && m !== net);
+        const isEnd = ends.some(([i, n]) => i === info && n === net) || (this.moving || []).some((m) => m.i === info);
+        const entry = f.side === 's'
+          ? (dS.get(net) === 0 && ['source', 'powerpack'].includes(info.def?.fluid?.kind)) || others.some((m) => (dS.get(m) ?? Infinity) < (dS.get(net) ?? Infinity))
+          : others.some((m) => (dV.get(m) ?? Infinity) > (dV.get(net) ?? Infinity)) || (isEnd && ends.some(([i, n]) => i === info && n === net));
+        // the flow leaves towards the actuator (supply) or towards the exhaust (return)
+        const exit = f.side === 's'
+          ? (isEnd && !entry) || others.some((m) => inFlow(m) && (dS.get(m) ?? Infinity) > (dS.get(net) ?? Infinity))
+          : others.some((m) => m === ATM || (dV.get(m) ?? Infinity) < (dV.get(net) ?? Infinity)) || (info.def?.fluid?.kind === 'exhaust');
+        if (entry) starts.push([pin.x, pin.y]);
+        else if (exit) exits.push([pin.x, pin.y]);
+      }
+      for (const [w, d] of flowDirections(net, starts, exits)) this.fdir.set(w, d);
+    }
+  }
+
+  /** Dots, colour (pressure from blue = 0 bar to red = highest pressure) and pressure label of a fluid line. */
+  fluidWire(net, wireId) {
+    const p = this.pressure(net);
+    if (!(p > 0) && !(this.V.get(net) > 0)) return null;
+    const max = this.pmax?.[this.medium(net)] || p || 1;
+    const flowing = this.fflow?.has(net);
+    return {
+      c: gradient(p / max),
+      label: p > 0 && labelWire(net) === wireId ? `${p.toFixed(1).replace('.', ',')} bar` : null,
+      dots: { fwd: this.fdir?.get(wireId) ?? true, off: flowing && this.fdir?.has(wireId) ? -((this.ftravel.get(net) || 0) % DOT_GAP) : 0, gap: DOT_GAP },
+    };
   }
 
   // ---------- view ----------
@@ -369,14 +473,14 @@ export class Simulation {
   }
 
   /**
-   * 'p' = line under pressure, 'v' = return line (open to exhaust / tank), 'e' = live control wire;
-   * cooling lines: {c: colour, g: glow, label: temperature on one wire of the line}; or null.
+   * 'e' = live control wire; pneumatic / hydraulic and cooling lines: {c: colour of the flow dots,
+   * label: pressure / temperature on one wire of the line, dots: {fwd, off, gap}}; or null.
    */
   wireState(wireId) {
     const net = this.an.wireNet.get(wireId);
     if (!net) return null;
     if (net.cool) return this.cooling.wireState(net, wireId);
-    if (net.fluid) return this.P.get(net)?.p > 0 ? 'p' : this.V.get(net) > 0 ? 'v' : null;
+    if (net.fluid) return this.fluidWire(net, wireId);
     const g = this.groups.get(net);
     return g?.plus ? 'e' : null;
   }

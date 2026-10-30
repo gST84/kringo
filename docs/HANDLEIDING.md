@@ -309,7 +309,7 @@ Een besturingsproject heeft drie soorten bladen. In de lijst **Pagina's** staan 
 
 Pneumatische en hydraulische schema's teken je op de bladen van de groep **💧 Hydraulica / pneumatica** van een besturingsproject. Het demoproject **Besturing** heeft er vijf: een elektrisch gestuurde cilinder (zie *Elektrisch sturen* hieronder), automatische terugloop (drukknopventiel, 5/2-impulsventiel, rolventiel, smoor-terugslagventielen), tweehandbediening met een EN-ventiel, hydraulisch heffen (aggregaat, drukbegrenzer op 40 bar, filter, 4/3-hendelventiel) en een pendelbeweging met pulsteller.
 
-![Simulatie: drukkant rood, retourkant blauw](img/fluid-sim.png)
+![Simulatie: bolletjes van rood (6 bar) tot blauw (retour), met de druk op de leidingen](img/fluid-sim.png)
 
 **Tekenen**
 
@@ -328,7 +328,8 @@ De simulatie loopt over alle bladen tegelijk, dus de elektrische bladen sturen d
 **Simuleren**
 
 - **▶ Simuleren** werkt zoals bij de stuurkast. Klik **links of rechts op een ventiel** om die kant te bedienen (hand, drukknop, hendel of spoel); Shift = vasthouden. Gestuurde ventielen schakelen op druk, rolventielen op de cilindermarkeringen.
-- De **drukkant gloeit rood**, de **retourkant** (leidingen die openstaan naar de afvoer of tank) **gloeit blauw**; ventielen verschuiven, zuigers en motoren bewegen, manometers tonen hun druk en pulstellers tellen.
+- Op de leidingen onder druk en de **retourleidingen** (open naar de afvoer of tank) staan **bolletjes** in een kleur van **blauw** (0 bar) tot **rood** (hoogste druk, apart voor pneumatica en hydraulica); op leidingen onder druk staat ook de **druk**. Waar het medium stroomt – van de bron naar een bewegende cilinder of motor en van de andere kamer naar de afvoer – lopen de bolletjes in de stroomrichting, even snel als de zuiger beweegt; elders en op zijtakken staan ze stil.
+- Ventielen verschuiven, zuigers en motoren bewegen, manometers tonen hun druk en pulstellers tellen.
 - Smoorventielen vertragen de beweging (meter-out met een smoor-terugslagventiel werkt zoals verwacht); OF- en EN-ventielen, drukregelaar, drukbegrenzer en drukverhoger werken ook.
 
 > De simulatie is functioneel (zoals de eenvoudige modus van FluidSIM): druk aan / uit en de ingestelde druk, geen krachten of debieten. Accumulatoren, warmtewisselaars en meetinstrumenten zonder druk zijn enkel getekend. Ze is zo opgebouwd dat een fysisch model later kan volgen.
@@ -337,7 +338,7 @@ De simulatie loopt over alle bladen tegelijk, dus de elektrische bladen sturen d
 
 Koelcircuits teken je op de bladen van de groep **❄ Koeling**: het koelwater (of glycol) van een machine én de koelmiddelkring van een chiller. Het demoproject **Besturing** heeft er een voorbeeld van: *Koelwater spindel met chiller*, gestuurd vanaf het elektrische blad *Koeling – sturing*.
 
-![Simulatie van een chiller: persleiding en warm water rood, zuigleiding en koud water blauw](img/cooling-sim.png)
+![Simulatie van een chiller: stroombolletjes van rood (warm) tot blauw (koud), met de temperaturen op de leidingen](img/cooling-sim.png)
 
 **Symbolen** (map *Koeling*)
 
