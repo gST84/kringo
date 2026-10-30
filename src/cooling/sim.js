@@ -17,7 +17,7 @@
 // the compressor runs without feed (pump-down). A compressor without a working condenser builds up a
 // high-pressure fault.
 
-import { flowDirections, gradient, labelWire } from '../sim/dots.js';
+import { DotPieces, gradient, labelWire } from '../sim/dots.js';
 
 const norm = (s) => String(s || '').trim().replace(/^-+/, '').toUpperCase();
 const num = (v, d) => { const x = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(x) ? x : d; };
@@ -65,8 +65,10 @@ export class Cooling {
     this.fed = new Map(); // compressor id -> refrigerant can reach the suction
     this.range = { water: [T0, T0], ref: [T0, T0] };
     this.qNet = new Map(); // net -> water flow (kg/s)
-    this.travel = new Map(); // net -> distance the flow dots moved (mm)
-    this.wireFwd = new Map(); // wire id -> flow runs along its points (true) or against them (false)
+    this.qEdge = new Map(); // "id:channel" (or "pump:id" for a pump inlet) -> water flow (kg/s)
+    this.dots = new DotPieces(); // moving flow dots per piece of wire
+    this.exitKeys = new Map(); // net -> flow key per exit of the line (order of the dot exits)
+    this.startKeys = new Map(); // net -> flow key per entry of the line
     this.dirKey = '';
     this.memo = '';
   }
@@ -290,6 +292,7 @@ export class Cooling {
   thermal(dt) {
     const byId = new Map(this.parts.map((i) => [i.comp.id, i]));
     this.qNet = new Map();
+    this.qEdge = new Map();
     for (const d of this.paths || []) {
       if (d.ref || !d.flow.length) continue;
       const p = this.props(d.i);
@@ -320,6 +323,7 @@ export class Cooling {
         const list = outs.get(n) || [];
         for (const e of list) {
           const qe = qn / list.length;
+          this.qEdge.set(`${e.id}:${e.ch}`, (this.qEdge.get(`${e.id}:${e.ch}`) || 0) + qe);
           const tout = this.outlet(byId.get(e.id), e.ch, tn, qe, cp, dt);
           Q.set(e.v, (Q.get(e.v) || 0) + qe);
           H.set(e.v, (H.get(e.v) || 0) + qe * tout);
@@ -334,6 +338,7 @@ export class Cooling {
         if (!done.has(n)) visit(n);
       }
       for (const [n, qn] of Q) this.qNet.set(n, (this.qNet.get(n) || 0) + qn);
+      this.qEdge.set(`pump:${d.i.comp.id}`, q);
       // the pump content mixes with what arrives at the suction
       const qt = Q.get(d.t) || 0;
       if (qt) {
@@ -360,11 +365,15 @@ export class Cooling {
   /** Time-dependent parts: heat, suction / high pressure, sensors. */
   step(dt) {
     this.thermal(dt);
-    // flow dots: water moves with its flow, refrigerant at a fixed speed
-    for (const n of new Set([...this.flow, ...this.high, ...this.low])) {
-      const v = this.circuit.has(n) ? REF_DOT_SPEED : (this.qNet.get(n) || 0) * 60 * DOT_SPEED;
-      this.travel.set(n, ((this.travel.get(n) || 0) + v * dt) % 1000);
-    }
+    // flow dots: water moves with the flow towards each exit of a line (so branches split the speed),
+    // refrigerant at a fixed speed
+    this.wireDirections();
+    this.dots.speeds((net) => {
+      const ins = this.startKeys.get(net) || [], outs = this.exitKeys.get(net) || [];
+      if (this.circuit.has(net)) return { inflow: ins.map(() => REF_DOT_SPEED / Math.max(1, ins.length)), outflow: outs.map(() => 1) };
+      return { inflow: ins.map((k) => (this.qEdge.get(k) || 0) * 60 * DOT_SPEED), outflow: outs.map((k) => this.qEdge.get(k) || 0) };
+    });
+    this.dots.advance(dt);
     for (const i of this.parts) {
       const id = i.comp.id;
       if (i.def.cool.kind !== 'comp') continue;
@@ -442,7 +451,6 @@ export class Cooling {
   wireDirections() {
     if (this.dirKey === this.memo) return;
     this.dirKey = this.memo;
-    this.wireFwd = new Map();
     const byId = new Map(this.parts.map((i) => [i.comp.id, i]));
     const ports = (i, ch) => (i.def.cool.kind === 'hx' || i.def.cool.kind === 'condw' || i.def.cool.kind === 'evapw') ? (ch ? ['3', '4'] : ['1', '2']) : null;
     /** Position of the port of part `id` (channel `ch`) on line `net`. */
@@ -453,10 +461,23 @@ export class Cooling {
       return i.pins.find((p) => (!allowed || allowed.includes(p.id)) && this.net(i, p.id) === net) || null;
     };
     const entries = new Map(), exits = new Map(); // net -> [[x, y]]
-    const add = (m, net, p) => { if (!p) return; if (!m.has(net)) m.set(net, []); m.get(net).push([p.x, p.y]); };
-    for (const e of this.dir) { add(entries, e.v, portAt(e.id, e.ch, e.v)); add(exits, e.u, portAt(e.id, e.ch, e.u)); }
-    for (const d of this.paths) if (d.flow.length) { add(entries, d.s, portAt(d.i.comp.id, 0, d.s)); add(exits, d.t, portAt(d.i.comp.id, 0, d.t)); }
-    for (const [net, starts] of entries) for (const [w, fwd] of flowDirections(net, starts, exits.get(net) || [])) this.wireFwd.set(w, fwd);
+    this.exitKeys = new Map();
+    this.startKeys = new Map();
+    const add = (m, keys, net, p, k) => {
+      if (!p) return;
+      if (!m.has(net)) { m.set(net, []); keys.set(net, []); }
+      m.get(net).push([p.x, p.y]);
+      keys.get(net).push(k);
+    };
+    for (const e of this.dir) {
+      add(entries, this.startKeys, e.v, portAt(e.id, e.ch, e.v), `${e.id}:${e.ch}`);
+      add(exits, this.exitKeys, e.u, portAt(e.id, e.ch, e.u), `${e.id}:${e.ch}`);
+    }
+    for (const d of this.paths) if (d.flow.length) {
+      add(entries, this.startKeys, d.s, portAt(d.i.comp.id, 0, d.s), `pump:${d.i.comp.id}`);
+      add(exits, this.exitKeys, d.t, portAt(d.i.comp.id, 0, d.t), `pump:${d.i.comp.id}`);
+    }
+    this.dots.set([...entries].map(([net, starts]) => ({ net, starts, exits: exits.get(net) || [] })));
   }
 
   /**
@@ -470,9 +491,9 @@ export class Cooling {
     const [lo, hi] = this.range[this.circuit.has(net) ? 'ref' : 'water'];
     const span = Math.max(2, hi - lo);
     this.wireDirections();
-    const fwd = this.wireFwd.get(wireId);
-    // wires off the flow path (side branches) show still dots
-    const dots = { fwd: fwd ?? true, off: fwd == null ? 0 : -((this.travel.get(net) || 0) % DOT_SPACING), gap: DOT_SPACING };
+    // wires off the flow path show still dots
+    const wire = net.wires.find((x) => x.wire.id === wireId)?.wire;
+    const dots = { gap: DOT_SPACING, list: this.dots.state(wireId, DOT_SPACING) || (wire ? [{ pts: wire.points, off: 0 }] : []) };
     return { c: gradient((t - (hi + lo) / 2) / span + 0.5), label: labelWire(net) === wireId ? fmtT(t) : null, dots };
   }
 }

@@ -7,7 +7,7 @@
 // grow into a physical one later (forces, flows, pressure drops) without changing the editor.
 import { parseMarks, restPosition, valvePaths } from '../fluid/symbols.js';
 import { Cooling } from '../cooling/sim.js';
-import { flowDirections, gradient, labelWire } from './dots.js';
+import { DotPieces, gradient, labelWire } from './dots.js';
 
 const DOT_GAP = 6; // mm between flow dots
 const DOT_SPEED = 25; // mm/s of the dots per full stroke (or turn) per second
@@ -409,32 +409,43 @@ export class Simulation {
       if (outNet && this.V.get(outNet) > 0) { walk(outNet, ventTo, dV, 'x', v); ends.push([m.i, outNet]); }
     }
     this.fflow = flow;
-    if (!this.ftravel) this.ftravel = new Map();
-    for (const [n, f] of flow) this.ftravel.set(n, ((this.ftravel.get(n) || 0) + f.v * dt) % 1000);
+    this.fdots ||= new DotPieces();
+    // the speed of a line is shared by the exits it feeds
+    // the speed of a line divides equally over its entries and exits
+    const speeds = () => this.fdots.speeds((net) => {
+      const f = flow.get(net), [ns, ne] = this.fends?.get(net) || [1, 1];
+      return f ? { inflow: Array(ns).fill(f.v / ns), outflow: Array(ne).fill(1) } : null;
+    });
     // directions per wire, recomputed when the flow pattern changes: the flow enters a line through the
     // part on the side of the source (supply) or of the actuator (return)
     const sig = [...flow].map(([n, f]) => n.id + f.side).sort().join(',');
-    if (sig === this.fsig) return;
-    this.fsig = sig;
-    this.fdir = new Map();
-    for (const [net, f] of flow) {
-      const starts = [], exits = [];
-      const inFlow = (m) => flow.get(m)?.side === f.side;
-      for (const { info, pin } of net.pins) {
-        const others = info.pins.filter((p) => p.id !== pin.id).map((p) => this.net(info, p.id)).filter((m) => m && m !== net);
-        const isEnd = ends.some(([i, n]) => i === info && n === net) || (this.moving || []).some((m) => m.i === info);
-        const entry = f.side === 's'
-          ? (dS.get(net) === 0 && ['source', 'powerpack'].includes(info.def?.fluid?.kind)) || others.some((m) => (dS.get(m) ?? Infinity) < (dS.get(net) ?? Infinity))
-          : others.some((m) => (dV.get(m) ?? Infinity) > (dV.get(net) ?? Infinity)) || (isEnd && ends.some(([i, n]) => i === info && n === net));
-        // the flow leaves towards the actuator (supply) or towards the exhaust (return)
-        const exit = f.side === 's'
-          ? (isEnd && !entry) || others.some((m) => inFlow(m) && (dS.get(m) ?? Infinity) > (dS.get(net) ?? Infinity))
-          : others.some((m) => m === ATM || (dV.get(m) ?? Infinity) < (dV.get(net) ?? Infinity)) || (info.def?.fluid?.kind === 'exhaust');
-        if (entry) starts.push([pin.x, pin.y]);
-        else if (exit) exits.push([pin.x, pin.y]);
+    if (sig !== this.fsig) {
+      this.fsig = sig;
+      this.fends = new Map();
+      const lines = [];
+      for (const [net, f] of flow) {
+        const starts = [], exits = [];
+        const inFlow = (m) => flow.get(m)?.side === f.side;
+        for (const { info, pin } of net.pins) {
+          const others = info.pins.filter((p) => p.id !== pin.id).map((p) => this.net(info, p.id)).filter((m) => m && m !== net);
+          const isEnd = ends.some(([i, n]) => i === info && n === net) || (this.moving || []).some((m) => m.i === info);
+          const entry = f.side === 's'
+            ? (dS.get(net) === 0 && ['source', 'powerpack'].includes(info.def?.fluid?.kind)) || others.some((m) => (dS.get(m) ?? Infinity) < (dS.get(net) ?? Infinity))
+            : others.some((m) => (dV.get(m) ?? Infinity) > (dV.get(net) ?? Infinity)) || (isEnd && ends.some(([i, n]) => i === info && n === net));
+          // the flow leaves towards the actuator (supply) or towards the exhaust (return)
+          const exit = f.side === 's'
+            ? (isEnd && !entry) || others.some((m) => inFlow(m) && (dS.get(m) ?? Infinity) > (dS.get(net) ?? Infinity))
+            : others.some((m) => m === ATM || (dV.get(m) ?? Infinity) < (dV.get(net) ?? Infinity)) || (info.def?.fluid?.kind === 'exhaust');
+          if (entry) starts.push([pin.x, pin.y]);
+          else if (exit) exits.push([pin.x, pin.y]);
+        }
+        this.fends.set(net, [Math.max(1, starts.length), Math.max(1, exits.length)]);
+        lines.push({ net, starts, exits });
       }
-      for (const [w, d] of flowDirections(net, starts, exits)) this.fdir.set(w, d);
+      this.fdots.set(lines);
     }
+    speeds();
+    this.fdots.advance(dt);
   }
 
   /** Dots, colour (pressure from blue = 0 bar to red = highest pressure) and pressure label of a fluid line. */
@@ -442,11 +453,12 @@ export class Simulation {
     const p = this.pressure(net);
     if (!(p > 0) && !(this.V.get(net) > 0)) return null;
     const max = this.pmax?.[this.medium(net)] || p || 1;
-    const flowing = this.fflow?.has(net);
+    const wire = net.wires.find((x) => x.wire.id === wireId)?.wire;
+    const moving = this.fflow?.has(net) && this.fdots?.state(wireId, DOT_GAP);
     return {
       c: gradient(p / max),
       label: p > 0 && labelWire(net) === wireId ? `${p.toFixed(1).replace('.', ',')} bar` : null,
-      dots: { fwd: this.fdir?.get(wireId) ?? true, off: flowing && this.fdir?.has(wireId) ? -((this.ftravel.get(net) || 0) % DOT_GAP) : 0, gap: DOT_GAP },
+      dots: { gap: DOT_GAP, list: moving || (wire ? [{ pts: wire.points, off: 0 }] : []) },
     };
   }
 
