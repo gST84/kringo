@@ -79,7 +79,8 @@ export function toggleFolder(open, path) {
 /** Sheet groups in control projects (in this order). */
 export const PAGE_GROUPS = [
   { type: 'electric', label: '⚡ Elektrisch', add: 'Nieuw elektrisch blad', empty: 'Nog geen elektrische bladen.' },
-  { type: 'fluid', label: '💧 Hydraulica / pneumatica', add: 'Nieuw pneumatisch / hydraulisch blad', empty: 'Nog geen bladen – klik ＋ voor een pneumatisch of hydraulisch schema.' },
+  { type: 'pneu', label: '💨 Pneumatica', add: 'Nieuw pneumatisch blad', empty: 'Nog geen bladen – klik ＋ voor een pneumatisch schema.' },
+  { type: 'hydr', label: '💧 Hydraulica', add: 'Nieuw hydraulisch blad', empty: 'Nog geen bladen – klik ＋ voor een hydraulisch schema.' },
   { type: 'cool', label: '❄ Koeling', add: 'Nieuw blad voor een koelcircuit', empty: 'Nog geen bladen – klik ＋ voor een koelcircuit (koelwater of koelmiddel).' },
 ];
 
@@ -141,10 +142,10 @@ export function pagesPanel(app, el) {
   return render;
 }
 
-/** New sheet of a type ('electric', 'fluid' or 'cool'; process sheets have no supply rails). */
+/** New sheet of a type ('electric', 'pneu', 'hydr' or 'cool'; process sheets have no supply rails). */
 async function addPageDialog(app, type = 'electric') {
   const fluid = type !== 'electric';
-  const title = h('input', { type: 'text', value: t({ fluid: 'Pneumatisch / hydraulisch schema', cool: 'Koelcircuit' }[type] || 'Nieuwe pagina') });
+  const title = h('input', { type: 'text', value: t({ pneu: 'Pneumatisch schema', hydr: 'Hydraulisch schema', cool: 'Koelcircuit' }[type] || 'Nieuwe pagina') });
   const tpl = h('select', null, Object.entries(PAGE_TEMPLATES).map(([k, t]) => h('option', { value: k }, t.label)));
   const ok = await modal({
     title: PAGE_GROUPS.find((g) => g.type === type && g.type !== 'electric')?.add || 'Nieuwe pagina',
@@ -214,7 +215,7 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
 
   // each sheet type shows its own main folders: electrical (Standaard, AREI), fluid (Pneumatica,
   // Hydraulica) or cooling (Koeling); buildings and their single-line sheets are 'electric'
-  const MAIN = { electric: ['Standaard', 'AREI'], fluid: ['Pneumatica', 'Hydraulica'], cool: ['Koeling'] };
+  const MAIN = { electric: ['Standaard', 'AREI'], pneu: ['Pneumatica'], hydr: ['Hydraulica'], cool: ['Koeling'] };
   const sheetType = () => (app.project && app.project.kind !== 'building' && app.mode === 'schematic' ? pageType(app.page) : 'electric');
   const hidden = () => { const own = MAIN[sheetType()] || []; return new Set(Object.values(MAIN).flat().filter((x) => !own.includes(x))); };
   const node = (n, depth) => {
@@ -342,7 +343,9 @@ function pageProps(app) {
   return [
     section(t('Pagina {n}', { n: app.pageIdx + 1 }),
       field('Titel', inp(pg.title, (v) => set(() => { pg.title = v; }), { key: 'ptitle' })),
-      pageType(pg) === 'fluid' ? h('p', { class: 'hint' }, 'Pneumatisch / hydraulisch blad: de bibliotheek toont de symbolen voor pneumatica en hydraulica. Ventielen met een elektromagneet volgen de spoel met dezelfde naam op een elektrisch blad.') : null,
+      pageType(pg) === 'pneu' || pageType(pg) === 'hydr' ? h('p', { class: 'hint' }, pageType(pg) === 'pneu'
+        ? 'Pneumatisch blad: de bibliotheek toont de symbolen voor pneumatica. Ventielen met een elektromagneet volgen de spoel met dezelfde naam op een elektrisch blad.'
+        : 'Hydraulisch blad: de bibliotheek toont de symbolen voor hydraulica. Ventielen met een elektromagneet volgen de spoel met dezelfde naam op een elektrisch blad.') : null,
       pageType(pg) === 'cool' ? h('p', { class: 'hint' }, 'Koelcircuit: de bibliotheek toont koelwater, koelmiddel en instrumenten. Pompen, compressoren en ventilatoren volgen de spoel (contactor) die je opgeeft; contacten op een elektrisch blad koppel je aan een thermostaat, debiet- of drukschakelaar.') : null),
     // single-line sheets and process sheets have no supply rails to manage
     pg.gen || (isProcessPage(pg) && !pg.rails.length) ? null : section('Voedingslijnen',

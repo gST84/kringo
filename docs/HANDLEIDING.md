@@ -36,7 +36,7 @@ Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Krin
 - Bij het openen verschijnt het **welkomscherm**: kies de taal (Nederlands, Français, English), maak een **nieuw project** of open een recent project van deze app.
 - Onder **Demoproject** open je een uitgewerkt voorbeeld: in Gebouw een **woning** (verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema), in Besturing een **besturing** (motorstarter, tijdrelais, noodstop, PLC, een elektrisch gestuurde cilinder, vier pneumatische / hydraulische schakelingen en de koeling van een spindel met een chiller). Het staat ook bovenaan in het venster **Project openen**. Elke keer krijg je een nieuwe kopie, dus je kunt er vrij in werken.
 
-Projecten worden in de browser bewaard; elke app toont alleen zijn eigen projecten. Open je een project van de andere soort (bv. een `.kringo`-bestand van een stuurkast in Kringo Gebouw), dan gaat het vanzelf open in de juiste app. Oudere projecten van de soort *Hydraulica / pneumatica* openen in Besturing, met enkel pneumatische / hydraulische bladen.
+Projecten worden in de browser bewaard; elke app toont alleen zijn eigen projecten. Open je een project van de andere soort (bv. een `.kringo`-bestand van een stuurkast in Kringo Gebouw), dan gaat het vanzelf open in de juiste app. Oudere projecten van de soort *Hydraulica / pneumatica* openen in Besturing, met enkel pneumatische en hydraulische bladen.
 
 ## 2. Het scherm
 
@@ -287,7 +287,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 ## 7. Besturing: stuurkast
 
-Een besturingsproject heeft drie soorten bladen. In de lijst **Pagina's** staan ze in groepen: **⚡ Elektrisch**, **💧 Hydraulica / pneumatica** en **❄ Koeling**; met de **＋** naast een groep voeg je een blad van die soort toe. De bibliotheek toont enkel de symbolen die bij het actieve blad horen: *Standaard* en *AREI* op elektrische bladen, *Pneumatica* en *Hydraulica* op pneumatische / hydraulische bladen, *Koeling* op koelbladen. Toestellen op die laatste krijgen een eigen codering (standaard `{prefix}{n}` → *V1*, *A1*; in *Instellingen*).
+Een besturingsproject heeft vier soorten bladen. In de lijst **Pagina's** staan ze in groepen: **⚡ Elektrisch**, **💨 Pneumatica**, **💧 Hydraulica** en **❄ Koeling**; met de **＋** naast een groep voeg je een blad van die soort toe. De bibliotheek toont enkel de symbolen die bij het actieve blad horen: *Standaard* en *AREI* op elektrische bladen, *Pneumatica* op pneumatische bladen, *Hydraulica* op hydraulische bladen en *Koeling* op koelbladen. Toestellen op die laatste krijgen een eigen codering (standaard `{prefix}{n}` → *V1*, *A1*; in *Instellingen*).
 
 - **Pagina's** op A3 met kolommen en rijen, titelblok met bedrijf en logo (*Gegevens*).
 - **Voedingslijnen** (L1 L2 L3 N PE, +24V / 0V …) in de pagina-eigenschappen; zelfde naam = zelfde potentiaal over alle pagina's.
@@ -307,7 +307,7 @@ Een besturingsproject heeft drie soorten bladen. In de lijst **Pagina's** staan 
 
 ## 8. Besturing: hydraulica en pneumatica
 
-Pneumatische en hydraulische schema's teken je op de bladen van de groep **💧 Hydraulica / pneumatica** van een besturingsproject. Het demoproject **Besturing** heeft er vijf: een elektrisch gestuurde cilinder (zie *Elektrisch sturen* hieronder), automatische terugloop (drukknopventiel, 5/2-impulsventiel, rolventiel, smoor-terugslagventielen), tweehandbediening met een EN-ventiel, hydraulisch heffen (aggregaat, drukbegrenzer op 40 bar, filter, 4/3-hendelventiel) en een pendelbeweging met pulsteller.
+Pneumatische schema's teken je op de bladen van de groep **💨 Pneumatica**, hydraulische op die van **💧 Hydraulica**. Bladen uit oudere versies (één groep voor beide) worden volgens hun symbolen ingedeeld. Het demoproject **Besturing** heeft er vijf: een elektrisch gestuurde cilinder (zie *Elektrisch sturen* hieronder), automatische terugloop (drukknopventiel, 5/2-impulsventiel, rolventiel, smoor-terugslagventielen), tweehandbediening met een EN-ventiel, hydraulisch heffen (aggregaat, drukbegrenzer op 40 bar, filter, 4/3-hendelventiel) en een pendelbeweging met pulsteller.
 
 ![Simulatie: bolletjes van rood (6 bar) tot blauw (retour), met de druk op de leidingen](img/fluid-sim.png)
 

@@ -12,8 +12,8 @@ import { uid } from '../util.js';
  * at the retracted / extended end of cylinder 5A1.
  */
 export function fluidDemoPages(lib, { sol, marks: [m0, m1] }) {
-  const pages = ['Elektropneumatiek – cilinder', '1 Automatische terugloop', '2 Tweehandbediening (EN)', '3 Hydraulisch heffen', '4 Pendelbeweging met teller']
-    .map((title) => newPage(title, 'empty', 'fluid'));
+  const pages = ['Elektropneumatiek – cilinder', 'Automatische terugloop', 'Tweehandbediening (EN)', 'Hydraulisch heffen', 'Pendelbeweging met teller']
+    .map((title) => newPage(title, 'empty', title === 'Hydraulisch heffen' ? 'hydr' : 'pneu'));
   const p = { pages };
   let pg = p.pages[0];
   const place = (sym, x, y, tag, props = {}, o = {}) => {

@@ -79,7 +79,7 @@ export async function settingsDialog(app) {
     h('h3', null, 'Componentnummering'),
     field('Formaat', tagFmt, t('Tokens: {prefix} letter (K, S, Q …), {page} pagina, {col} kolom, {row} rij-letter, {n} volgnummer. Voorbeelden: -{page}{prefix}{col} → -2K4 · -{prefix}{page}.{col}{row} → -K2.4C · -{prefix}{n} → -K1')),
     h('datalist', { id: 'tagfmts' }, ['-{page}{prefix}{col}', '-{prefix}{page}.{col}', '-{prefix}{page}.{col}{row}', '-{prefix}{page}{col}{n}', '-{prefix}{n}'].map((x) => h('option', { value: x }))),
-    field('Formaat hydraulica / pneumatica', fluidFmt, t('Voor toestellen op pneumatische en hydraulische bladen. Voorbeelden: {prefix}{n} → V1, A1 · {page}{prefix}{n} → 6V1')),
+    field('Formaat pneumatica, hydraulica en koeling', fluidFmt, t('Voor toestellen op pneumatische, hydraulische en koelbladen. Voorbeelden: {prefix}{n} → V1, A1 · {page}{prefix}{n} → 6V1')),
     h('datalist', { id: 'fluidfmts' }, ['{prefix}{n}', '{page}{prefix}{n}', '-{prefix}{n}'].map((x) => h('option', { value: x }))),
     h('h3', null, 'Draadnummering'),
     field('Formaat', wireFmt, t('Tokens: {page}, {col}, {row}, {n}. Voedingslijnen krijgen hun naam (L1, N, +24V …). Voorbeelden: {n} → 1, 2, 3 · {page}.{col}{n} → 2.41 · leeg = geen automatische nummers')),
