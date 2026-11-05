@@ -23,8 +23,9 @@ Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Krin
 7. [Besturing: stuurkast](#7-besturing-stuurkast)
 8. [Besturing: hydraulica en pneumatica](#8-besturing-hydraulica-en-pneumatica)
 9. [Besturing: koelcircuits van machines](#9-besturing-koelcircuits-van-machines)
-10. [Bewaren, openen, afdrukken](#10-bewaren-openen-afdrukken)
-11. [Sneltoetsen](#11-sneltoetsen)
+10. [Besturing: bouwblokken (sub-schema's)](#10-besturing-bouwblokken-sub-schemas)
+11. [Bewaren, openen, afdrukken](#11-bewaren-openen-afdrukken)
+12. [Sneltoetsen](#12-sneltoetsen)
 
 ---
 
@@ -391,13 +392,48 @@ Debiet, vermogens en inhoud staan ook bij het symbool. Elk onderdeel verandert d
 
 > De berekening is een eenvoudige warmtebalans: vaste debieten, geen drukval of warmteverlies in leidingen, en in de koelmiddelkring vaste verdampings- en condensatietemperaturen.
 
-## 10. Bewaren, openen, afdrukken
+## 10. Besturing: bouwblokken (sub-schema's)
+
+Een **bouwblok** is een stuk schema dat je één keer tekent en daarna als één symbool zo vaak plaatst als je wilt: een motorvertrek, een ventiel met cilinder, een stuurblok met al zijn interne onderdelen … Een bouwblok bestaat uit gewone symbolen en draden, dus het werkt ook in de **simulatie**.
+
+**Een bouwblok maken**
+
+1. Klik in de paginalijst bij **🧩 Bouwblokken** op **＋**. Geef een naam, kies het soort (elektrisch, pneumatica, hydraulica of koeling: dat bepaalt de symbolen in de bibliotheek) en de letter van de tag (standaard *A*). Een bestaand blad maak je een bouwblok met **Dit blad is een bouwblok** in de eigenschappen van het blad.
+2. Teken de inhoud met de gewone symbolen en draden.
+3. Zet een **Aansluitpunt** (map *Bouwblok*) op elke plaats waar het blok met de rest van het schema verbindt, en geef het een naam (bv. *P*, *A*, *L1*, *13*). Draden die op een **voedingslijn** van het blad eindigen (bv. +24V / 0V) blijven met die voedingslijn verbonden: een geplaatst blok hangt vanzelf aan de +24V en 0V van het project.
+
+In de eigenschappen van het blad stel je de standaard weergave en het kader rond de inhoud in (streep-punt, doorlopend of geen).
+
+**Een bouwblok plaatsen**
+
+Het blok staat in de bibliotheek onder **Bouwblokken / *naam van het project***. Klik het aan en plaats het op een ander blad. Per geplaatst blok kies je de **weergave**:
+
+- **Volledige inhoud**: alle symbolen en draden van het blok zijn zichtbaar, met een kader eromheen. De aansluitpunten zijn de pinnen van het blok.
+- **Compact kader**: een rechthoek met de naam en alleen de aansluitpunten, elk aan de kant waar het in de volledige tekening het dichtst bij de rand staat.
+
+Een geplaatst blok gedraagt zich als één symbool: klikken selecteert het hele blok, en verslepen, draaien en spiegelen doen het hele blok. Wijzig je het blad van het bouwblok, dan veranderen alle geplaatste blokken mee.
+
+**Tags en eigenschappen**
+
+- De toestellen in een geplaatst blok krijgen de tag van het blok vooraan: blok *-A1* met *-K1* en *-Y1* erin geeft *-A1-K1* en *-A1-Y1*; op procesbladen wordt *A3* met *1V1* erin *A3.1V1*. Zo kun je een blok meermaals plaatsen zonder dubbele tags.
+- Eigenschappen die naar een toestel in hetzelfde blok verwijzen (bv. de spoel van een ventiel) volgen die tag vanzelf. Met **{tag}** in een eigenschap zet je de tag van het geplaatste blok in de waarde.
+- Bij **Inhoud van het bouwblok** in de eigenschappen van een geplaatst blok kun je per toestel een andere waarde opgeven, alleen voor dat blok (bv. de naam van de spoel op een elektrisch blad, of een andere functietekst).
+
+**Simulatie**
+
+De inhoud van een geplaatst blok simuleert mee, alsof ze op het blad getekend is. Bij de volledige weergave klik je op drukknoppen en ventielen in het blok zoals elders. Het blad van het bouwblok zelf is enkel een sjabloon en simuleert niet mee.
+
+**Herbruiken in andere projecten**
+
+Met **Bewaren in Mijn symbolen** (eigenschappen van het blad) komt het blok in de bibliotheek onder *Mijn symbolen / Bouwblokken*, met de eigen symbolen die het gebruikt. Daarna wordt de knop **Bijwerken in Mijn symbolen**. In een ander project kies je bij een bouwblok in de bibliotheek (⋯) **Als bouwblok in dit project bewerken** om het als blad aan te passen en daarna opnieuw te bewaren.
+
+## 11. Bewaren, openen, afdrukken
 
 - Projecten worden **automatisch** in de browser bewaard.
 - **Bewaar bestand** (diskette) maakt een `.kringo`-bestand om door te sturen of als back-up; **Open bestand** opent `.kringo` en `.qet`.
 - **Afdrukken / PDF** (printer): kies alles, alle plattegronden, de huidige plattegrond of het eendraadschema; kies in het afdrukvenster *Opslaan als PDF* en zet de marges op *Geen*. Alles op A3 liggend, plattegronden op schaal.
 
-## 11. Sneltoetsen
+## 12. Sneltoetsen
 
 **Grondplan:** `W` muur · `A` gebogen muur · `D` deur · `N` raam · `M` maatlijn · `T` ruimtenaam · `L` koppelen · `R` draaien · `V` selecteren · `H` pannen · `Del` verwijderen · `Ctrl+D` dupliceren · `Ctrl+Z / Y` ongedaan / opnieuw · `F` passend · `Alt` zonder raster / niet tegen de muur · `Backspace` laatste punt terug (vlak, lijn, ledstrip).
 

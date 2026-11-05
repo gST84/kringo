@@ -22,7 +22,7 @@ export function buildLists(app) {
   // devices
   const devices = new Map();
   for (const info of an.comps.values()) {
-    if (!needsTag(info.def)) continue;
+    if (!needsTag(info.def) || info.template) continue;
     const root = info.master || info;
     const key = root.comp.id;
     if (!devices.has(key)) devices.set(key, { root, parts: [] });
@@ -41,7 +41,7 @@ export function buildLists(app) {
 
   // terminals
   const terms = [];
-  for (const info of an.comps.values()) if (info.def?.role === 'terminal') terms.push(info);
+  for (const info of an.comps.values()) if (info.def?.role === 'terminal' && !info.template) terms.push(info);
   terms.sort((a, b) => natCmp(a.tag, b.tag) || natCmp(a.comp.props?.number, b.comp.props?.number));
   const side = (info, pinId) => {
     const net = direct.pinNet.get(`${info.comp.id}:${pinId}`);

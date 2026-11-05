@@ -1,10 +1,18 @@
 // Symbol geometry: parametric expansion, bounding boxes, placement transforms.
 
 const buildCache = new Map();
+const viewCache = new WeakMap();
 
 /** Graphics + pins of a definition for a given component (expands parametric symbols). */
 export function geometry(def, comp) {
   if (!def) return MISSING;
+  if (def.views) {
+    // building block: full content or compact box
+    const v = (comp?.props?.view ?? def.props?.view) === 'compact' ? 'compact' : 'full';
+    let m = viewCache.get(def);
+    if (!m) viewCache.set(def, (m = {}));
+    return (m[v] ||= { ...def, ...def.views[v] });
+  }
   if (!def.build) return def;
   const props = { ...(def.props || {}), ...(comp?.props || {}) };
   const key = def.id + JSON.stringify(props);

@@ -3,6 +3,7 @@
 import { BUILTIN } from './builtin.js';
 import { idb, kvGet, kvSet } from '../storage.js';
 import { uid, safeName, download, clone } from '../util.js';
+import { BLOCK_FOLDER, makeBlockDef, PORT_DEF } from '../blocks/block.js';
 
 export const SYMBOL_FORMAT = 'kringo-symbol';
 export const LIBRARY_FORMAT = 'kringo-library';
@@ -13,13 +14,15 @@ export const USER_ROOT = 'Mijn symbolen';
 export class Library {
   /** `extra`: the app's own built-in symbols (AREI for buildings, fluid power for control). */
   constructor(extra = []) {
-    this.builtin = new Map([...BUILTIN, ...extra].map((d) => [d.id, { ...d, source: 'builtin' }]));
+    this.builtin = new Map([...BUILTIN, PORT_DEF, ...extra].map((d) => [d.id, { ...d, source: 'builtin' }]));
     this.user = new Map();
     this.folder = new Map();
     this.dir = null; // FileSystemDirectoryHandle
     this.dirState = 'none'; // none | linked | needs-permission
     this.project = null; // project-embedded fallback definitions
     this.listeners = new Set();
+    this.blocks = new Map(); // block sheet id -> {page, ver, def}
+    this.blockVersion = 0; // set by the app on every change (block definitions are rebuilt)
   }
 
   onChange(fn) { this.listeners.add(fn); }
@@ -40,11 +43,30 @@ export class Library {
   }
 
   get(id) {
+    if (String(id).startsWith('blk/')) {
+      const page = this.project?.pages?.find((pg) => pg.block && 'blk/' + pg.id === id);
+      if (page) return this.blockDef(page);
+    }
     return this.folder.get(id) || this.user.get(id) || this.builtin.get(id) || this.project?.symbols?.[id] || null;
   }
 
+  /** Symbol of a block sheet of the project (rebuilt when the project changed). */
+  blockDef(page) {
+    const c = this.blocks.get(page.id);
+    if (c && c.page === page && c.ver === this.blockVersion) return c.def;
+    if (c?.building) return null; // a block that contains itself
+    this.blocks.set(page.id, { building: true });
+    let def = null;
+    try { def = { ...makeBlockDef(page, (s) => this.get(s)), source: 'project' }; } finally { this.blocks.set(page.id, { page, ver: this.blockVersion, def }); }
+    return def;
+  }
+
+  /** Block sheets of the project as symbols. */
+  projectBlocks() { return (this.project?.pages || []).filter((pg) => pg.block).map((pg) => this.blockDef(pg)).filter(Boolean); }
+
   all() {
     const m = new Map([...this.builtin, ...this.user, ...this.folder]);
+    for (const d of this.projectBlocks()) m.set(d.id, { ...d, folder: BLOCK_FOLDER + '/' + (this.project?.name || 'Project') });
     if (this.project?.symbols) for (const [id, d] of Object.entries(this.project.symbols)) if (!m.has(id)) m.set(id, { ...d, source: 'project', folder: d.folder || 'Uit project' });
     return [...m.values()];
   }
@@ -220,6 +242,7 @@ export class Library {
     const out = {};
     for (const pg of project.pages) for (const c of pg.comps) {
       const d = this.get(c.sym);
+      if (String(c.sym).startsWith('blk/') && project.pages.some((x) => 'blk/' + x.id === c.sym)) continue; // own block sheets
       if (d && d.source !== 'builtin' && !this.builtin.has(c.sym)) {
         const copy = clone(d);
         delete copy.source; delete copy._file;

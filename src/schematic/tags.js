@@ -11,9 +11,14 @@ function baseTag(project, fmt, prefix, pageIdx, x, y) {
 }
 
 /** Tag format of a sheet: fluid sheets have their own (ISO 1219 style) format. */
-const tagFormat = (project, pageIdx) => (isProcessPage(project.pages[pageIdx])
-  ? project.settings.fluidTagFormat || '{prefix}{n}'
-  : project.settings.tagFormat || '-{prefix}{n}');
+const tagFormat = (project, pageIdx) => {
+  const pg = project.pages[pageIdx];
+  if (isProcessPage(pg)) return project.settings.fluidTagFormat || '{prefix}{n}';
+  // building blocks: short local tags (the placed block puts its own tag in front)
+  return pg?.block ? '-{prefix}{n}' : project.settings.tagFormat || '-{prefix}{n}';
+};
+/** Tags are unique per block sheet, and over all other sheets together. */
+const scopeOf = (pg) => (pg?.block ? pg.id : '');
 
 function uniqueTag(base, used) {
   if (base.includes('{n}')) {
@@ -27,9 +32,10 @@ function uniqueTag(base, used) {
   return `${base}.${k}`;
 }
 
-function usedTags(project, exceptId) {
+function usedTags(project, exceptId, pageIdx) {
   const used = new Set();
-  for (const pg of project.pages) for (const c of pg.comps) if (c.id !== exceptId && c.tag && !c.link) used.add(c.tag);
+  const scope = scopeOf(project.pages[pageIdx]);
+  for (const pg of project.pages) if (scopeOf(pg) === scope) for (const c of pg.comps) if (c.id !== exceptId && c.tag && !c.link) used.add(c.tag);
   return used;
 }
 
@@ -38,7 +44,7 @@ export function autoTag(project, lib, comp, pageIdx) {
   const def = lib.get(comp.sym);
   if (!needsTag(def)) return '';
   const fmt = tagFormat(project, pageIdx);
-  return uniqueTag(baseTag(project, fmt, comp.props?.prefix || def.prefix || 'A', pageIdx, comp.x, comp.y), usedTags(project, comp.id));
+  return uniqueTag(baseTag(project, fmt, comp.props?.prefix || def.prefix || 'A', pageIdx, comp.x, comp.y), usedTags(project, comp.id, pageIdx));
 }
 
 /** Re-tags every component with automatic tags, in page / column / row order. */
@@ -52,10 +58,13 @@ export function renumberDevices(project, lib) {
     }
   });
   list.sort((a, b) => a.pi - b.pi || a.c.x - b.c.x || a.c.y - b.c.y);
-  const used = new Set(list.filter((e) => e.c.autoTag === false && e.c.tag).map((e) => e.c.tag));
+  const usedBy = new Map();
+  const usedIn = (pi) => { const k = scopeOf(project.pages[pi]); if (!usedBy.has(k)) usedBy.set(k, new Set()); return usedBy.get(k); };
+  for (const e of list) if (e.c.autoTag === false && e.c.tag) usedIn(e.pi).add(e.c.tag);
   let changed = 0;
   for (const { c, pi, def } of list) {
     if (c.autoTag === false) continue;
+    const used = usedIn(pi);
     const t = uniqueTag(baseTag(project, tagFormat(project, pi), c.props?.prefix || def.prefix || 'A', pi, c.x, c.y), used);
     used.add(t);
     if (c.tag !== t) { c.tag = t; changed++; }

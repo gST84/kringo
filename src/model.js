@@ -64,6 +64,8 @@ export function newRail(name, y, page) {
 /** Sheet types in control projects: electrical (default), pneumatic, hydraulic or cooling. */
 export const PAGE_TYPES = ['electric', 'pneu', 'hydr', 'cool'];
 export const pageType = (pg) => (PAGE_TYPES.includes(pg?.type) ? pg.type : 'electric');
+/** Page list group of a sheet: its type, or 'block' for building block sheets. */
+export const pageGroup = (pg) => (pg?.block ? 'block' : pageType(pg));
 /** Sheets with process symbols (pneumatics, hydraulics, cooling): own tag format, no supply rails. */
 export const isProcessPage = (pg) => pageType(pg) !== 'electric';
 
@@ -153,9 +155,9 @@ export function normalizeProject(p) {
   return p;
 }
 
-/** Keeps the sheets grouped: electrical, pneumatic, hydraulic, cooling (stable). */
+/** Keeps the sheets grouped: electrical, pneumatic, hydraulic, cooling, building blocks (stable). */
 export function sortPages(p) {
-  const order = (pg) => PAGE_TYPES.indexOf(pageType(pg));
+  const order = (pg) => (pg.block ? PAGE_TYPES.length : PAGE_TYPES.indexOf(pageType(pg)));
   if (p.pages.some((pg, i) => i && order(pg) < order(p.pages[i - 1]))) p.pages = [...p.pages].sort((a, b) => order(a) - order(b));
   return p;
 }

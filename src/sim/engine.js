@@ -44,7 +44,7 @@ export class Simulation {
     this.solOn = new Set(); // normalized tags of energized loads
     this.marks = new Set(); // active cylinder marks (normalized)
     this.short = false;
-    const infos = [...an.comps.values()];
+    const infos = [...an.comps.values()].filter((i) => !i.template); // block sheets are only templates
     this.fluid = infos.filter((i) => i.def?.fluid);
     this.elec = infos.filter((i) => !i.def?.fluid && !i.def?.cool && i.pins.length);
     this.cooling = new Cooling(this, infos); // machine cooling circuits (src/cooling/sim.js)

@@ -1,7 +1,8 @@
 // Side panels: pages, symbol library and properties.
 import { t } from '../i18n.js';
 import { h, natCmp, pickFiles, uid } from '../util.js';
-import { frameOf, isProcessPage, newPage, newRail, PAGE_TEMPLATES, pageType, SHEET_SIZES, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
+import { frameOf, isProcessPage, newPage, newRail, PAGE_TEMPLATES, pageGroup, pageType, SHEET_SIZES, sortPages, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
+import { BLOCK_FOLDER, blockId, PORT, PORT_FOLDER } from '../blocks/block.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { refText } from '../schematic/analyze.js';
 import { autoTag, needsTag, numberContact, nextTerminal } from '../schematic/tags.js';
@@ -82,6 +83,7 @@ export const PAGE_GROUPS = [
   { type: 'pneu', label: '💨 Pneumatica', add: 'Nieuw pneumatisch blad', empty: 'Nog geen bladen – klik ＋ voor een pneumatisch schema.' },
   { type: 'hydr', label: '💧 Hydraulica', add: 'Nieuw hydraulisch blad', empty: 'Nog geen bladen – klik ＋ voor een hydraulisch schema.' },
   { type: 'cool', label: '❄ Koeling', add: 'Nieuw blad voor een koelcircuit', empty: 'Nog geen bladen – klik ＋ voor een koelcircuit (koelwater of koelmiddel).' },
+  { type: 'block', label: '🧩 Bouwblokken', add: 'Nieuw bouwblok', empty: 'Nog geen bouwblokken – klik ＋ om een stuk schema te tekenen dat je als één symbool hergebruikt.' },
 ];
 
 /** Page list. Control projects group the sheets: electrical, pneumatic / hydraulic, cooling. */
@@ -98,7 +100,7 @@ export function pagesPanel(app, el) {
     }, h('span', { class: 'no' }, i + 1), h('span', { class: 'ttl' }, pg.title || '—'));
     const grouped = p.kind !== 'building';
     const group = (g) => {
-      const items = p.pages.map((pg, i) => [pg, i]).filter(([pg]) => pageType(pg) === g.type);
+      const items = p.pages.map((pg, i) => [pg, i]).filter(([pg]) => pageGroup(pg) === g.type);
       return h('div', { class: 'pagegroup ' + g.type },
         h('div', { class: 'pagegrouphead' }, h('span', null, t(g.label)),
           h('button', { title: g.add, onclick: () => addPageDialog(app, g.type) }, '＋')),
@@ -106,14 +108,14 @@ export function pagesPanel(app, el) {
     };
     const move = (d) => {
       const i = app.pageIdx, j = i + d;
-      if (j < 0 || j >= p.pages.length || pageType(p.pages[i]) !== pageType(p.pages[j])) return;
+      if (j < 0 || j >= p.pages.length || pageGroup(p.pages[i]) !== pageGroup(p.pages[j])) return;
       app.mutate(() => { const [pg] = p.pages.splice(i, 1); p.pages.splice(j, 0, pg); });
       app.pageIdx = j;
       app.emit('change');
     };
     return [
       h('div', { class: 'panel-tools' },
-        h('button', { title: 'Nieuwe pagina van hetzelfde soort', onclick: () => addPageDialog(app, pageType(app.page)) }, '＋ Pagina'),
+        h('button', { title: 'Nieuwe pagina van hetzelfde soort', onclick: () => addPageDialog(app, pageGroup(app.page)) }, '＋ Pagina'),
         h('button', { title: 'Pagina dupliceren', onclick: () => duplicatePage(app) }, '⧉'),
         h('button', { title: 'Omhoog', onclick: () => move(-1) }, '↑'),
         h('button', { title: 'Omlaag', onclick: () => move(1) }, '↓'),
@@ -121,10 +123,14 @@ export function pagesPanel(app, el) {
           title: 'Pagina verwijderen', class: 'danger',
           onclick: async () => {
             if (p.pages.length < 2) return toast('Een project heeft minstens één pagina.');
-            if (!(await confirmDlg('Pagina verwijderen', t('Pagina {n} "{title}" verwijderen?', { n: app.pageIdx + 1, title: app.page.title }), 'Verwijderen', true))) return;
+            const uses = app.page.block ? blockUses(p, app.page) : 0;
+            const msg = t('Pagina {n} "{title}" verwijderen?', { n: app.pageIdx + 1, title: app.page.title }) + (uses ? ' ' + t('Dit bouwblok is {n} keer geplaatst; die blokken verdwijnen mee.', { n: uses }) : '');
+            if (!(await confirmDlg('Pagina verwijderen', msg, 'Verwijderen', true))) return;
             app.mutate(() => {
               const removed = new Set(app.page.comps.map((c) => c.id));
+              const blk = app.page.block ? blockId(app.page) : null;
               p.pages.splice(app.pageIdx, 1);
+              if (blk) for (const pg of p.pages) pg.comps = pg.comps.filter((c) => c.sym !== blk);
               for (const pg of p.pages) for (const c of pg.comps) if (removed.has(c.link)) delete c.link;
             });
             app.pageIdx = Math.min(app.pageIdx, p.pages.length - 1);
@@ -144,6 +150,7 @@ export function pagesPanel(app, el) {
 
 /** New sheet of a type ('electric', 'pneu', 'hydr' or 'cool'; process sheets have no supply rails). */
 async function addPageDialog(app, type = 'electric') {
+  if (type === 'block') return addBlockDialog(app);
   const fluid = type !== 'electric';
   const title = h('input', { type: 'text', value: t({ pneu: 'Pneumatisch schema', hydr: 'Hydraulisch schema', cool: 'Koelcircuit' }[type] || 'Nieuwe pagina') });
   const tpl = h('select', null, Object.entries(PAGE_TEMPLATES).map(([k, t]) => h('option', { value: k }, t.label)));
@@ -164,6 +171,28 @@ async function addPageDialog(app, type = 'electric') {
   const at = pageType(app.page) === type ? app.pageIdx + 1 : pages.filter((x) => order(x) <= order(pg)).length;
   app.mutate((p) => p.pages.splice(at, 0, pg));
   app.setPage(at);
+}
+
+/** Number of placed instances of a block sheet. */
+const blockUses = (p, pg) => p.pages.reduce((n, x) => n + x.comps.filter((c) => c.sym === blockId(pg)).length, 0);
+
+/** New building block: a sheet of a chosen kind whose content becomes one reusable symbol. */
+async function addBlockDialog(app) {
+  const title = h('input', { type: 'text', value: t('Nieuw bouwblok') });
+  const kinds = [['electric', 'Elektrisch'], ['pneu', 'Pneumatica'], ['hydr', 'Hydraulica'], ['cool', 'Koeling']];
+  const kind = h('select', null, kinds.map(([k, l]) => h('option', { value: k, selected: k === pageType(app.page) }, t(l))));
+  const prefix = h('input', { type: 'text', value: 'A' });
+  const ok = await modal({
+    title: 'Nieuw bouwblok',
+    body: h('div', { class: 'form' }, field('Naam', title), field('Soort (bepaalt de symbolen in de bibliotheek)', kind), field('Letter van de tag (bv. A, U, V)', prefix),
+      h('p', { class: 'hint' }, 'Teken het bouwblok met de gewone symbolen en draden. Zet een Aansluitpunt (map Bouwblok) waar het blok met de rest van het schema verbindt. Daarna staat het blok in de bibliotheek onder Bouwblokken.')),
+    buttons: [{ label: 'Annuleren', value: false }, { label: 'Toevoegen', value: true, primary: true }],
+  });
+  if (!ok) return;
+  const pg = newPage(title.value || t('Bouwblok'), 'empty', kind.value);
+  pg.block = { prefix: prefix.value.trim() || 'A', view: 'full' };
+  app.mutate((p) => { p.pages.push(pg); });
+  app.setPage(app.project.pages.length - 1);
 }
 
 function duplicatePage(app) {
@@ -201,6 +230,16 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
   const itemMenu = (def, ev) => {
     ev.stopPropagation();
     const items = [];
+    if (def.block) {
+      // building blocks are edited as a sheet
+      const pi = app.project?.pages.findIndex((pg) => blockId(pg) === def.id);
+      if (pi >= 0) items.push(['Blad van het bouwblok openen', () => app.setPage(pi)]);
+      else if (app.project?.kind !== 'building') items.push(['Als bouwblok in dit project bewerken', () => openBlockAsSheet(app, def)]);
+      if (lib.isEditable(def)) items.push(['Verwijderen', async () => {
+        if (await confirmDlg('Symbool verwijderen', t('"{name}" verwijderen uit de bibliotheek?', { name: t(def.name) }), 'Verwijderen', true)) await lib.remove(def);
+      }]);
+      return popupMenu(ev.clientX, ev.clientY, items);
+    }
     if (lib.isEditable(def)) items.push(['Bewerken', () => openSymbolEditor(def)]);
     items.push(['Kopie bewerken', () => {
       const g = geometry(def, { props: def.props || {} });
@@ -221,7 +260,14 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
   // Hydraulica) or cooling (Koeling); buildings and their single-line sheets are 'electric'
   const MAIN = { electric: ['Standaard', 'AREI'], pneu: ['Pneumatica'], hydr: ['Hydraulica'], cool: ['Koeling'] };
   const sheetType = () => (app.project && app.project.kind !== 'building' && app.mode === 'schematic' ? pageType(app.page) : 'electric');
-  const hidden = () => { const own = MAIN[sheetType()] || []; return new Set(Object.values(MAIN).flat().filter((x) => !own.includes(x))); };
+  const hidden = () => {
+    const own = MAIN[sheetType()] || [];
+    const out = new Set(Object.values(MAIN).flat().filter((x) => !own.includes(x)));
+    // ports only on block sheets; building blocks only in control projects
+    if (!(app.project && app.page?.block)) out.add(PORT_FOLDER);
+    if (app.project?.kind === 'building') out.add(BLOCK_FOLDER);
+    return out;
+  };
   const node = (n, depth) => {
     const out = [];
     const hide = depth === 0 ? hidden() : new Set();
@@ -303,6 +349,26 @@ export function libraryPanel(app, el, { editor, openSymbolEditor }) {
   renderTree();
 }
 
+/** A building block from the library as a block sheet of the current project (to change and save it again). */
+function openBlockAsSheet(app, def) {
+  const B = def.block;
+  const pg = newPage(def.name, 'empty', B.type || 'electric');
+  const dx = 20, dy = 20;
+  const sh = (o) => ({ ...JSON.parse(JSON.stringify(o)), x: o.x + dx, y: o.y + dy });
+  pg.comps = B.comps.map(sh);
+  pg.wires = B.wires.map((w) => ({ ...JSON.parse(JSON.stringify(w)), points: w.points.map(([x, y]) => [x + dx, y + dy]) }));
+  pg.texts = (B.texts || []).map(sh);
+  pg.boxes = (B.boxes || []).map(sh);
+  pg.rails = (B.rails || []).map((r) => ({ ...r, y: r.y + dy, x0: r.x0 + dx, x1: r.x1 + dx }));
+  pg.block = { prefix: def.prefix || 'A', view: def.props?.view || 'full', libId: def.id };
+  app.mutate((p) => {
+    p.pages.push(pg);
+    // symbols the block brought along stay available in this project
+    for (const [id, d] of Object.entries(B.symbols || {})) if (!app.lib.get(id)) p.symbols[id] = d;
+  });
+  app.setPage(app.project.pages.length - 1);
+}
+
 export function popupMenu(x, y, items) {
   document.querySelector('.popup')?.remove();
   const m = h('div', { class: 'popup', style: { left: x + 'px', top: y + 'px' } },
@@ -352,6 +418,48 @@ export function setSheet(pg, size) {
   for (const r of pg.rails) if (Math.abs(r.x1 - old) < 0.01) r.x1 = nx;
 }
 
+/** Turns a sheet into a building block (or back into a normal sheet). */
+async function toggleBlock(app, pg, on) {
+  const uses = blockUses(app.project, pg);
+  if (!on && uses && !(await confirmDlg('Bouwblok opheffen', t('Dit bouwblok is {n} keer geplaatst; die blokken verdwijnen mee.', { n: uses }), 'Opheffen', true))) return app.emit('change');
+  app.mutate((p) => {
+    if (on) pg.block = { prefix: 'A', view: 'full' };
+    else {
+      delete pg.block;
+      for (const x of p.pages) x.comps = x.comps.filter((c) => c.sym !== blockId(pg));
+    }
+    sortPages(p);
+  });
+  app.setPage(app.project.pages.indexOf(pg));
+}
+
+/** Settings of a block sheet: tag letter, standard view, frame, saving to the own library. */
+function blockSection(app, pg) {
+  const b = pg.block;
+  const set = (fn) => app.mutate(fn);
+  const ports = pg.comps.filter((c) => c.sym === PORT);
+  const uses = blockUses(app.project, pg);
+  const save = async () => {
+    const def = app.lib.get(blockId(pg));
+    if (!def) return;
+    const copy = JSON.parse(JSON.stringify({ ...def, source: undefined }));
+    copy.id = b.libId || undefined;
+    copy.folder = USER_ROOT + '/' + BLOCK_FOLDER;
+    const id = await app.lib.save(copy);
+    if (b.libId !== id) set(() => { b.libId = id; });
+    toast(t('"{name}" bewaard in Mijn symbolen / Bouwblokken.', { name: def.name }));
+  };
+  return section('Bouwblok',
+    field('Letter van de tag', inp(b.prefix, (v) => set(() => { b.prefix = v.trim() || 'A'; }), { key: 'bprefix' }), 'Een geplaatst blok krijgt bv. de tag -A1; de toestellen erin worden -A1-K1, -A1-Y1 …'),
+    field('Standaard weergave', sel(b.view || 'full', [['full', 'Volledige inhoud'], ['compact', 'Compact kader (alleen aansluitingen)']], (v) => set(() => { b.view = v; }), 'bview'), 'Per geplaatst blok aan te passen.'),
+    field('Kader rond de inhoud', sel(b.frame || 'dashdot', [['dashdot', 'Streep-punt (toestelgrens)'], ['solid', 'Doorlopend'], ['none', 'Geen']], (v) => set(() => { b.frame = v; }), 'bframe')),
+    h('p', { class: ports.length ? 'hint' : 'warn' }, ports.length
+      ? t('Aansluitpunten: {list}', { list: ports.map((c) => c.props?.name || '?').join(', ') })
+      : t('Nog geen aansluitpunten: plaats een Aansluitpunt (map Bouwblok) waar het blok verbindt.')),
+    h('p', { class: 'hint' }, uses ? t('{n} keer geplaatst. Wijzigingen op dit blad gelden voor elk geplaatst blok.', { n: uses }) : t('Plaats het blok vanuit de bibliotheek (map Bouwblokken) op een ander blad.')),
+    h('div', { class: 'btnrow' }, h('button', { onclick: save, title: 'Ook in andere projecten gebruiken' }, b.libId ? 'Bijwerken in Mijn symbolen' : 'Bewaren in Mijn symbolen')));
+}
+
 function pageProps(app) {
   const pg = app.page;
   const set = (fn) => app.mutate(fn);
@@ -362,7 +470,9 @@ function pageProps(app) {
       pageType(pg) === 'pneu' || pageType(pg) === 'hydr' ? h('p', { class: 'hint' }, pageType(pg) === 'pneu'
         ? 'Pneumatisch blad: de bibliotheek toont de symbolen voor pneumatica. Ventielen met een elektromagneet volgen de spoel met dezelfde naam op een elektrisch blad.'
         : 'Hydraulisch blad: de bibliotheek toont de symbolen voor hydraulica. Ventielen met een elektromagneet volgen de spoel met dezelfde naam op een elektrisch blad.') : null,
-      pageType(pg) === 'cool' ? h('p', { class: 'hint' }, 'Koelcircuit: de bibliotheek toont koelwater, koelmiddel en instrumenten. Pompen, compressoren en ventilatoren volgen de spoel (contactor) die je opgeeft; contacten op een elektrisch blad koppel je aan een thermostaat, debiet- of drukschakelaar.') : null),
+      pageType(pg) === 'cool' ? h('p', { class: 'hint' }, 'Koelcircuit: de bibliotheek toont koelwater, koelmiddel en instrumenten. Pompen, compressoren en ventilatoren volgen de spoel (contactor) die je opgeeft; contacten op een elektrisch blad koppel je aan een thermostaat, debiet- of drukschakelaar.') : null,
+      app.project.kind === 'building' || pg.gen ? null : chk(!!pg.block, (v) => toggleBlock(app, pg, v), 'Dit blad is een bouwblok')),
+    pg.block ? blockSection(app, pg) : null,
     // single-line sheets and process sheets have no supply rails to manage
     pg.gen || (isProcessPage(pg) && !pg.rails.length) ? null : section('Voedingslijnen',
       ...pg.rails.map((r) => h('div', { class: 'railrow' },
@@ -511,6 +621,7 @@ function compProps(app, editor, c) {
     s.push(field('Artikelnummer', inp(c.props.article, setProp('article'), { key: 'article' })));
   }
   out.push(section('Eigenschappen', ...s));
+  if (def?.block) out.push(blockContent(app, info));
 
   const geom = info.geom;
   if (geom.pins?.length && role !== 'terminal' && role !== 'link' && !def?.build) {
@@ -528,6 +639,30 @@ function compProps(app, editor, c) {
     h('button', { onclick: () => editor.mirror() }, '⇋ Spiegelen (M)'),
     h('button', { class: 'danger', onclick: () => editor.deleteSelection() }, 'Verwijderen'))));
   return out;
+}
+
+/** Parts inside a placed building block: their settings for this block only (e.g. other coil names). */
+function blockContent(app, info) {
+  const c = info.comp;
+  const pi = app.project.pages.findIndex((pg) => blockId(pg) === info.def.id);
+  const rows = (info.kids || []).filter((k) => needsTag(k.def)).map((k) => {
+    const id = k.comp.id.slice(c.id.length + 1);
+    const own = c.childProps?.[id] || {};
+    const setChild = (key) => (v) => app.mutate(() => {
+      const all = (c.childProps ||= {});
+      const o = (all[id] ||= {});
+      if (v === '' || v == null || Number.isNaN(v)) delete o[key]; else o[key] = v;
+      if (!Object.keys(o).length) delete all[id];
+      if (!Object.keys(all).length) delete c.childProps;
+    });
+    const fields = [{ k: 'desc', label: 'Functietekst' }, ...(k.def.fields || []).filter((f) => !f.options && f.k !== 'view')];
+    return h('details', { class: 'blockpart' }, h('summary', null, h('b', null, k.tag || '—'), ' ', t(k.def.name || '')),
+      fields.map((f) => field(f.label, inp(own[f.k] ?? '', setChild(f.k), { type: f.type || 'text', key: `bp_${id}_${f.k}`, placeholder: String(k.comp.props?.[f.k] ?? k.def.props?.[f.k] ?? ''), list: f.list }))));
+  });
+  return section('Inhoud van het bouwblok',
+    h('p', { class: 'hint' }, 'De toestellen krijgen de tag van het blok vooraan. Leeg = zoals op het blad van het bouwblok; een waarde geldt alleen voor dit blok.'),
+    ...rows,
+    pi >= 0 ? h('div', { class: 'btnrow' }, h('button', { onclick: () => app.setPage(pi) }, 'Bouwblok bewerken')) : null);
 }
 
 export function goTo(app, compId) {

@@ -8,7 +8,7 @@ import { demoProject } from '../demo.js';
 import { simControls } from '../sim/ui.js';
 import { listsDialog } from '../ui/lists.js';
 import { renumberDialog, settingsDialog } from '../ui/project.js';
-import { pageType } from '../model.js';
+import { pageGroup } from '../model.js';
 import { PAGE_GROUPS } from '../ui/panels.js';
 import { t } from '../i18n.js';
 import { h } from '../util.js';
@@ -30,10 +30,10 @@ boot({
   // electrical, pneumatic / hydraulic and cooling sheets in separate groups
   pageOptions: ({ app }, pageOpts) => {
     const pages = app.project.pages;
-    if (pages.every((pg) => pageType(pg) === 'electric')) return null;
+    if (pages.every((pg) => pageGroup(pg) === 'electric')) return null;
     const opts = pageOpts();
     return PAGE_GROUPS.map((g) => {
-      const o = opts.filter((_, i) => pageType(pages[i]) === g.type);
+      const o = opts.filter((_, i) => pageGroup(pages[i]) === g.type);
       return o.length ? h('optgroup', { label: t(g.label.replace(/^\S+\s/, '')) }, o) : null;
     }).filter(Boolean);
   },

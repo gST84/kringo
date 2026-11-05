@@ -3,6 +3,7 @@
 import { geometry, xf } from '../symbols/geom.js';
 import { locate } from '../model.js';
 import { natCmp, r2 } from '../util.js';
+import { blockLook, instantiate } from '../blocks/block.js';
 
 const EPS = 0.01;
 
@@ -56,38 +57,40 @@ export function analyze(project, lib, opts = {}) {
   const pointInfo = new Map(); // pageId -> Map(pointKey -> {x,y,pins,wireEnds,wireThrough,rail})
   const wiresById = new Map();
 
-  // ---------- components ----------
-  project.pages.forEach((page, pi) => {
+  // ---------- components and wires, per scope (a sheet, or the content of a placed building block) ----------
+  const look = (sym) => lib.get(sym);
+  const addScope = (key, page, pi, list, wires, rails, taps, ctx) => {
     const pts = new Map();
-    pointInfo.set(page.id, pts);
+    pointInfo.set(key, pts);
     const pt = (x, y) => {
-      const k = pointKey(page.id, x, y);
+      const k = pointKey(key, x, y);
       let e = pts.get(k);
       if (!e) pts.set(k, (e = { k, x: r2(x), y: r2(y), pins: [], wireEnds: 0, wireThrough: 0, rail: 0 }));
       return e;
     };
-    for (const c of page.comps) {
-      const def = lib.get(c.sym);
+    const expand = [];
+    for (const c of list) {
+      const def = ctx.look(c.sym);
       const geom = geometry(def, c);
-      const loc = { page: pi + 1, pageId: page.id, ...locate(project, c.x, c.y, page) };
+      const loc = ctx.compact ? ctx.owner.loc : { page: pi + 1, pageId: page.id, ...locate(project, c.x, c.y, page) };
       const pins = (geom.pins || []).map((p) => {
         const [x, y] = xf(c, p.x, p.y);
         return { id: p.id, name: c.pinNames?.[p.id] ?? p.name ?? p.id, x: r2(x), y: r2(y) };
       });
-      const info = { comp: c, page, pageIdx: pi, def, geom, loc, pins, linked: [], master: null, tag: '' };
+      const info = { comp: c, page, pageIdx: pi, def, geom, loc, pins, linked: [], master: null, tag: '', template: ctx.template, owner: ctx.owner };
       comps.set(c.id, info);
       for (const p of pins) {
-        const key = `P:${c.id}:${p.id}`;
+        const k = `P:${c.id}:${p.id}`;
         const e = pt(p.x, p.y);
         e.pins.push({ compId: c.id, pinId: p.id });
-        dsu.union(key, e.k);
+        dsu.union(k, e.k);
       }
       if (opts.bridges !== false) for (const [a, b] of geom.bridges || []) dsu.union(`P:${c.id}:${a}`, `P:${c.id}:${b}`);
       if (def?.role === 'link' && pins[0]) dsu.union(`P:${c.id}:${pins[0].id}`, 'POT:' + (c.props?.name ?? ''));
+      if (def?.block && ctx.depth < 6 && !ctx.stack.includes(def.id)) expand.push(info);
     }
-    // ---------- wires ----------
-    for (const w of page.wires) {
-      wiresById.set(w.id, { wire: w, page, pageIdx: pi });
+    for (const w of wires) {
+      wiresById.set(w.id, { wire: w, page, pageIdx: pi, owner: ctx.owner });
       const wk = 'W:' + w.id;
       dsu.find(wk);
       const n = w.points.length;
@@ -98,9 +101,10 @@ export function analyze(project, lib, opts = {}) {
         dsu.union(wk, e.k);
       }
     }
+    for (const [x, y, name] of taps) { const e = pt(x, y); e.rail++; dsu.union(e.k, 'RAIL:' + name); }
     // points lying on wire segments (T-junctions, bends) and on rails
     for (const e of pts.values()) {
-      for (const w of page.wires) {
+      for (const w of wires) {
         const ptsW = w.points;
         let hit = false;
         let interior = false;
@@ -117,13 +121,29 @@ export function analyze(project, lib, opts = {}) {
           if (interior) e.wireThrough++;
         }
       }
-      for (const rail of page.rails) {
+      for (const rail of rails) {
         if (onRail(e.x, e.y, rail)) {
           dsu.union(e.k, 'RAIL:' + (rail.name || rail.id));
           e.rail++;
         }
       }
     }
+    // placed building blocks: their content becomes virtual components in a scope of its own; the
+    // block's pins connect to the ports inside
+    for (const info of expand) {
+      const c = info.comp, def = info.def;
+      const v = instantiate(c, def);
+      const compact = ctx.compact || (c.props?.view ?? def.props?.view) === 'compact';
+      const sub = { ...ctx, owner: info, compact, depth: ctx.depth + 1, stack: [...ctx.stack, def.id], look: blockLook(ctx.look, def) };
+      addScope('S:' + c.id, page, pi, v.comps, v.wires, [], v.taps, sub);
+      for (const [pin, port] of v.ports) dsu.union(`P:${c.id}:${pin}`, `P:${port}:1`);
+      info.kids = v.comps.map((k) => comps.get(k.id));
+      info.kidWires = v.wires;
+      info.compact = compact;
+    }
+  };
+  project.pages.forEach((page, pi) => {
+    addScope(page.id, page, pi, page.comps, page.wires, page.rails, [], { template: !!page.block, owner: null, compact: false, depth: 0, stack: page.block ? ['blk/' + page.id] : [], look });
   });
 
   // ---------- devices: links, tags ----------
@@ -240,7 +260,7 @@ export function analyze(project, lib, opts = {}) {
   // ---------- duplicate tags ----------
   const tagCount = new Map();
   for (const info of comps.values()) {
-    if (info.master || !info.tag || ['terminal', 'link', 'graphic'].includes(info.def?.role)) continue;
+    if (info.template || info.master || !info.tag || ['terminal', 'link', 'graphic'].includes(info.def?.role)) continue;
     tagCount.set(info.tag, (tagCount.get(info.tag) || 0) + 1);
   }
   const duplicates = new Set([...tagCount].filter(([, n]) => n > 1).map(([t]) => t));

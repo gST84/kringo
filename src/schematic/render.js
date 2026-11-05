@@ -8,7 +8,7 @@ import { refText } from './analyze.js';
 // ---------- symbol shapes ----------
 
 const fillAttr = (g) => (g.fill === 'ink' ? ' class="fi"' : g.fill === 'white' ? ' class="fw"' : '');
-const dashAttr = (g) => (g.dash ? ' stroke-dasharray="1.6 1"' : '');
+const dashAttr = (g) => (g.dashdot ? ' stroke-dasharray="4 1 1 1"' : g.dash ? ' stroke-dasharray="1.6 1"' : '');
 const widthAttr = (g) => (g.w ? ` stroke-width="${g.w}"` : '');
 const colorAttr = (g) => {
   const st = (g.color ? `stroke:${g.color};` : '') + (g.fillColor ? `fill:${g.fillColor};` : '') + (g.noStroke ? 'stroke:none;' : '');
@@ -22,6 +22,7 @@ export function shapeSvg(g, extra = '') {
     case 'rect': return `<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}"${a}/>`;
     case 'circle': return `<circle cx="${g.cx}" cy="${g.cy}" r="${Math.abs(g.r)}"${a}/>`;
     case 'path': return `<path d="${esc(g.d)}"${a}/>`;
+    case 'raw': return g.svg; // static content of a building block (previews)
     default: return '';
   }
 }
@@ -76,8 +77,18 @@ function compSvg(info, an, opts) {
   };
   let out = `<g class="comp${sel ? ' sel' : ''}${st?.cls ? ' ' + st.cls : ''}" data-k="c:${c.id}">`;
   let shapes = '';
-  for (const g of geom.graphics || []) if (g.t !== 'text') shapes += shapeSvg(g);
+  // a building block in full view draws its live content (simulation states) instead of the static copy
+  const live = info.kids && !info.compact;
+  for (const g of geom.graphics || []) if (g.t !== 'text') shapes += g.t === 'raw' ? (live ? '' : g.svg) : shapeSvg(g);
   out += `<g transform="${svgTransform(c)}">${shapes}</g>`;
+  if (live) {
+    // the block's hit area lies under its content, so the parts inside stay clickable in the simulation
+    if (!opts.print && (!opts.kid || opts.sim)) { const wb = worldBox(c, geom); out += `<rect class="hit" x="${wb.x0 - 1}" y="${wb.y0 - 1}" width="${wb.x1 - wb.x0 + 2}" height="${wb.y1 - wb.y0 + 2}"/>`; }
+    for (const w of info.kidWires) out += wireSvg(w, an, opts);
+    const ko = { ...opts, kid: true };
+    for (const k of info.kids) out += compSvg(k, an, ko);
+    for (const [x, y] of an.junctions.get('S:' + c.id) || []) out += `<circle cx="${x}" cy="${y}" r="0.75" class="fi"/>`;
+  }
   for (const g of geom.graphics || []) {
     if (g.t !== 'text') continue;
     if (def?.qet) { out += freeTextSvg(c, g, fillTemplate(g.text, vals)); continue; }
@@ -152,7 +163,8 @@ function compSvg(info, an, opts) {
   if (!opts.print) {
     if (!opts.page?.gen) for (const p of info.pins) if (an.openPins.has(`${c.id}:${p.id}`)) out += `<circle cx="${p.x}" cy="${p.y}" r="0.6" class="openpin"/>`;
     const wb = worldBox(c, geom);
-    out += `<rect class="hit" x="${wb.x0 - 1}" y="${wb.y0 - 1}" width="${wb.x1 - wb.x0 + 2}" height="${wb.y1 - wb.y0 + 2}"/>`;
+    // parts inside a block are only clicked on their own in the simulation
+    if (!live && (!opts.kid || opts.sim)) out += `<rect class="hit" x="${wb.x0 - 1}" y="${wb.y0 - 1}" width="${wb.x1 - wb.x0 + 2}" height="${wb.y1 - wb.y0 + 2}"/>`;
   }
   return out + '</g>';
 }

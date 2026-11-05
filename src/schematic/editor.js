@@ -176,7 +176,10 @@ export class SchematicEditor {
 
   hitKey(target) {
     const el = target.closest?.('[data-k]');
-    return el ? el.dataset.k : null;
+    const k = el ? el.dataset.k : null;
+    // parts and wires inside a placed building block select the block (except in the simulation)
+    const m = !this.app.sim && /^[cw]:([^/]+)\//.exec(k || '');
+    return m ? 'c:' + m[1] : k;
   }
 
   onDown(e) {
@@ -200,8 +203,8 @@ export class SchematicEditor {
     if (app.sim) {
       const key = this.hitKey(e.target);
       if (key?.startsWith('c:')) {
-        const c = app.page.comps.find((x) => 'c:' + x.id === key);
-        const info = app.analysis().comps.get(c.id);
+        const info = app.analysis().comps.get(key.slice(2)); // also parts inside building blocks
+        const c = info.comp;
         const wb = worldBox(c, info.geom);
         app.sim.press(c.id, raw[0] < (wb.x0 + wb.x1) / 2 ? 'L' : 'R', e.shiftKey);
         this.simPress = true;

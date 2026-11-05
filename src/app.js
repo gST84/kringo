@@ -23,6 +23,10 @@ export class App {
     lib.onChange(() => { this.version++; this.emit('library'); this.emit('change'); });
   }
 
+  /** Change counter; building block symbols are rebuilt from their sheets when it changes. */
+  get version() { return this._version; }
+  set version(v) { this._version = v; this.lib.blockVersion = v; }
+
   on(evt, fn) {
     if (!this.handlers.has(evt)) this.handlers.set(evt, new Set());
     this.handlers.get(evt).add(fn);
