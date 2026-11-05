@@ -9,13 +9,23 @@ export const LEGACY_FORMATS = ['elecad-project'];
 export const VERSION = 1;
 
 export const SHEET = { w: 420, h: 297 };
-/** Drawing frame: outer border, column/row bands, title block, drawing area. */
+/** Drawing frame of an A3 sheet: outer border, column/row bands, title block, drawing area. */
 export const FRAME = {
   x0: 10, y0: 10, x1: 415, y1: 287, // outer border
   band: 5, // column band (top) and row band (left)
   tbY: 255, // title block top
   area: { x0: 15, y0: 15, x1: 415, y1: 255 },
 };
+
+/** Landscape sheet sizes (mm) a schematic page can have (`page.sheet`, default A3). */
+export const SHEET_SIZES = { A3: [420, 297], A2: [594, 420], A1: [841, 594], A0: [1189, 841] };
+export const sheetOf = (page) => { const [w, h] = SHEET_SIZES[page?.sheet] || SHEET_SIZES.A3; return { w, h }; };
+/** Frame of a page: the A3 frame stretched to the page's sheet (title block stays 32 mm high). */
+export function frameOf(page) {
+  const { w, h } = sheetOf(page);
+  if (w === SHEET.w && h === SHEET.h) return FRAME;
+  return { x0: 10, y0: 10, x1: w - 5, y1: h - 10, band: 5, tbY: h - 42, area: { x0: 15, y0: 15, x1: w - 5, y1: h - 42 } };
+}
 
 export const RAIL_PRESETS = {
   L1: '#8b4513', L2: '#222222', L3: '#808080', N: '#1e5bd8', PE: '#2e9e3e',
@@ -46,8 +56,9 @@ export const PAGE_TEMPLATES = {
   power: { label: 'Vermogen (L1 L2 L3 N PE)', rails: [['L1', 25], ['L2', 30], ['L3', 35], ['N', 40], ['PE', 45]] },
 };
 
-export function newRail(name, y) {
-  return { id: uid('r'), name, y, x0: FRAME.area.x0, x1: FRAME.area.x1, color: RAIL_PRESETS[name] || '#444444' };
+export function newRail(name, y, page) {
+  const { area } = frameOf(page);
+  return { id: uid('r'), name, y, x0: area.x0, x1: area.x1, color: RAIL_PRESETS[name] || '#444444' };
 }
 
 /** Sheet types in control projects: electrical (default), pneumatic, hydraulic or cooling. */
@@ -149,12 +160,16 @@ export function sortPages(p) {
   return p;
 }
 
-/** Column / row grid of a page: the project default or a page-specific frame (imports). */
+/**
+ * Column / row grid of a page: the project default (for A3; larger sheets get more columns and rows of
+ * about the same size) or a page-specific frame (imports).
+ */
 export function pageGrid(project, page) {
-  const { area } = FRAME;
+  const { area } = frameOf(page);
   const f = page?.frame;
-  const cols = f?.cols || project.settings.columns || 10;
-  const rows = f?.rows || project.settings.rows || 6;
+  const kx = (area.x1 - area.x0) / (FRAME.area.x1 - FRAME.area.x0), ky = (area.y1 - area.y0) / (FRAME.area.y1 - FRAME.area.y0);
+  const cols = f?.cols || Math.round((project.settings.columns || 10) * kx);
+  const rows = Math.min(26, f?.rows || Math.round((project.settings.rows || 6) * ky));
   return {
     cols, rows,
     cw: f?.colW || (area.x1 - area.x0) / cols,
@@ -164,7 +179,7 @@ export function pageGrid(project, page) {
 
 /** Column (1-based) and row letter for a point on the sheet. */
 export function locate(project, x, y, page) {
-  const { area } = FRAME;
+  const { area } = frameOf(page);
   const { cols, rows, cw, rh } = pageGrid(project, page);
   const col = Math.min(cols, Math.max(1, Math.floor((x - area.x0) / cw) + 1));
   const row = Math.min(rows, Math.max(1, Math.floor((y - area.y0) / rh) + 1));

@@ -1,5 +1,5 @@
 // Schematic canvas: view (zoom / pan), tools and mouse / keyboard interaction.
-import { SHEET } from '../model.js';
+import { sheetOf } from '../model.js';
 import { pageSvg, shapeSvg } from './render.js';
 import { onRail, onSegment } from './analyze.js';
 import { geometry, svgTransform, worldBox, xf } from '../symbols/geom.js';
@@ -50,9 +50,16 @@ export class SchematicEditor {
   fit() {
     const w = this.host.clientWidth || 800;
     const h = this.host.clientHeight || 600;
-    const s = Math.max((SHEET.w + 16) / w, (SHEET.h + 16) / h);
-    this.view = { s, x: SHEET.w / 2 - (w * s) / 2, y: SHEET.h / 2 - (h * s) / 2 };
+    const sh = sheetOf(this.app.project && this.app.page);
+    this.fitted = this.app.page?.sheet || 'A3';
+    const s = Math.max((sh.w + 16) / w, (sh.h + 16) / h);
+    this.view = { s, x: sh.w / 2 - (w * s) / 2, y: sh.h / 2 - (h * s) / 2 };
     this.applyView();
+  }
+
+  /** Fits again when the current sheet has another size than the one last fitted (page switch, A3 → A1 …). */
+  fitIfResized() {
+    if (this.app.project && this.app.page && (this.app.page.sheet || 'A3') !== (this.fitted || 'A3')) this.fit();
   }
 
   zoomAt(factor, sx, sy) {

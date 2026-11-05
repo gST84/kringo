@@ -1,7 +1,7 @@
 // SVG markup for symbols and complete schematic pages (screen and print).
 import { t } from '../i18n.js';
 import { esc, r2 } from '../util.js';
-import { FRAME, SHEET, pageGrid, wireColor } from '../model.js';
+import { frameOf, pageGrid, sheetOf, wireColor } from '../model.js';
 import { bbox, geometry, placeAnchor, svgTransform, worldBox, xf } from '../symbols/geom.js';
 import { refText } from './analyze.js';
 
@@ -224,7 +224,7 @@ function wireSvg(w, an, opts) {
 // ---------- frame and title block ----------
 
 export function frameSvg(project, page, pageIdx, total = project.pages.length) {
-  const { x0, y0, x1, y1, band, tbY, area } = FRAME;
+  const { x0, y0, x1, y1, band, tbY, area } = frameOf(page);
   const { cols, rows, cw, rh } = pageGrid(project, page);
   let s = `<g class="frame">`;
   s += `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" class="fr-outer"/>`;
@@ -243,28 +243,30 @@ export function frameSvg(project, page, pageIdx, total = project.pages.length) {
   if (area.x0 + cols * cw < x1 - 0.5) s += `<line x1="${area.x0 + cols * cw}" y1="${y0}" x2="${area.x0 + cols * cw}" y2="${y0 + band}"/>`;
   if (area.y0 + rows * rh < tbY - 0.5) s += `<line x1="${x0}" y1="${area.y0 + rows * rh}" x2="${x0 + band}" y2="${area.y0 + rows * rh}"/>`;
   s += `<line x1="${x0}" y1="${tbY}" x2="${x1}" y2="${tbY}" class="fr-outer"/>`;
-  // title block cells
+  // title block cells (A3 layout; on larger sheets the block sits in the bottom right corner)
   const m = project.meta || {};
-  const cells = [x0, 60, 140, 240, 300, 385, x1];
+  const dx = x1 - 415;
+  const cells = [x0, 60 + dx, 140 + dx, 240 + dx, 300 + dx, 385 + dx, x1];
   for (const x of cells.slice(1, -1)) s += `<line x1="${x}" y1="${tbY}" x2="${x}" y2="${y1}"/>`;
   const ty = tbY;
-  if (m.logo) s += `<image href="${esc(m.logo)}" x="${x0 + 2}" y="${ty + 2}" width="${60 - x0 - 4}" height="${y1 - ty - 4}" preserveAspectRatio="xMidYMid meet"/>`;
-  s += textSvg(62, ty + 5, m.company || '', 3.5, 'start', 'tx tb-b');
-  (m.address || '').split('\n').slice(0, 4).forEach((l, i) => (s += textSvg(62, ty + 11 + i * 4, l, 2.4, 'start', 'tx')));
-  s += textSvg(142, ty + 3.2, t('Project'), 1.8, 'start', 'tx tb-l');
-  s += textSvg(142, ty + 8, project.name || '', 3.5, 'start', 'tx tb-b');
-  (m.description || '').split('\n').slice(0, 2).forEach((l, i) => (s += textSvg(142, ty + 14 + i * 4, l, 2.4, 'start', 'tx')));
-  if (m.customer) s += textSvg(142, ty + 26.5, t('Klant: {name}', { name: m.customer }), 2.4, 'start', 'tx');
+  if (m.logo) s += `<image href="${esc(m.logo)}" x="${10 + dx + 2}" y="${ty + 2}" width="${60 - 10 - 4}" height="${y1 - ty - 4}" preserveAspectRatio="xMidYMid meet"/>`;
+  s += textSvg(62 + dx, ty + 5, m.company || '', 3.5, 'start', 'tx tb-b');
+  (m.address || '').split('\n').slice(0, 4).forEach((l, i) => (s += textSvg(62 + dx, ty + 11 + i * 4, l, 2.4, 'start', 'tx')));
+  s += textSvg(142 + dx, ty + 3.2, t('Project'), 1.8, 'start', 'tx tb-l');
+  s += textSvg(142 + dx, ty + 8, project.name || '', 3.5, 'start', 'tx tb-b');
+  (m.description || '').split('\n').slice(0, 2).forEach((l, i) => (s += textSvg(142 + dx, ty + 14 + i * 4, l, 2.4, 'start', 'tx')));
+  if (m.customer) s += textSvg(142 + dx, ty + 26.5, t('Klant: {name}', { name: m.customer }), 2.4, 'start', 'tx');
   const kv = [[t('Getekend'), m.drawer], [t('Datum'), m.date], [t('Revisie'), m.revision]];
   kv.forEach(([k, v], i) => {
-    s += textSvg(242, ty + 5 + i * 9, k, 1.8, 'start', 'tx tb-l');
-    s += textSvg(242, ty + 9 + i * 9, v || '', 2.6, 'start', 'tx');
+    s += textSvg(242 + dx, ty + 5 + i * 9, k, 1.8, 'start', 'tx tb-l');
+    s += textSvg(242 + dx, ty + 9 + i * 9, v || '', 2.6, 'start', 'tx');
   });
-  s += textSvg(302, ty + 3.2, t('Paginatitel'), 1.8, 'start', 'tx tb-l');
-  s += textSvg(302, ty + 12, page.title || '', 4, 'start', 'tx tb-b');
-  s += textSvg(400, ty + 3.2, t('Blad'), 1.8, 'middle', 'tx tb-l');
-  s += textSvg(400, ty + 13, String(pageIdx + 1), 6, 'middle', 'tx tb-b');
-  s += textSvg(400, ty + 24, t("van {n}", { n: total }), 2.4, 'middle', 'tx');
+  s += textSvg(302 + dx, ty + 3.2, t('Paginatitel'), 1.8, 'start', 'tx tb-l');
+  s += textSvg(302 + dx, ty + 12, page.title || '', 4, 'start', 'tx tb-b');
+  s += textSvg(400 + dx, ty + 3.2, t('Blad'), 1.8, 'middle', 'tx tb-l');
+  s += textSvg(400 + dx, ty + 13, String(pageIdx + 1), 6, 'middle', 'tx tb-b');
+  s += textSvg(400 + dx, ty + 24, t("van {n}", { n: total }), 2.4, 'middle', 'tx');
+  if (page.sheet && page.sheet !== 'A3') s += textSvg(400 + dx, ty + 29, page.sheet, 2, 'middle', 'tx tb-l');
   return s + '</g>';
 }
 
@@ -272,8 +274,9 @@ export function frameSvg(project, page, pageIdx, total = project.pages.length) {
 
 export function pageSvg(project, page, pageIdx, an, opts = {}) {
   const o = { ...opts, project, page };
-  let s = `<rect class="sheet" x="0" y="0" width="${SHEET.w}" height="${SHEET.h}"/>`;
-  if (opts.grid) s += `<rect class="gridfill" x="${FRAME.area.x0}" y="${FRAME.area.y0}" width="${FRAME.area.x1 - FRAME.area.x0}" height="${FRAME.area.y1 - FRAME.area.y0}"/>`;
+  const sh = sheetOf(page), { area } = frameOf(page);
+  let s = `<rect class="sheet" x="0" y="0" width="${sh.w}" height="${sh.h}"/>`;
+  if (opts.grid) s += `<rect class="gridfill" x="${area.x0}" y="${area.y0}" width="${area.x1 - area.x0}" height="${area.y1 - area.y0}"/>`;
   s += frameSvg(project, page, pageIdx);
   s += '<g class="ink">';
   for (const b of page.boxes) {
@@ -332,5 +335,6 @@ text{font-family:Arial,Helvetica,sans-serif;dominant-baseline:central;fill:#000;
 
 /** Complete standalone SVG for one page (export / print). */
 export function standalonePageSvg(project, page, pageIdx, an) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET.w} ${SHEET.h}" width="${SHEET.w}mm" height="${SHEET.h}mm"><style>${SVG_STYLE}</style>${pageSvg(project, page, pageIdx, an, { print: true })}</svg>`;
+  const { w, h } = sheetOf(page);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}mm" height="${h}mm"><style>${SVG_STYLE}</style>${pageSvg(project, page, pageIdx, an, { print: true })}</svg>`;
 }

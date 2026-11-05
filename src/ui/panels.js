@@ -1,7 +1,7 @@
 // Side panels: pages, symbol library and properties.
 import { t } from '../i18n.js';
 import { h, natCmp, pickFiles, uid } from '../util.js';
-import { isProcessPage, newPage, newRail, PAGE_TEMPLATES, pageType, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
+import { frameOf, isProcessPage, newPage, newRail, PAGE_TEMPLATES, pageType, SHEET_SIZES, RAIL_PRESETS, WIRE_COLORS, wireColor } from '../model.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { refText } from '../schematic/analyze.js';
 import { autoTag, needsTag, numberContact, nextTerminal } from '../schematic/tags.js';
@@ -147,13 +147,17 @@ async function addPageDialog(app, type = 'electric') {
   const fluid = type !== 'electric';
   const title = h('input', { type: 'text', value: t({ pneu: 'Pneumatisch schema', hydr: 'Hydraulisch schema', cool: 'Koelcircuit' }[type] || 'Nieuwe pagina') });
   const tpl = h('select', null, Object.entries(PAGE_TEMPLATES).map(([k, t]) => h('option', { value: k }, t.label)));
+  const size = h('select', null, sheetOptions().map(([k, l]) => h('option', { value: k, selected: k === (app.page?.sheet || 'A3') && pageType(app.page) === type }, l)));
   const ok = await modal({
     title: PAGE_GROUPS.find((g) => g.type === type && g.type !== 'electric')?.add || 'Nieuwe pagina',
-    body: h('div', { class: 'form' }, field('Titel', title), fluid ? null : field('Sjabloon (voedingslijnen)', tpl)),
+    body: h('div', { class: 'form' }, field('Titel', title), fluid ? null : field('Sjabloon (voedingslijnen)', tpl), app.project.kind === 'building' ? null : field('Bladformaat', size)),
     buttons: [{ label: 'Annuleren', value: false }, { label: 'Toevoegen', value: true, primary: true }],
   });
   if (!ok) return;
   const pg = newPage(title.value, fluid ? 'empty' : tpl.value, type);
+  if (size.value !== 'A3') setSheet(pg, size.value);
+  // template rails at the bottom follow a larger sheet
+  if (pg.sheet) for (const r of pg.rails) if (r.y > 200) r.y += frameOf(pg).area.y1 - 255;
   // after the current sheet when it is of the same type, otherwise at the end of that group
   const pages = app.project.pages;
   const order = (x) => PAGE_GROUPS.findIndex((g) => g.type === pageType(x));
@@ -337,12 +341,24 @@ export function propertiesPanel(app, el, { editor, building }) {
 
 const section = (title, ...children) => h('div', { class: 'psec' }, h('h3', null, title), ...children);
 
+/** Sheet size choice (landscape), e.g. for large hydraulic diagrams. */
+const sheetOptions = () => Object.entries(SHEET_SIZES).map(([k, [w, h]]) => [k, `${k} ${t('liggend')} (${w} × ${h} mm)`]);
+
+/** Changes the sheet size of a page; supply rails that ran to the right edge follow it. */
+export function setSheet(pg, size) {
+  const old = frameOf(pg).area.x1;
+  if (size === 'A3') delete pg.sheet; else pg.sheet = size;
+  const nx = frameOf(pg).area.x1;
+  for (const r of pg.rails) if (Math.abs(r.x1 - old) < 0.01) r.x1 = nx;
+}
+
 function pageProps(app) {
   const pg = app.page;
   const set = (fn) => app.mutate(fn);
   return [
     section(t('Pagina {n}', { n: app.pageIdx + 1 }),
       field('Titel', inp(pg.title, (v) => set(() => { pg.title = v; }), { key: 'ptitle' })),
+      pg.gen ? null : field('Bladformaat', sel(pg.sheet || 'A3', sheetOptions(), (v) => set(() => setSheet(pg, v)), 'psheet'), t('Groter blad voor uitgebreide schema\'s; kolommen en rijen groeien mee.')),
       pageType(pg) === 'pneu' || pageType(pg) === 'hydr' ? h('p', { class: 'hint' }, pageType(pg) === 'pneu'
         ? 'Pneumatisch blad: de bibliotheek toont de symbolen voor pneumatica. Ventielen met een elektromagneet volgen de spoel met dezelfde naam op een elektrisch blad.'
         : 'Hydraulisch blad: de bibliotheek toont de symbolen voor hydraulica. Ventielen met een elektromagneet volgen de spoel met dezelfde naam op een elektrisch blad.') : null,
@@ -358,9 +374,9 @@ function pageProps(app) {
         h('button', {
           onclick: () => set(() => {
             const ys = pg.rails.map((r) => r.y);
-            let y = n === 'N' || n === '0V' || n === 'PE' ? 245 : 25;
+            let y = n === 'N' || n === '0V' || n === 'PE' ? frameOf(pg).area.y1 - 10 : 25;
             while (ys.includes(y)) y += n === 'N' || n === '0V' ? -5 : 5;
-            pg.rails.push(newRail(n, y));
+            pg.rails.push(newRail(n, y, pg));
           }),
         }, '+ ' + n))),
       h('p', { class: 'hint' }, 'Y in mm (raster 5). Een lijn selecteren en verslepen kan ook op het blad.'),

@@ -231,12 +231,22 @@ td.empty { color: var(--muted); text-align: center; padding: 20px; }
 #print-root { display: none; }
 @media print {
   @page { size: A3 landscape; margin: 0; }
+  @page a2 { size: 594mm 420mm; margin: 0; }
+  @page a1 { size: 841mm 594mm; margin: 0; }
+  @page a0 { size: 1189mm 841mm; margin: 0; }
   body { background: #fff; }
   #app, .modal-back, .toast { display: none !important; }
   #print-root { display: block; }
   .print-page { width: 420mm; height: 297mm; page-break-after: always; break-after: page; overflow: hidden; }
   .print-page:last-child { page-break-after: auto; break-after: auto; }
   .print-page svg { width: 420mm; height: 297mm; display: block; }
+  /* larger sheets print on their own page size (named pages) */
+  .print-page.sheet-A2 { page: a2; width: 594mm; height: 420mm; }
+  .print-page.sheet-A2 svg { width: 594mm; height: 420mm; }
+  .print-page.sheet-A1 { page: a1; width: 841mm; height: 594mm; }
+  .print-page.sheet-A1 svg { width: 841mm; height: 594mm; }
+  .print-page.sheet-A0 { page: a0; width: 1189mm; height: 841mm; }
+  .print-page.sheet-A0 svg { width: 1189mm; height: 841mm; }
 }
 
 /* ---------- wire colours ---------- */

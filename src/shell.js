@@ -159,6 +159,7 @@ $('#toolbar').append(panelBtn('right', 'ⓘ', 'Eigenschappen tonen'));
 
 // ---------- events ----------
 app.on('change', () => {
+  if (app.mode === 'schematic') editor.fitIfResized();
   view().render();
   const pages = app.project.pages;
   const pageOpts = (after) => pages.map((pg, i) => h('option', { value: 'p:' + i, selected: app.mode === 'schematic' && i === app.pageIdx },
@@ -176,7 +177,7 @@ app.on('mode', (m) => {
   requestAnimationFrame(() => view().applyView());
 });
 setTimeout(() => checkExpectedVersion(toast), 800);
-app.on('page', () => editor.render());
+app.on('page', () => { editor.fitIfResized(); editor.render(); });
 app.on('tool', (t) => {
   for (const [k, b] of toolBtns) b.classList.toggle('active', k === t);
   if (app.mode === 'schematic') hintEl.textContent = HINTS[t] || '';

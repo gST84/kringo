@@ -2,7 +2,7 @@
 import { demoCards } from './demos.js';
 import { t } from '../i18n.js';
 import { APPS, appKind, appUrl, h, download, pickFiles, readDataURL, safeName, shrinkImage, uid } from '../util.js';
-import { FORMAT, LEGACY_FORMATS, newProject, SHEET } from '../model.js';
+import { FORMAT, LEGACY_FORMATS, newProject, sheetOf } from '../model.js';
 import { deleteProject, listProjects, loadProject } from '../storage.js';
 import { standalonePageSvg } from '../schematic/render.js';
 import { renumberDevices, renumberTerminals } from '../schematic/tags.js';
@@ -238,7 +238,7 @@ export function printProject(app, pages = null, floors = null) {
   const p = app.project;
   const idx = pages || (floors ? [] : p.pages.map((_, i) => i));
   root.innerHTML = (floors || []).map((i) => `<div class="print-page">${standalonePlanSvg(p, i, app.lib)}</div>`).join('')
-    + idx.map((i) => `<div class="print-page">${standalonePageSvg(p, p.pages[i], i, an)}</div>`).join('');
+    + idx.map((i) => { const z = p.pages[i].sheet || 'A3'; return `<div class="print-page sheet-${z}">${standalonePageSvg(p, p.pages[i], i, an)}</div>`; }).join('');
   const done = () => { root.innerHTML = ''; window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   setTimeout(() => window.print(), 50);
@@ -259,7 +259,7 @@ export async function printDialog(app) {
     body: h('div', { class: 'form' },
       h('label', { class: 'check' }, all, t('Alle pagina\'s ({n})', { n: app.project.pages.length })),
       h('label', { class: 'check' }, cur, t('Huidige pagina ({n})', { n: app.pageIdx + 1 })),
-      h('p', { class: 'hint' }, t('Formaat A3 liggend ({w} × {h} mm). Kies "Opslaan als PDF" in het afdrukvenster voor een PDF; zet marges op "Geen".', SHEET))),
+      h('p', { class: 'hint' }, t('Elke pagina op zijn eigen formaat (A3 liggend: {w} × {h} mm; A2 – A0 liggend). Kies "Opslaan als PDF" in het afdrukvenster voor een PDF; zet marges op "Geen".', sheetOf(null)))),
     buttons: [{ label: 'Annuleren', value: false }, { label: 'SVG van pagina', value: 'svg' }, { label: 'Afdrukken', value: 'print', primary: true }],
   });
   if (ok === 'svg') exportPageSvg(app);

@@ -289,7 +289,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 Een besturingsproject heeft vier soorten bladen. In de lijst **Pagina's** staan ze in groepen: **⚡ Elektrisch**, **💨 Pneumatica**, **💧 Hydraulica** en **❄ Koeling**; met de **＋** naast een groep voeg je een blad van die soort toe. De bibliotheek toont enkel de symbolen die bij het actieve blad horen: *Standaard* en *AREI* op elektrische bladen, *Pneumatica* op pneumatische bladen, *Hydraulica* op hydraulische bladen en *Koeling* op koelbladen. Toestellen op die laatste krijgen een eigen codering (standaard `{prefix}{n}` → *V1*, *A1*; in *Instellingen*).
 
-- **Pagina's** op A3 met kolommen en rijen, titelblok met bedrijf en logo (*Gegevens*).
+- **Pagina's** op A3 met kolommen en rijen, titelblok met bedrijf en logo (*Gegevens*). Voor grote schema's (bv. hydraulica) kies je per pagina een groter **Bladformaat**: A2, A1 of A0 liggend, in de pagina-eigenschappen of bij *＋ Pagina*. Kolommen en rijen groeien mee (ongeveer even groot als op A3), het titelblok staat rechtsonder en voedingslijnen tot de rand schuiven mee. Afdrukken en PDF gebruiken per pagina het eigen formaat.
 - **Voedingslijnen** (L1 L2 L3 N PE, +24V / 0V …) in de pagina-eigenschappen; zelfde naam = zelfde potentiaal over alle pagina's.
 - **Draad** (`W`): klik op een pin, knikpunten, eindigt vanzelf op een pin, draad of voedingslijn.
 - **Koppelen** van contacten aan een spoel of drukknop: gedeelde tag, kruisverwijzing (/2.4) en contactspiegel.
