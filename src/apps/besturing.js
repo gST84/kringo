@@ -3,6 +3,7 @@
 import { boot } from '../shell.js';
 import { FLUID } from '../fluid/symbols.js';
 import { COOLING } from '../cooling/symbols.js';
+import { M4 } from '../fluid/m4.js';
 import { demoProject } from '../demo.js';
 import { simControls } from '../sim/ui.js';
 import { listsDialog } from '../ui/lists.js';
@@ -17,7 +18,7 @@ boot({
   name: 'Kringo Besturing',
   newText: 'Stuurkasten (stuurstroom, vermogen, PLC, klemmen, lijsten), pneumatische / hydraulische schema\'s (ISO 1219) en koelcircuits van machines – samen te simuleren.',
   fileText: '.kringo, .elecad of QElectroTech (.qet)',
-  symbols: [...FLUID, ...COOLING],
+  symbols: [...FLUID, ...M4, ...COOLING],
   demos: [{ icon: '⚙️', name: 'Besturing', text: 'Motorstarter, tijdrelais, PLC, elektropneumatiek, pneumatica, hydraulica en machinekoeling met chiller – met simulatie', make: demoProject }],
   initialProject: demoProject,
   menu: ({ app, btn }) => [

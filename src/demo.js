@@ -5,15 +5,16 @@
 import { newPage, newProject } from './model.js';
 import { fluidDemoPages } from './fluid/demo.js';
 import { coolingDemoPage } from './cooling/demo.js';
+import { m4ElectricPage, m4HydraulicPage } from './fluid/m4demo.js';
 import { autoTag, numberContact, nextTerminal } from './schematic/tags.js';
 import { uid } from './util.js';
 
 export function demoProject(lib) {
   const p = newProject('Demo – besturing');
-  p.meta.description = 'Motorstarter, tijdrelais, PLC, elektropneumatiek, hydraulica / pneumatica en machinekoeling – met simulatie';
+  p.meta.description = 'Motorstarter, tijdrelais, PLC, elektropneumatiek, pneumatica, hydraulica met LS-stuurblok en machinekoeling – met simulatie';
   p.pages = [newPage('Vermogen', 'power'), newPage('Stuurstroom', 'control'), newPage('Ventilatie 24 V (tijdrelais)', 'dc'), newPage('PLC', 'dc'),
-    newPage('Elektropneumatiek – sturing', 'dc'), newPage('Koeling – sturing', 'dc')];
-  const [pw, ctl, vent, plc, ep, ks] = p.pages;
+    newPage('Elektropneumatiek – sturing', 'dc'), newPage('Koeling – sturing', 'dc'), newPage('Stuurblok M4 – magneten', 'dc')];
+  const [pw, ctl, vent, plc, ep, ks, m4p] = p.pages;
   const cool = coolingDemoPage(lib);
   const comps = {};
   const place = (pi, key, sym, x, y, props = {}) => {
@@ -145,6 +146,9 @@ export function demoProject(lib) {
   comps.kHp.link = cool.comps.psh.id;
   comps.kHpL.link = cool.comps.psh.id;
 
+  // LS control block: a push button and a solenoid per magnet
+  const m4keys = m4ElectricPage(m4p, 6, place, wire);
+
   comps.epHold.link = comps.epK.id;
   comps.epKno.link = comps.epK.id;
   comps.kton.link = comps.kt.id;
@@ -162,7 +166,8 @@ export function demoProject(lib) {
   numberContact(p, lib, comps.epKno);
   // the limit switches react to cylinder marks with their own name
   const mark = (c) => (c.props.mark = c.tag.replace(/^-+/, ''));
-  p.pages.push(...fluidDemoPages(lib, { sol: comps.epY.tag, marks: [mark(comps.epIn), mark(comps.epEnd)] }), cool.page);
+  const solOf = (k, s) => m4keys.find(([kk, ss]) => kk === k && ss === s)[3].tag;
+  p.pages.push(...fluidDemoPages(lib, { sol: comps.epY.tag, marks: [mark(comps.epIn), mark(comps.epEnd)] }), m4HydraulicPage(lib, solOf), cool.page);
   // the cooling parts follow the contactors and the solenoid of the electrical sheet
   cool.comps.pump.props.drive = comps.kPump.tag;
   cool.comps.comp.props.drive = comps.kComp.tag;

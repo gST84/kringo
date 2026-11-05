@@ -51,6 +51,7 @@ export class Simulation {
     for (const i of this.fluid) {
       const k = i.def.fluid.kind;
       if (k === 'valve') this.valvePos.set(i.comp.id, restPosition(this.props(i)));
+      if (k === 'm4sec') this.valvePos.set(i.comp.id, 1);
       if (k === 'cylinder') this.cyl.set(i.comp.id, { x: this.props(i).acting === 'singleL' ? 1 : 0 });
       if (k === 'motor') this.motorAngle.set(i.comp.id, 0);
       if (k === 'counter') this.count.set(i.comp.id, { n: 0, last: false });
@@ -71,7 +72,7 @@ export class Simulation {
   press(id, side, latch) {
     const info = this.an.comps.get(id);
     if (!info) return;
-    const key = info.def?.fluid?.kind === 'valve' ? `${id}:${side}` : id;
+    const key = info.def?.fluid?.kind === 'valve' || info.def?.fluid?.kind === 'm4sec' ? `${id}:${side}` : id;
     // switches that stay, and cooling parts (pumps, valves, machine on / off, low level) toggle per click
     const toggle = /^std\/(estop|selector|keyswitch)$/.test(info.def?.id) || !!info.def?.cool;
     if (toggle || latch) { if (this.latched.has(key)) this.latched.delete(key); else this.latched.add(key); }
@@ -170,6 +171,15 @@ export class Simulation {
 
   updateValves() {
     for (const i of this.fluid) {
+      if (i.def.fluid.kind === 'm4sec') {
+        // proportional section: magnet a / b with pilot oil on X shifts the spool; clicking = manual lever
+        const p = this.props(i), id = i.comp.id;
+        const pilot = this.pressure(this.net(i, 'Xl')) > 0;
+        const hand = (s) => this.pressed.has(`${id}:${s}`) || this.latched.has(`${id}:${s}`);
+        const a = hand('L') || (pilot && this.solOn.has(norm(p.solA))), b = hand('R') || (pilot && this.solOn.has(norm(p.solB)));
+        this.valvePos.set(id, a && !b ? 0 : b && !a ? 2 : 1);
+        continue;
+      }
       if (i.def.fluid.kind !== 'valve') continue;
       const p = this.props(i);
       const n = valvePaths(p).length;
@@ -222,6 +232,35 @@ export class Simulation {
         case 'regulator': press.push([n('1'), n('2'), 1, +p.p || 6]); vent.push([n('2'), n('1'), 1]); break;
         case 'relief': if (n('P')) caps.set(n('P'), Math.min(caps.get(n('P')) ?? Infinity, +p.p || 50)); break;
         case 'pass': both(n('1'), n('2')); break;
+        case 'prvp': {
+          // proportional pilot reducing valve: energised = reduced pressure on A, otherwise A drains to T
+          const on = this.solOn.has(norm(p.sol)) || this.pressed.has(i.comp.id) || this.latched.has(i.comp.id);
+          if (on) press.push([n('P'), n('A'), 1, +p.p || 25]);
+          vent.push([n('A'), this.open(n('T')) ? ATM : n('T'), 1]);
+          break;
+        }
+        case 'm4inlet': {
+          // inlet element: P, T, LS, Y through to the sections; pilot oil X reduced from P
+          both(n('P'), n('Pr')); both(n('P'), n('MP')); both(n('T'), n('Tr')); both(n('LS'), n('LSr')); both(n('Y'), n('Yr'));
+          press.push([n('P'), n('Xr'), 1, +p.px || 35]);
+          vent.push([n('Xr'), n('Yr'), 1]);
+          if (this.open(n('Y'))) vent.push([n('Yr'), ATM, 1]); // pilot drain without a line: to the tank
+          break;
+        }
+        case 'm4sec': {
+          // valve section: channels pass through; the spool connects P (via the compensator) and T to A / B,
+          // the load pressure goes to LS; port reliefs limit A and B
+          for (const k of ['P', 'T', 'X', 'Y', 'LS']) both(n(k + 'l'), n(k + 'r'));
+          const pos = this.valvePos.get(i.comp.id) ?? 1;
+          const [w, r] = pos === 0 ? ['A', 'B'] : pos === 2 ? ['B', 'A'] : [null, null];
+          if (w) { both(n('Pl'), n(w)); both(n(r), n('Tl')); press.push([n(w), n('LSl'), 1]); }
+          for (const [port, k] of [['A', 'reliefA'], ['B', 'reliefB']]) if (n(port)) caps.set(n(port), Math.min(caps.get(n(port)) ?? Infinity, +p[k] || 230));
+          // pilot pressures on the measuring ports
+          if (pos === 0) both(n('Xl'), n('Ma')); else vent.push([n('Ma'), n('Yl'), 1]);
+          if (pos === 2) both(n('Xl'), n('Mb')); else vent.push([n('Mb'), n('Yl'), 1]);
+          break;
+        }
+        case 'm4end': both(n('Tl'), n('T1')); vent.push([n('LSl'), n('Tl'), 1]); break;
         case 'booster': {
           // pressure intensifier / converter: output pressure = input × ratio, flow only forwards
           const r = Math.max(0.01, +p.ratio || 1);
@@ -470,7 +509,8 @@ export class Simulation {
     if (!info) return null;
     if (info.def?.cool) return this.cooling.compState(info);
     const k = info.def?.fluid?.kind;
-    if (k === 'valve') return { props: { __pos: this.valvePos.get(id) } };
+    if (k === 'valve' || k === 'm4sec') return { props: { __pos: this.valvePos.get(id) } };
+    if (k === 'prvp') return this.pressure(this.net(info, 'A')) > 0 ? { cls: 'sim-act' } : null;
     if (k === 'cylinder') return { props: { __x: Math.round(this.cyl.get(id).x * 1000) / 1000 } };
     if (k === 'motor') return { props: { __a: Math.round(this.motorAngle.get(id)) } };
     if (k === 'gauge') return { props: { __p: `${(this.pressure(this.net(info, '1'))).toFixed(1).replace('.', ',')} bar` } };

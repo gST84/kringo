@@ -325,6 +325,14 @@ De simulatie loopt over alle bladen tegelijk, dus de elektrische bladen sturen d
 - Een **eindschakelaar** (maak / verbreek) op een elektrisch blad volgt de **markering** van een cilinder met dezelfde naam (veld *Markering*), en een contact gekoppeld aan een **drukschakelaar** schakelt op de druk.
 - Voorbeeld in het demoproject: op *Elektropneumatiek – sturing* zet **Start** relais K onder spanning (zelfhouding); K bekrachtigt de spoel van ventiel 5V1 op *Elektropneumatiek – cilinder*, de cilinder schuift uit tot de eindschakelaar (verbreek) K laat afvallen, en de veer zet het ventiel terug.
 
+**LS-stuurblok (type M4-15)**
+
+In de map *Hydraulica → Stuurblok LS (M4)* staan de onderdelen en de volledige blokelementen van een load-sensing stuurblok (zoals Bosch Rexroth M4-15):
+
+- **Onderdelen** (*Onderdelen*): hoofdschuif 4/3 proportioneel en hydraulisch voorgestuurd met handbediening en LS-aansluiting, proportioneel drukreduceerventiel (voorsturing, met magneet), drukreduceerventiel en drukbegrenzer voor de stuurolie, secundaire drukbegrenzer met naaszuigfunctie, individuele drukweegschaal, LS-wisselventiel, stuuroliefilter, blindplug en meetaansluiting. Hiermee teken je een blok volledig in detail; ze werken ook in de simulatie.
+- **Blokelementen**: *Inlaatelement* (P, T, LS, Y, meetaansluiting MP; maakt de stuurolie X), *Ventielsectie elektrohydraulisch proportioneel* (A, B, meetaansluitingen Ma / Mb) en *Eindplaat* (T1). Zet ze **naast elkaar**: de kanalen P, X, Y, LS en T lopen door en verbinden vanzelf. In de eigenschappen van een sectie vul je de magneten a (P → A) en b (P → B) in – de namen van de spoelen op een elektrisch blad – en de poortbeveiliging, drukweegschaal en debieten.
+- **Simulatie**: een bekrachtigde magneet verschuift de schuif zodra er stuurolie (X) is; klik links of rechts op een sectie voor de handhefboom. A of B krijgt de pompdruk (begrensd door de poortbeveiliging), de andere poort gaat naar de tank en de lastdruk gaat naar LS. Het demoproject heeft een volledig blok met inlaat, vijf secties en eindplaat op een A1-blad (*Stuurblok M4-15*), met drukknoppen voor de tien magneten op het blad *Stuurblok M4 – magneten*.
+
 **Simuleren**
 
 - **▶ Simuleren** werkt zoals bij de stuurkast. Klik **links of rechts op een ventiel** om die kant te bedienen (hand, drukknop, hendel of spoel); Shift = vasthouden. Gestuurde ventielen schakelen op druk, rolventielen op de cilindermarkeringen.
