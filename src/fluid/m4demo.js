@@ -34,25 +34,25 @@ export function m4HydraulicPage(lib, sol) {
     return c;
   };
   const wire = (...points) => page.wires.push({ id: uid('w'), points });
-  const X0 = 90, Y0 = 280;
+  const X0 = 90, Y0 = 260;
   place('flu/h/m4-inlet', X0, Y0, '7V0', { px: 35 });
   SECTIONS.forEach(([spring, qA, qB], k) => {
-    const sx = X0 + 35 + 60 * k;
+    const sx = X0 + 45 + 95 * k;
     place('flu/h/m4-section', sx, Y0, `7V${k + 1}`, { desc: `Sectie ${k + 1}`, solA: sol(k, 'a'), solB: sol(k, 'b'), spring, qA, qB });
     // cylinder per section (alternating height so the rods do not overlap)
     const cy = Y0 - (k % 2 ? 190 : 120);
-    place('flu/h/cyl2', sx + 15, cy, `7A${k + 1}`, { time: 2.5, stroke: 200 });
-    wire([sx + 45, Y0 - 5], [sx + 45, Y0 - 40], [sx + 20, Y0 - 40], [sx + 20, cy + 15]);
-    wire([sx + 55, Y0 - 5], [sx + 55, Y0 - 50], [sx + 50, Y0 - 50], [sx + 50, cy + 15]);
+    place('flu/h/cyl2', sx + 40, cy, `7A${k + 1}`, { time: 2.5, stroke: 200 });
+    wire([sx + 74, Y0 - 6], [sx + 74, Y0 - 40], [sx + 45, Y0 - 40], [sx + 45, cy + 15]);
+    wire([sx + 88, Y0 - 6], [sx + 88, Y0 - 50], [sx + 75, Y0 - 50], [sx + 75, cy + 15]);
   });
-  place('flu/h/m4-end', X0 + 35 + 300, Y0, '7V6');
+  place('flu/h/m4-end', X0 + 45 + 95 * 5, Y0, '7V6');
   // power unit: pump P → inlet P, inlet T → tank
-  const px = X0 - 50, py = Y0 + 170;
+  const px = X0 - 55, py = Y0 + 240;
   place('flu/h/powerpack', px, py, '0P2', { p: 180 });
-  wire([px, py], [px, Y0 + 10], [X0 - 5, Y0 + 10]);
-  wire([px + 10, py], [px + 10, Y0 + 115], [X0 - 5, Y0 + 115]);
-  place('flu/h/gauge', X0 - 20, Y0 + 60);
-  wire([X0 - 20, Y0 + 60], [X0 - 5, Y0 + 60]);
+  wire([px, py], [px, Y0 + 10], [X0 - 6, Y0 + 10]);
+  wire([px + 10, py], [px + 10, Y0 + 188], [X0 - 6, Y0 + 188]);
+  place('flu/h/gauge', X0 - 25, Y0 + 80);
+  wire([X0 - 25, Y0 + 80], [X0 - 6, Y0 + 80]);
   page.texts.push({ id: uid('t'), x: 40, y: 30, text: 'LS-stuurblok M4-15 met inlaat, 5 elektrohydraulisch proportionele secties (drukweegschaal 13 / 9 bar, poortbeveiliging 230 bar) en eindplaat.', size: 3.5, anchor: 'start' });
   page.texts.push({ id: uid('t'), x: 40, y: 38, text: 'Simulatie: drukknoppen op het blad "Stuurblok M4 – magneten", of klik links (a: P→A) of rechts (b: P→B) op een sectie (handhefboom; Shift = vasthouden).', size: 3, anchor: 'start' });
   return page;
