@@ -6,6 +6,7 @@
 import { App } from './app.js';
 import { Library } from './symbols/library.js';
 import { SchematicEditor } from './schematic/editor.js';
+import { SheetViewer } from './schematic/viewer.js';
 import { libraryPanel, pagesPanel, propertiesPanel } from './ui/panels.js';
 import { openSymbolEditor } from './ui/symbolEditor.js';
 import { setupPwa } from './pwa.js';
@@ -43,6 +44,12 @@ const $ = (s) => document.querySelector(s);
 const center = $('#canvas');
 const editor = new SchematicEditor(app, center);
 app.editor = editor;
+// split view: a second sheet next to the editor (src/schematic/viewer.js)
+const canvasWrap = h('div', { class: 'canvaswrap' });
+center.parentNode.insertBefore(canvasWrap, center);
+canvasWrap.append(center);
+const viewer = new SheetViewer(app, canvasWrap);
+app.viewer = viewer;
 /** Editors per mode: 'schematic' (sheets) and, in the building app, 'building' (floor plans). */
 const views = { schematic: editor };
 const view = () => views[app.mode] || editor;
@@ -101,6 +108,8 @@ const panelBtn = (side, label, title) => h('button', {
 }, label);
 $('#toolbar').append(panelBtn('left', '☰', 'Symbolen / bladen tonen'));
 const schemTools = h('span', { class: 'tgroup view-sheet' });
+const splitBtn = btn('◫', 'Gesplitst venster: een tweede blad ernaast (bv. bedienen op het ene, de simulatie volgen op het andere)', () => viewer.toggle());
+app.on('split', (on) => splitBtn.classList.toggle('active', on));
 $('#toolbar').append(schemTools);
 schemTools.append(
   ...tools.map(([k, icon, title]) => {
@@ -115,6 +124,7 @@ schemTools.append(
   btn('−', 'Uitzoomen', () => editor.zoomBy(1.25)),
   btn('+', 'Inzoomen', () => editor.zoomBy(0.8)),
   btn('⤢', 'Passend (F)', () => editor.fit()),
+  splitBtn,
   h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: true, onchange: (e) => { editor.showGrid = e.target.checked; editor.render(); } }), 'raster'),
   gridSel,
   ...(cfg.sheetTools?.(ctx) || []),

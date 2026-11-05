@@ -1372,4 +1372,13 @@ export const DICT = [
   ["Inhoud van het bouwblok", "Contenu du bloc", "Content of the building block"],
   ["De toestellen krijgen de tag van het blok vooraan. Leeg = zoals op het blad van het bouwblok; een waarde geldt alleen voor dit blok.", "Les appareils reçoivent le repère du bloc en préfixe. Vide = comme sur la page du bloc ; une valeur ne vaut que pour ce bloc.", "The devices get the block's tag in front. Empty = as on the block's sheet; a value applies to this block only."],
   ["Bouwblok bewerken", "Modifier le bloc", "Edit building block"],
+  // ---------- split view ----------
+  ["Sleep om de verdeling aan te passen", "Glisser pour changer la répartition", "Drag to change the split"],
+  ["Blad in het tweede venster", "Page dans la deuxième fenêtre", "Sheet in the second pane"],
+  ["Passend (hele blad)", "Ajuster (page entière)", "Fit (whole sheet)"],
+  ["In de simulatie: toon vanzelf het blad waar iets verandert", "En simulation : afficher automatiquement la page où quelque chose change", "In the simulation: show the sheet where something changes"],
+  ["Volgen", "Suivre", "Follow"],
+  ["Dit blad in de editor openen", "Ouvrir cette page dans l’éditeur", "Open this sheet in the editor"],
+  ["Tweede venster sluiten", "Fermer la deuxième fenêtre", "Close the second pane"],
+  ["Gesplitst venster: een tweede blad ernaast (bv. bedienen op het ene, de simulatie volgen op het andere)", "Fenêtre partagée : une deuxième page à côté (p. ex. commander sur l’une, suivre la simulation sur l’autre)", "Split view: a second sheet alongside (e.g. operate on one, follow the simulation on the other)"],
 ];

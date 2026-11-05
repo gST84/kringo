@@ -305,6 +305,7 @@ Een besturingsproject heeft vier soorten bladen. In de lijst **Pagina's** staan 
 - **Actieve lijnen gloeien groen**: draden onder spanning, bekrachtigde spoelen en bediende contacten; lampen branden geel. Contacten volgen hun spoel (ook met opkom- of afvalvertraging), beveiligingen en klemmen geleiden.
 - De voeding komt van de voedingslijnen: *L, L1–L3, +24V* zijn de plus, *N, 0V* de min.
 - **⏸** pauzeert, **⟲** zet alles terug in de beginstand, de snelheid kies je van ¼× tot 2×, **■ Stop** of `Esc` stopt. Wijzig je iets aan het schema, dan stopt de simulatie.
+- **◫ Gesplitst venster** (werkbalk) zet een tweede blad naast de editor, met een eigen bladkeuze, zoom en pannen (sleep de scheidingslijn om de verdeling aan te passen; op een smal scherm komen ze onder elkaar). Zo bedien je op het ene blad (bv. de drukknoppen) en volg je de simulatie op het andere (bv. de hydraulica); ook in het tweede venster klik je drukknoppen en ventielen aan. Met **Volgen** springt het tweede venster vanzelf naar het blad waar iets verandert (een spoel, ventiel of cilinder); **✎** opent dat blad in de editor, dubbelklikken ook (buiten de simulatie).
 
 ## 8. Besturing: hydraulica en pneumatica
 

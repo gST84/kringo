@@ -2,7 +2,7 @@
 // or Kringo Besturing makes both available offline, they share the code in src/.
 // Strategy: network first (always the newest version when online), cache as fallback.
 // Bump VERSION for every release (0.61 → 0.62 …), equal to APP_VERSION in src/version.js; add new source files to SHELL.
-const VERSION = 'kringo-0.89';
+const VERSION = 'kringo-0.90';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'gebouw/', 'gebouw/index.html', 'gebouw/manifest.webmanifest',
@@ -21,7 +21,7 @@ const SHELL = [
   'src/building/panels.js', 'src/building/render.js', 'src/building/rooms.js', 'src/building/rules.js',
   'src/app.js',
   'src/blocks/block.js', 'src/demo.js', 'src/import/qet.js', 'src/i18n.js', 'src/i18n-dict.js', 'src/model.js', 'src/pwa.js', 'src/touch.js',
-  'src/schematic/analyze.js', 'src/schematic/editor.js', 'src/schematic/render.js', 'src/schematic/tags.js',
+  'src/schematic/analyze.js', 'src/schematic/editor.js', 'src/schematic/viewer.js', 'src/schematic/render.js', 'src/schematic/tags.js',
   'src/storage.js', 'src/symbols/builtin.js', 'src/symbols/geom.js', 'src/symbols/library.js',
   'src/ui/splitters.js', 'src/version.js', 'src/ui/dialogs.js', 'src/ui/lists.js', 'src/ui/panels.js', 'src/ui/project.js', 'src/ui/start.js', 'src/ui/symbolEditor.js', 'src/util.js',
 ];

@@ -105,6 +105,7 @@ export class SchematicEditor {
     const an = app.analysis();
     this.layer.innerHTML = pageSvg(app.project, app.page, app.pageIdx, an, app.sim ? { sim: app.sim, grid: this.showGrid } : { selection: app.sel, grid: this.showGrid });
     this.renderOverlay();
+    app.emit('rendered'); // the split view follows
   }
 
   renderOverlay() {
