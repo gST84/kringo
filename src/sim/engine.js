@@ -13,6 +13,10 @@ const DOT_GAP = 6; // mm between flow dots
 const DOT_SPEED = 25; // mm/s of the dots per full stroke (or turn) per second
 
 const ATM = '__atm';
+// electrohydraulic pilot control of the M4-15 (data sheet RE 64283): the spool starts to move at 6.5 bar
+// pilot pressure and has its full stroke at 17.2 bar (0.45 … 0.8 A at 24 V)
+const PILOT_MIN = 6.5, PILOT_MAX = 17.2;
+const pct = (v, d = 100) => Math.max(0, Math.min(1, (Number.isFinite(+v) && v !== '' ? +v : d) / 100));
 const norm = (s) => String(s || '').trim().replace(/^-+/, '').toUpperCase();
 
 // rail names that carry the supply (+) or the return (−) of the control circuit
@@ -33,6 +37,8 @@ export class Simulation {
     this.pressed = new Set(); // momentary: compId or compId:L / compId:R
     this.latched = new Set();
     this.valvePos = new Map();
+    this.stroke = new Map(); // proportional valves: spool stroke 0 … 1 (flow share)
+    this.pilotP = new Map(); // M4 sections: pilot pressure on Ma / Mb (bar)
     this.cyl = new Map(); // compId -> {x}
     this.motorAngle = new Map();
     this.count = new Map(); // pulse counters: compId -> {n, last}
@@ -174,16 +180,33 @@ export class Simulation {
       if (i.def.fluid.kind === 'm4sec') {
         // proportional section: magnet a / b with pilot oil on X shifts the spool; clicking = manual lever
         const p = this.props(i), id = i.comp.id;
-        const pilot = this.pressure(this.net(i, 'Xl')) > 0;
+        // the control signal (%) sets the pilot pressure 6.5 … 17.2 bar (limited by the pilot oil X), which sets the stroke
+        const x = this.pressure(this.net(i, 'Xl'));
+        const want = pct(p.cmd);
+        const pst = want > 0 ? Math.min(x, PILOT_MIN + (PILOT_MAX - PILOT_MIN) * want) : 0;
+        const elec = pst > PILOT_MIN ? (pst - PILOT_MIN) / (PILOT_MAX - PILOT_MIN) : 0;
         const hand = (s) => this.pressed.has(`${id}:${s}`) || this.latched.has(`${id}:${s}`);
-        const a = hand('L') || (pilot && this.solOn.has(norm(p.solA))), b = hand('R') || (pilot && this.solOn.has(norm(p.solB)));
-        this.valvePos.set(id, a && !b ? 0 : b && !a ? 2 : 1);
+        const ea = elec > 0 && this.solOn.has(norm(p.solA)), eb = elec > 0 && this.solOn.has(norm(p.solB));
+        const a = hand('L') || ea, b = hand('R') || eb;
+        const pos = a && !b ? 0 : b && !a ? 2 : 1;
+        this.valvePos.set(id, pos);
+        // manual lever: full stroke; magnet: stroke from the pilot pressure
+        this.stroke.set(id, pos === 1 ? 0 : hand(pos === 0 ? 'L' : 'R') ? 1 : elec);
+        this.pilotP.set(id, pos === 1 || hand(pos === 0 ? 'L' : 'R') ? 0 : pst);
         continue;
       }
       if (i.def.fluid.kind !== 'valve') continue;
       const p = this.props(i);
       const n = valvePaths(p).length;
-      const L = this.actuated(i, p.left, 'L'), R = this.actuated(i, p.right, 'R');
+      let L = this.actuated(i, p.left, 'L'), R = this.actuated(i, p.right, 'R');
+      if (p.prop) {
+        // proportional, hydraulically piloted spool (M4): pilot pressure 6.5 … 17.2 bar = stroke 0 … 100 %
+        const pa = p.left === 'pilot' ? this.pressure(this.net(i, 'XL')) : 0, pb = p.right === 'pilot' ? this.pressure(this.net(i, 'XR')) : 0;
+        const f = (v) => Math.max(0, Math.min(1, (v - PILOT_MIN) / (PILOT_MAX - PILOT_MIN)));
+        const hand = (s) => this.pressed.has(`${i.comp.id}:${s}`) || this.latched.has(`${i.comp.id}:${s}`);
+        L = hand('L') || f(pa) > f(pb); R = hand('R') || f(pb) > f(pa);
+        this.stroke.set(i.comp.id, hand('L') || hand('R') ? 1 : Math.abs(f(pa) - f(pb)));
+      }
       let pos = this.valvePos.get(i.comp.id);
       if (L && !R) pos = 0;
       else if (R && !L) pos = n - 1;
@@ -210,11 +233,12 @@ export class Simulation {
       switch (i.def.fluid.kind) {
         case 'valve': {
           const paths = valvePaths(p)[this.valvePos.get(i.comp.id)] || [];
+          const k = p.prop ? Math.max(0.02, this.stroke.get(i.comp.id) ?? 1) : 1; // proportional: opening = stroke
           for (const [a, b] of paths) {
             const na = n(a), nb = n(b);
             // a free exhaust port vents to the air
             const ex = (id, net) => ((id === 'R' || id === 'S') && this.open(net) ? ATM : net);
-            both(ex(a, na), ex(b, nb));
+            both(ex(a, na), ex(b, nb), k);
           }
           break;
         }
@@ -235,7 +259,9 @@ export class Simulation {
         case 'prvp': {
           // proportional pilot reducing valve: energised = reduced pressure on A, otherwise A drains to T
           const on = this.solOn.has(norm(p.sol)) || this.pressed.has(i.comp.id) || this.latched.has(i.comp.id);
-          if (on) press.push([n('P'), n('A'), 1, +p.p || 25]);
+          // output pressure 6.5 bar (start of the curve) … p at 100 % control signal
+          const c = pct(p.cmd), pmax = +p.p || PILOT_MAX;
+          if (on && c > 0) press.push([n('P'), n('A'), 1, Math.min(pmax, PILOT_MIN + (pmax - PILOT_MIN) * c)]);
           vent.push([n('A'), this.open(n('T')) ? ATM : n('T'), 1]);
           break;
         }
@@ -253,11 +279,14 @@ export class Simulation {
           for (const k of ['P', 'T', 'X', 'Y', 'LS']) both(n(k + 'l'), n(k + 'r'));
           const pos = this.valvePos.get(i.comp.id) ?? 1;
           const [w, r] = pos === 0 ? ['A', 'B'] : pos === 2 ? ['B', 'A'] : [null, null];
-          if (w) { both(n('Pl'), n(w)); both(n(r), n('Tl')); press.push([n(w), n('LSl'), 1]); }
+          // the opening (flow) follows the stroke; the compensator keeps it independent of the load
+          const k = Math.max(0.02, this.stroke.get(i.comp.id) ?? 1);
+          if (w) { both(n('Pl'), n(w), k); both(n(r), n('Tl'), k); press.push([n(w), n('LSl'), 1]); }
           for (const [port, k] of [['A', 'reliefA'], ['B', 'reliefB']]) if (n(port)) caps.set(n(port), Math.min(caps.get(n(port)) ?? Infinity, +p[k] || 230));
           // pilot pressures on the measuring ports
-          if (pos === 0) both(n('Xl'), n('Ma')); else vent.push([n('Ma'), n('Yl'), 1]);
-          if (pos === 2) both(n('Xl'), n('Mb')); else vent.push([n('Mb'), n('Yl'), 1]);
+          const pst = this.pilotP.get(i.comp.id) || 0;
+          if (pos === 0 && pst) press.push([n('Xl'), n('Ma'), 1, pst]); else vent.push([n('Ma'), n('Yl'), 1]);
+          if (pos === 2 && pst) press.push([n('Xl'), n('Mb'), 1, pst]); else vent.push([n('Mb'), n('Yl'), 1]);
           break;
         }
         case 'm4end': both(n('Tl'), n('T1')); vent.push([n('LSl'), n('Tl'), 1]); break;
@@ -509,7 +538,12 @@ export class Simulation {
     if (!info) return null;
     if (info.def?.cool) return this.cooling.compState(info);
     const k = info.def?.fluid?.kind;
-    if (k === 'valve' || k === 'm4sec') return { props: { __pos: this.valvePos.get(id) } };
+    if (k === 'valve' || k === 'm4sec') {
+      // proportional spools stand where their stroke puts them
+      const pos = this.valvePos.get(id);
+      const st = this.stroke.has(id) && (k === 'm4sec' || this.props(info).prop) ? this.stroke.get(id) : 1;
+      return { props: { __pos: pos == null ? pos : 1 + (pos - 1) * st } };
+    }
     if (k === 'prvp') return this.pressure(this.net(info, 'A')) > 0 ? { cls: 'sim-act' } : null;
     if (k === 'cylinder') return { props: { __x: Math.round(this.cyl.get(id).x * 1000) / 1000 } };
     if (k === 'motor') return { props: { __a: Math.round(this.motorAngle.get(id)) } };

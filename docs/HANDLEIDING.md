@@ -330,9 +330,17 @@ De simulatie loopt over alle bladen tegelijk, dus de elektrische bladen sturen d
 
 In de map *Hydraulica → Stuurblok LS (M4)* staan de onderdelen en de volledige blokelementen van een load-sensing stuurblok (zoals Bosch Rexroth M4-15):
 
-- **Onderdelen** (*Onderdelen*): hoofdschuif 4/3 proportioneel en hydraulisch voorgestuurd met handbediening en LS-aansluiting, proportioneel drukreduceerventiel (voorsturing, met magneet), drukreduceerventiel en drukbegrenzer voor de stuurolie, secundaire drukbegrenzer met naaszuigfunctie, individuele drukweegschaal, LS-wisselventiel, stuuroliefilter, blindplug en meetaansluiting. Hiermee teken je een blok volledig in detail; ze werken ook in de simulatie.
-- **Blokelementen**: *Inlaatelement* (P, T, LS, Y, meetaansluiting MP; maakt de stuurolie X), *Ventielsectie elektrohydraulisch proportioneel* (A, B, meetaansluitingen Ma / Mb) en *Eindplaat* (T1). Zet ze **naast elkaar**: de kanalen P, X, Y, LS en T lopen door en verbinden vanzelf. In de eigenschappen van een sectie vul je de magneten a (P → A) en b (P → B) in – de namen van de spoelen op een elektrisch blad – en de poortbeveiliging, drukweegschaal en debieten.
-- **Simulatie**: een bekrachtigde magneet verschuift de schuif zodra er stuurolie (X) is; klik links of rechts op een sectie voor de handhefboom. A of B krijgt de pompdruk (begrensd door de poortbeveiliging), de andere poort gaat naar de tank en de lastdruk gaat naar LS. Het demoproject heeft een volledig blok met inlaat, vijf secties en eindplaat op een A1-blad (*Stuurblok M4-15*), met drukknoppen voor de tien magneten op het blad *Stuurblok M4 – magneten*.
+De hoofdschuif, de voorstuurventielen, de poortbeveiliging en de drukweegschaal, en het volledige inlaatelement, de ventielsectie en de eindplaat zijn **overgenomen uit de tekening van de datasheet** (zelfde lijnen, maatvast: kanalen op het raster van 5 mm).
+
+- **Onderdelen** (*Onderdelen*, dubbele grootte): hoofdschuif proportioneel en hydraulisch voorgestuurd (a onderaan, b bovenaan) met handhefboom en slagbegrenzing; links T, LS, P, T en rechts A, LS A, LS B, B. Proportioneel drukreduceerventiel 3-weg (voorsturing, met magneet: P van de stuurolie X, T naar Y, A naar de schuif, met terugkoppeling van A tegen de veer). Secundaire drukbegrenzer met naaszuigfunctie (poort A / B naar T). Individuele drukweegschaal type S met lasthoudfunctie (veer + LS tegen de inlaatdruk). Verder drukreduceerventiel en drukbegrenzer voor de stuurolie, LS-wisselventiel, stuuroliefilter, blindplug en meetaansluiting. Hiermee teken je zelf een blok in detail; ze werken ook in de simulatie.
+- **Blokelementen**: *Inlaatelement* (60 mm breed: P, X afgesloten, Y, LS, meetaansluiting MP, T; maakt de stuurolie X), *Ventielsectie elektrohydraulisch proportioneel* (97,5 mm: A, B, meetaansluitingen Ma / Mb) en *Eindplaat* (30 mm, T1). Zet ze **naast elkaar**: de kanalen P, X, Y, LS en T lopen door en verbinden vanzelf. In de eigenschappen van een sectie vul je de magneten a (P → A) en b (P → B) in – de namen van de spoelen op een elektrisch blad – en het stuursignaal, de poortbeveiliging, drukweegschaal en debieten.
+- **Simulatie** (volgens datasheet RE 64283):
+  - het **stuursignaal** (0 … 100 %, bij 24 V = 0,45 … 0,8 A) geeft een stuurdruk van 6,5 … 17,2 bar op de veerkamer (meetbaar op Ma / Mb, begrensd door de stuurolie X);
+  - de **schuif** begint te bewegen bij 6,5 bar en staat volledig om bij 17,2 bar; de schuif in de tekening schuift mee. Magneet a (stuurdruk onderaan) duwt de schuif omhoog: P → A, B → T; magneet b: P → B, A → T;
+  - het **debiet** (snelheid van de cilinder) volgt de slag; de drukweegschaal houdt het onafhankelijk van de last. Klik links of rechts op een sectie voor de **handhefboom** (volle slag; Shift = vasthouden);
+  - A of B krijgt de pompdruk (begrensd door de poortbeveiliging, 230 bar), de andere poort gaat naar de tank en de lastdruk gaat naar LS.
+
+  Het demoproject heeft een volledig blok met inlaat, vijf secties en eindplaat op een A1-blad (*Stuurblok M4-15*), met drukknoppen voor de tien magneten op het blad *Stuurblok M4 – magneten*.
 
 **Simuleren**
 
