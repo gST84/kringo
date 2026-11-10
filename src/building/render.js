@@ -533,6 +533,7 @@ function traceSvg(b, floor, k, sw) {
 }
 
 const HEAT_COLORS = { s: '#e03131', r: '#1971c2' };
+const LOOP_COLORS = ['#e03131', '#1c3fd8'];
 
 /** Path through the points with every corner rounded (radius at most half of the pieces beside it). */
 export function roundedPath(P, rad) {
@@ -557,7 +558,9 @@ function heatSvg(list, k, sw) {
     const w = it.t === 'main' ? 3.4 : it.t === 'feed' ? 1.6 : 1.3;
     // pipes are bent, not mitred: rounded corners (half the spacing in a loop)
     const rad = it.t === 'loop' ? (it.s || 15) / 2 : it.t === 'feed' ? 5 : 10;
-    s += `<path class="pheatl" d="${roundedPath(it.pts, rad)}" style="stroke:${HEAT_COLORS[it.role] || '#555'};stroke-width:${r2(sw * w)}"/>`;
+    // one colour per loop (alternating, as on installer plans); main pipes: supply red, return blue
+    const col = it.t === 'main' ? HEAT_COLORS[it.role] : LOOP_COLORS[(it.n - 1) % LOOP_COLORS.length];
+    s += `<path class="pheatl" d="${roundedPath(it.pts, rad)}" style="stroke:${col || '#555'};stroke-width:${r2(sw * w)}"/>`;
   }
   for (const it of list) {
     if (it.t !== 'label') continue;

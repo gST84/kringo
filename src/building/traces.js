@@ -75,9 +75,9 @@ function fillPoly(grid, R, poly, value, only = -1) {
 
 /**
  * Raster of a floor: 0 = free, 1 = wall, 2 = outside the building. `media`: which wall passages are
- * open; `cell`: raster size in cm.
+ * open; `cell`: raster size in cm; `near`: distance from a wall (cm, from – to) where routes like to run.
  */
-export function raster(floor, extra, media = 'elec', cell = CELL) {
+export function raster(floor, extra, media = 'elec', cell = CELL, near = [10, 30]) {
   const polys = floor.walls.filter((w) => w.kind !== 'divider').map((w) => wallPolygon(w, floor.walls)); // room dividers do not stop cables
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const p of [...polys.flat(), ...extra]) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
@@ -134,8 +134,8 @@ export function raster(floor, extra, media = 'elec', cell = CELL) {
       }
     }
   };
-  ring(Math.round(30 / cell), R.nearWall);
-  ring(Math.round(10 / cell), tooClose);
+  ring(Math.round(near[1] / cell), R.nearWall);
+  if (near[0] > 0) ring(Math.round(near[0] / cell), tooClose);
   for (let c = 0; c < grid.length; c++) if (tooClose[c]) R.nearWall[c] = 0;
   return R;
 }
