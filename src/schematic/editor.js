@@ -51,7 +51,7 @@ export class SchematicEditor {
     const w = this.host.clientWidth || 800;
     const h = this.host.clientHeight || 600;
     const sh = sheetOf(this.app.project && this.app.page);
-    this.fitted = this.app.page?.sheet || 'A3';
+    this.fitted = (this.app.project && this.app.page?.sheet) || 'A3';
     const s = Math.max((sh.w + 16) / w, (sh.h + 16) / h);
     this.view = { s, x: sh.w / 2 - (w * s) / 2, y: sh.h / 2 - (h * s) / 2 };
     this.applyView();

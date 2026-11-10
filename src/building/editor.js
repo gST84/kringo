@@ -31,6 +31,11 @@ export const PLAN_PALETTE = [
   { key: 'window', label: 'Raam', tool: 'opening', opts: { type: 'window' }, icon: ico('<path d="M2 20h8M30 20h8" stroke-width="8"/><rect x="10" y="16" width="20" height="8" stroke-width="1.4"/><path d="M10 20h20" stroke-width="1.4"/>') },
   { key: 'slide', label: 'Schuifraam / -deur', tool: 'opening', opts: { type: 'slide' }, icon: ico('<path d="M2 20h6M32 20h6" stroke-width="8"/><path d="M8 17h16M16 23h16" stroke-width="2.4"/>') },
   { key: 'garage', label: 'Garagepoort', tool: 'opening', opts: { type: 'garage' }, icon: ico('<path d="M1 12h6M33 12h6" stroke-width="7"/><path d="M7 12h26" stroke-width="3"/><rect x="7" y="16" width="26" height="14" stroke-dasharray="3 2" stroke-width="1.4"/>') },
+  { key: 'passage-cv', group: 'Muurdoorvoeren', label: 'Muurdoorvoer CV', tool: 'opening', opts: { type: 'passage', media: 'cv' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#e03131" fill-opacity=".6" stroke="#e03131" stroke-width="1.6"/><path d="M20 8v24" stroke="#e03131" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-water', group: 'Muurdoorvoeren', label: 'Muurdoorvoer sanitair', tool: 'opening', opts: { type: 'passage', media: 'water' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#1c7ed6" fill-opacity=".6" stroke="#1c7ed6" stroke-width="1.6"/><path d="M20 8v24" stroke="#1c7ed6" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-drain', group: 'Muurdoorvoeren', label: 'Muurdoorvoer afvoer', tool: 'opening', opts: { type: 'passage', media: 'drain' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#7d5a3c" fill-opacity=".6" stroke="#7d5a3c" stroke-width="1.6"/><path d="M20 8v24" stroke="#7d5a3c" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-vent', group: 'Muurdoorvoeren', label: 'Muurdoorvoer ventilatie', tool: 'opening', opts: { type: 'passage', media: 'vent' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#2f9e44" fill-opacity=".6" stroke="#2f9e44" stroke-width="1.6"/><path d="M20 8v24" stroke="#2f9e44" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-elec', group: 'Muurdoorvoeren', label: 'Muurdoorvoer kabels', tool: 'opening', opts: { type: 'passage', media: 'elec' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#f08c00" fill-opacity=".6" stroke="#f08c00" stroke-width="1.6"/><path d="M20 8v24" stroke="#f08c00" stroke-width="1.2" stroke-dasharray="3 2"/>') },
   { key: 'stair', label: 'Trap', tool: 'stair', opts: { stair: 'straight' }, icon: ico('<rect x="12" y="3" width="16" height="34" stroke-width="1.6"/><path d="M12 10h16M12 16h16M12 22h16M12 28h16" stroke-width="1"/><path d="M20 34V6M16 10l4-4 4 4" stroke-width="1.4"/>') },
   { key: 'quarter', label: 'Kwartdraaitrap', tool: 'stair', opts: { stair: 'quarter' }, icon: ico('<path d="M4 4h32v12H16v20H4z" stroke-width="1.6"/><path d="M4 28h12M4 22h12M16 16L4 4M22 4v12M29 4v12" stroke-width="1"/><path d="M10 34V10h24M30 7l4 3-4 3" stroke-width="1.4"/>') },
   { key: 'spiral', label: 'Wenteltrap', tool: 'spiral', icon: ico('<circle cx="20" cy="20" r="16" stroke-width="1.6"/><circle cx="20" cy="20" r="3" stroke-width="1.2"/><path d="M20 17V4M23 20h13M20 23v13M17 20H4M22 18l9-9M22 22l9 9M18 22l-9 9M18 18 9 9" stroke-width="1"/>') },
@@ -154,7 +159,7 @@ export class PlanEditor {
     const byId = new Map(f.walls.map((w) => [w.id, w]));
     for (const o of f.openings) {
       const w = byId.get(o.wall);
-      if (!w) continue;
+      if (!w || o.type === 'passage') continue;
       const g = wallGeom(w), t = (w.t || 20) / 2;
       for (const tt of [o.pos - o.width / 2, o.pos + o.width / 2]) {
         const p = g.at(tt);
@@ -221,13 +226,13 @@ export class PlanEditor {
   // ---------- tools ----------
   setTool(tool, opts = {}) {
     this.tool = tool;
-    this.toolKey = opts.key || (tool === 'opening' ? (opts.leaf === false ? 'doorway' : opts.type || this.openingType) : tool === 'stair' ? (opts.stair === 'quarter' ? 'quarter' : 'stair') : tool);
+    this.toolKey = opts.key || (tool === 'opening' ? (opts.leaf === false ? 'doorway' : opts.type === 'passage' ? 'passage-' + (opts.media || 'cv') : opts.type || this.openingType) : tool === 'stair' ? (opts.stair === 'quarter' ? 'quarter' : 'stair') : tool);
     this.chain = null;
     this.pts = [];
     this.typed = '';
     this.linkFrom = null;
     this.placing = tool === 'place' ? { sym: opts.sym, rot: 0 } : null;
-    if (tool === 'opening') { this.openingType = opts.type || 'door'; this.openingLeaf = opts.leaf !== false; }
+    if (tool === 'opening') { this.openingType = opts.type || 'door'; this.openingLeaf = opts.leaf !== false; this.openingMedia = opts.media || 'cv'; }
     if (tool === 'stair') this.stairKind = opts.stair || 'straight';
     this.divider = tool === 'wall' && !!opts.divider;
     this.lineArrow = tool === 'line' ? opts.arrow || null : null;
@@ -988,6 +993,7 @@ export class PlanEditor {
     const type = this.openingType;
     const o = { id: uid('o'), wall: h.wall.id, pos: h.pos, width: h.width, type, side: h.side, hinge: 'l', height: OPENING_TYPES[type].height };
     if (!this.openingLeaf) o.leaf = false;
+    if (type === 'passage') o.media = this.openingMedia || 'cv';
     this.app.mutate(() => this.floor.openings.push(o));
     this.app.select(['O:' + o.id]);
   }

@@ -357,6 +357,14 @@ export function polygonArea(pts) {
   return Math.abs(a) / 2;
 }
 
+/** Wall passages (opening type 'passage'): what may pass through them, with their colour on the plan. */
+export const MEDIA = {
+  elec: { label: 'Kabels (elektriciteit, data)', color: '#f08c00' },
+  cv: { label: 'CV / vloerverwarming', color: '#e03131' },
+  water: { label: 'Sanitair water', color: '#1c7ed6' },
+  drain: { label: 'Afvoer', color: '#7d5a3c' },
+  vent: { label: 'Ventilatie', color: '#2f9e44' },
+};
 /** Room divider: a dashed line drawn like a wall that only bounds rooms (no openings, cables pass). */
 export const isDivider = (w) => w?.kind === 'divider';
 

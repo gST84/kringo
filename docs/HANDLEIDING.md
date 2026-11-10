@@ -20,6 +20,7 @@ Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Krin
    - [F. Een bestaand plan overtekenen (PDF als achtergrond)](#f-een-bestaand-plan-overtekenen-pdf-als-achtergrond)
    - [G. Ruimtes en uitwendige invloeden](#g-ruimtes-en-uitwendige-invloeden)
    - [H. Kabeltrace en kabellengtes](#h-kabeltrace-en-kabellengtes)
+   - [I. Vloerverwarming](#i-vloerverwarming)
 7. [Besturing: stuurkast](#7-besturing-stuurkast)
 8. [Besturing: hydraulica en pneumatica](#8-besturing-hydraulica-en-pneumatica)
 9. [Besturing: koelcircuits van machines](#9-besturing-koelcircuits-van-machines)
@@ -68,6 +69,7 @@ Alle tekentools staan links onder **Grondplan**.
 - Kies **Deur**, **Deuropening** (zonder deurblad), **Dubbele deur**, **Raam**, **Schuifraam / -deur** of **Garagepoort** en klik op een muur. De kant waar je muis staat bepaalt de draairichting.
 - Verslepen schuift de opening langs de muur; de **blauwe bolletjes aan de uiteinden** maken ze breder of smaller.
 - In de eigenschappen: type, breedte, hoogte, draairichting, scharnierzijde en *Zonder deurblad*.
+- **Muurdoorvoeren** (eigen groep in het paneel): een plaats waar leidingen door een muur mogen, per type een kleur: **CV** (rood), **sanitair** (blauw), **afvoer** (bruin), **ventilatie** (groen) en **kabels** (oranje). De muur blijft dicht; enkel leidingen van dat type gaan er bij het genereren door. Het type wijzig je in de eigenschappen. Een doorvoer voor kabels telt ook mee in de kabeltrace.
 
 ### Trappen
 
@@ -285,6 +287,19 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
    ![Kabellengtes per type en per kring](img/cables.png)
 
 > Het is een schatting: de routes volgen een raster van 10 cm door de ruimtes. Wijzig je het plan of de kringen, dan meldt Kringo dat je opnieuw moet genereren.
+
+### I. Vloerverwarming
+
+In het paneel **Symbolen** staan onder **CV en sanitair** de CV-ketel, de collector, radiator, convector, ventiloconvector, afvoerpunt en vloerputje, en onder **Ventilatie** de ventilatie-unit en de toevoer- en afvoerventielen.
+
+1. Duid de ruimtes aan met **Ruimte** (zie G) en zet een **Collector vloerverwarming** en een **CV-ketel** op het plan. In de eigenschappen van de collector vul je het **aantal uitgangen** in; zijn naam op het plan is de omschrijving of anders VV1, VV2 …
+2. Zet in de eigenschappen van een ruimte **Vloerverwarming in deze ruimte** aan. De **legafstand** (standaard 15 cm) en de **maximale lengte per kring** (standaard 100 m) kun je per ruimte aanpassen. Alles samen kan ook in het venster **Vloerverwarming** bovenaan.
+3. Klik op **Vloerverwarming genereren**. Per ruimte wordt de vloer gevuld met kringen in een **dubbele spiraal**: de aanvoer (rood) loopt naar binnen op twee keer de legafstand, keert in het midden en de retour (blauw) loopt ertussen terug naar buiten. De spiraal begint in de hoek die het dichtst bij de collector ligt, en blijft op een afstand van de muur (standaard 10 cm).
+4. Een kring is nooit langer dan het maximum, **aanvoer- en retourleiding naar de collector meegerekend**. Een grotere ruimte wordt in stroken verdeeld met elk een eigen kring; een L-vormige ruimte krijgt per rechthoek een kring. De kringen worden genummerd vanaf de collector (VV1.1, VV1.2 …), de dichtstbijzijnde eerst.
+5. De leidingen naar de collector liggen gebundeld naast elkaar en gaan enkel door **deuren en muurdoorvoeren voor CV**. De **hoofdleidingen** (dik) lopen van de CV-ketel naar elke collector; staat de ketel op een andere verdieping, dan lopen ze tot de stijgleiding onder de collector.
+6. Het venster toont per collector de kringen met oppervlakte, legafstand, lengte in de vloer, aanvoer + retour en totaal (ook als CSV), en waarschuwt bij te lange kringen, te weinig uitgangen of ruimtes zonder doorgang. Met het vinkje **verwarming** in de werkbalk zet je de tekening aan of uit.
+
+> Elke ruimte moet een collector op dezelfde verdieping hebben (automatisch de dichtstbijzijnde, of kies er een in het venster).
 
 ## 7. Besturing: stuurkast
 

@@ -3,6 +3,7 @@
 // The lengths (horizontal route + vertical drops to the boxes) are summed per cable type.
 import { t } from '../i18n.js';
 import { boardOf, circuitSymbols, wallGeom, wallPath } from './model.js';
+export { MEDIA } from './model.js';
 import { wallPolygon } from './render.js';
 import { cableText } from './eendraad.js';
 
@@ -28,7 +29,9 @@ export const TRACE_FIELDS = [
 export const traceCfg = (b) => ({ ...TRACE_DEFAULTS, ...(b.traceCfg || {}) });
 
 const PASSABLE = new Set(['door', 'door2', 'slide', 'garage']);
-const CELL = 10; // cm
+/** Can a route of `media` ('elec', 'cv' …) pass through this opening? Doors always; passages for their own media. */
+export const passable = (o, media = 'elec') => PASSABLE.has(o.type) || (o.type === 'passage' && (o.media || 'elec') === media);
+export const CELL = 10; // cm
 const DC_KINDS = new Set(['pv', 'mppt', 'dcbus', 'battery']);
 // not on a circuit cable: data sockets (own data cable from the patch cabinet) and bus inputs (bus cable)
 const LOW_KINDS = new Set(['data', 'dom-in']);
@@ -69,8 +72,8 @@ function fillPoly(grid, R, poly, value, only = -1) {
   }
 }
 
-/** Raster of a floor: 0 = free, 1 = wall, 2 = outside the building. */
-function raster(floor, extra) {
+/** Raster of a floor: 0 = free, 1 = wall, 2 = outside the building. `media`: which wall passages are open. */
+export function raster(floor, extra, media = 'elec') {
   const polys = floor.walls.filter((w) => w.kind !== 'divider').map((w) => wallPolygon(w, floor.walls)); // room dividers do not stop cables
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const p of [...polys.flat(), ...extra]) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
@@ -104,7 +107,7 @@ function raster(floor, extra) {
   const byId = new Map(floor.walls.map((w) => [w.id, w]));
   for (const o of floor.openings || []) {
     const w = byId.get(o.wall);
-    if (!w || !PASSABLE.has(o.type)) continue;
+    if (!w || !passable(o, media)) continue;
     const g = wallGeom(w);
     const half = (w.t || 20) / 2 + CELL;
     const a = Math.max(0, o.pos - o.width / 2 + 5), b = Math.min(g.len, o.pos + o.width / 2 - 5);
@@ -134,7 +137,7 @@ const cellOf = (R, x, y) => {
   const j = Math.min(R.H - 1, Math.max(0, Math.floor((y - R.y0) / CELL)));
   return j * R.W + i;
 };
-const centre = (R, c) => [R.x0 + ((c % R.W) + 0.5) * CELL, R.y0 + (Math.floor(c / R.W) + 0.5) * CELL];
+export const centre = (R, c) => [R.x0 + ((c % R.W) + 0.5) * CELL, R.y0 + (Math.floor(c / R.W) + 0.5) * CELL];
 
 /** Nearest free cell inside the building (symbols sit against or in a wall). */
 function snap(R, x, y) {
@@ -223,7 +226,7 @@ function astar(R, from, to) {
 }
 
 /** Route between two plan points on one floor: {cells, a, b} or null. Marks its cells as used. */
-function route(R, a, b) {
+export function route(R, a, b) {
   const ca = snap(R, a[0], a[1]), cb = snap(R, b[0], b[1]);
   if (ca < 0 || cb < 0) return null;
   const cells = astar(R, ca, cb);
@@ -245,7 +248,7 @@ const SPACING = 4; // cm between bundled cables
  * Turns the routes of one floor into drawn polylines: cables that share a piece of the raster lie
  * side by side (a fixed order per bundle), with small steps where a bundle changes.
  */
-function bundle(R, routes) {
+export function bundle(R, routes, spacing = SPACING) {
   const edges = new Map();
   const ek = (c1, c2) => (c1 < c2 ? c1 * 2 + (c2 - c1 === 1 ? 0 : 1) : c2 * 2 + (c1 - c2 === 1 ? 0 : 1));
   routes.forEach((rt, idx) => {
@@ -268,7 +271,7 @@ function bundle(R, routes) {
       const horizontal = Math.abs(cells[k + 1] - cells[k]) === 1;
       const list = edges.get(ek(cells[k], cells[k + 1]));
       dir.push(horizontal ? 'h' : 'v');
-      off.push((list.indexOf(idx) - (list.length - 1) / 2) * SPACING);
+      off.push((list.indexOf(idx) - (list.length - 1) / 2) * spacing);
     }
     // offset of a point: horizontal pieces shift in y, vertical pieces in x
     const shift = (p, d, o) => (d === 'h' ? [p[0], p[1] + o] : [p[0] + o, p[1]]);
@@ -294,7 +297,7 @@ function bundle(R, routes) {
 }
 
 /** Length of a route along the raster (without the bundle offsets). */
-const routeLen = (R, rt) => {
+export const routeLen = (R, rt) => {
   const P = rt.cells.map((c) => centre(R, c));
   return Math.abs(rt.a[0] - P[0][0]) + Math.abs(rt.a[1] - P[0][1]) + (rt.cells.length - 1) * CELL + Math.abs(rt.b[0] - P.at(-1)[0]) + Math.abs(rt.b[1] - P.at(-1)[1]);
 };
@@ -316,7 +319,7 @@ export function traceKey(b) {
   const parts = [JSON.stringify(b.traceCfg || {})];
   for (const f of b.floors) {
     parts.push(f.id, f.walls.map((w) => `${w.x1},${w.y1},${w.x2},${w.y2},${w.t},${w.cx ?? ''},${w.cy ?? ''}`).join(';'));
-    parts.push((f.openings || []).map((o) => `${o.wall},${o.type},${o.pos},${o.width}`).join(';'));
+    parts.push((f.openings || []).map((o) => `${o.wall},${o.type},${o.pos},${o.width},${o.media || ''}`).join(';'));
     parts.push(f.symbols.map((s) => `${s.id},${s.x},${s.y},${s.circuit || ''},${s.n || ''},${s.dom || ''},${s.props?.h ?? ''},${s.props?.board ?? ''}`).join(';'));
   }
   parts.push(b.circuits.map((c) => `${c.id},${c.parent},${cableText(c)}`).join(';'));

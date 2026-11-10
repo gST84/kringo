@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, isDivider, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isDivider, MEDIA, wallGeom, wallPath } from './model.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
 /** Sheet millimetres per plan centimetre. */
@@ -91,6 +91,7 @@ export const OPENING_TYPES = {
   window: { label: 'Raam', width: 120, height: 140 },
   slide: { label: 'Schuifraam / -deur', width: 240, height: 210 },
   garage: { label: 'Garagepoort', width: 250, height: 215 },
+  passage: { label: 'Muurdoorvoer (leidingen)', width: 20, height: 0 },
 };
 export const hasLeaf = (o) => (o.type === 'door' || o.type === 'door2') && o.leaf !== false;
 
@@ -103,6 +104,14 @@ function openingSvg(o, w, sw, sel) {
   const side = o.side === -1 ? -1 : 1;
   const off = (p, d) => [p.x + p.n[0] * d, p.y + p.n[1] * d];
   let s = `<g class="opening${sel ? ' sel' : ''}" data-k="O:${o.id}">`;
+  if (o.type === 'passage') {
+    // wall passage: the wall stays; a coloured band through it (the colour says which pipes may pass)
+    const col = (MEDIA[o.media] || MEDIA.elec).color;
+    s += `<polygon class="passage" points="${pts([...wallPath(w, t0, t1, t, g), ...wallPath(w, t1, t0, -t, g)])}" style="fill:${col};fill-opacity:.55;stroke:${col};stroke-width:${sw * 1.2}"/>`;
+    const M = g.at(o.pos), P1 = off(M, t + sw * 6), P2 = off(M, -t - sw * 6);
+    s += `<line x1="${r2(P1[0])}" y1="${r2(P1[1])}" x2="${r2(P2[0])}" y2="${r2(P2[1])}" style="stroke:${col};stroke-width:${sw};stroke-dasharray:${sw * 3} ${sw * 2}"/>`;
+    return s + '</g>';
+  }
   const gt = t + sw * 1.5; // also covers the wall outline
   s += `<polygon class="gap" points="${pts([...wallPath(w, t0, t1, gt, g), ...wallPath(w, t1, t0, -gt, g)])}"/>`;
   s += line(off(A, t), off(A, -t), sw) + line(off(B, t), off(B, -t), sw);
@@ -464,6 +473,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     s += `<path class="plink${sel.has('L:' + l.id) ? ' sel' : ''}" data-k="L:${l.id}" d="M ${r2(a.x)} ${r2(a.y)} Q ${r2(qx)} ${r2(qy)} ${r2(c.x)} ${r2(c.y)}" style="stroke:${LINK_COLORS[kind]};stroke-width:${sw * 1.2}" stroke-dasharray="${sw * 6} ${sw * 4}"/>`;
     if (!opts.print) s += `<path class="hit" data-k="L:${l.id}" d="M ${r2(a.x)} ${r2(a.y)} Q ${r2(qx)} ${r2(qy)} ${r2(c.x)} ${r2(c.y)}" style="stroke-width:${sw * 10}"/>`;
   }
+  if (b.heatShow && b.heat?.floors?.[floor.id]) s += heatSvg(b.heat.floors[floor.id], k, sw);
   if (b.traceShow && b.traces?.floors?.[floor.id]) s += traceSvg(b, floor, k, sw);
   for (const sym of floor.symbols) {
     const def = lib.get(sym.sym);
@@ -516,10 +526,29 @@ function traceSvg(b, floor, k, sw) {
   return s + '</g>';
 }
 
+const HEAT_COLORS = { s: '#e03131', r: '#1971c2' };
+
+/** Heating: main pipes (thick), feed pipes and the spiral loops (supply red, return blue), loop numbers. */
+function heatSvg(list, k, sw) {
+  let s = '<g class="pheat">';
+  const order = { loop: 0, feed: 1, main: 2 };
+  for (const it of [...list].filter((x) => x.pts).sort((a, c) => order[a.t] - order[c.t])) {
+    const w = it.t === 'main' ? 3.4 : it.t === 'feed' ? 1.6 : 1.3;
+    s += `<polyline class="pheatl" points="${pts(it.pts)}" style="stroke:${HEAT_COLORS[it.role] || '#555'};stroke-width:${r2(sw * w)}"/>`;
+  }
+  for (const it of list) {
+    if (it.t !== 'label') continue;
+    const w = Math.max(6, it.label.length * 1.45 + 2);
+    s += `<g transform="translate(${r2(it.at[0])} ${r2(it.at[1])}) scale(${1 / k})"><rect x="${r2(-w / 2)}" y="-1.8" width="${r2(w)}" height="3.6" rx="0.8" class="pheatbox"/>${textSvg(0, 0, it.label, 2.3, 'middle', 'tx pheattx')}</g>`;
+  }
+  return s + '</g>';
+}
+
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
 .plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
+.plan .pheat{pointer-events:none}.plan .pheatl{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.plan .pheatbox{fill:#fff;stroke:#c92a2a;stroke-width:.3}.plan .pheattx{fill:#c92a2a;font-weight:bold;dominant-baseline:central}
 .plan .ptraces{pointer-events:none}.plan .ptrace{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.8}.plan .ptracetx{fill:#fff;font-weight:bold;dominant-baseline:central}
 `;
 
