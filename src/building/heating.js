@@ -6,7 +6,7 @@
 // wall passages for CV ('passage' openings with media 'cv').
 import { t } from '../i18n.js';
 import { pathLength } from './render.js';
-import { roomPolygon } from './rooms.js';
+import { roomArea, roomPolygon } from './rooms.js';
 import { bundle, CELL, raster, route, routeLen } from './traces.js';
 
 export const HEAT_DEFAULTS = {
@@ -40,19 +40,35 @@ const segDist = (x, y, [ax, ay], [bx, by]) => {
   return Math.hypot(x - ax - dx * k, y - ay - dy * k);
 };
 
+/** Floor area already taken by the loops of other rooms (open plan: rooms that overlap). */
+export function newClaim(polys, pad = 50) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of polys.flat()) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  x0 = Math.floor((x0 - pad) / RC) * RC; y0 = Math.floor((y0 - pad) / RC) * RC;
+  const W = Math.ceil((x1 + pad - x0) / RC), H = Math.ceil((y1 + pad - y0) / RC);
+  return W > 0 && H > 0 && W * H < 4e6 ? { x0, y0, W, H, grid: new Uint8Array(W * H) } : null;
+}
+const claimIdx = (C, x, y) => {
+  const i = Math.floor((x - C.x0) / RC), j = Math.floor((y - C.y0) / RC);
+  return i >= 0 && j >= 0 && i < C.W && j < C.H ? j * C.W + i : -1;
+};
+
 /**
- * The heated floor of a room as rectangles (cm): the room is rasterised (keeping `margin` from the walls)
- * and the largest free rectangle is taken again and again, so an L-shaped room gives two rectangles.
+ * The heated floor of a room as rectangles (cm): the room is rasterised (keeping `margin` from the walls
+ * and from floor already claimed by other rooms) and the largest free rectangle is taken again and
+ * again, so an L-shaped room gives two rectangles. The rectangles are marked in `claim`.
  */
-export function floorRects(poly, margin, minSide, minArea) {
+export function floorRects(poly, margin, minSide, minArea, claim = null) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of poly) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  if (claim) { x0 = claim.x0 + Math.floor((x0 - claim.x0) / RC) * RC; y0 = claim.y0 + Math.floor((y0 - claim.y0) / RC) * RC; }
   const W = Math.ceil((x1 - x0) / RC), H = Math.ceil((y1 - y0) / RC);
   if (W <= 0 || H <= 0 || W * H > 4e5) return [];
   const free = new Uint8Array(W * H);
   for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
     const cx = x0 + (i + 0.5) * RC, cy = y0 + (j + 0.5) * RC;
     if (!inPoly(cx, cy, poly)) continue;
+    if (claim) { const c = claimIdx(claim, cx, cy); if (c >= 0 && claim.grid[c]) continue; }
     let d = Infinity;
     for (let k = 0; k < poly.length && d >= margin; k++) d = Math.min(d, segDist(cx, cy, poly[k], poly[(k + 1) % poly.length]));
     if (d >= margin - RC / 2) free[j * W + i] = 1;
@@ -81,8 +97,14 @@ export function floorRects(poly, margin, minSide, minArea) {
     if (!best) break;
     const w = (best.i1 - best.i0) * RC, hgt = (best.j1 - best.j0) * RC;
     if ((w * hgt) / 1e4 < minArea || Math.min(w, hgt) < minSide) break;
-    out.push({ x0: x0 + best.i0 * RC, y0: y0 + best.j0 * RC, x1: x0 + best.i1 * RC, y1: y0 + best.j1 * RC });
+    const q = { x0: x0 + best.i0 * RC, y0: y0 + best.j0 * RC, x1: x0 + best.i1 * RC, y1: y0 + best.j1 * RC };
+    out.push(q);
     for (let j = best.j0; j < best.j1; j++) for (let i = best.i0; i < best.i1; i++) free[j * W + i] = 0;
+    // the floor of other rooms keeps the wall distance from these loops too
+    if (claim) for (let y = q.y0 - margin + RC / 2; y < q.y1 + margin; y += RC) for (let x = q.x0 - margin + RC / 2; x < q.x1 + margin; x += RC) {
+      const c = claimIdx(claim, x, y);
+      if (c >= 0) claim.grid[c] = 1;
+    }
   }
   return out;
 }
@@ -108,7 +130,40 @@ function offsetOrtho(A, d) {
  * 2 bottom right, 3 bottom left): {supply, ret} polylines; supply starts at the corner, ret ends
  * next to it (`s` further inside).
  */
-export function spiral({ x0, y0, x1, y1 }, s, corner = 0) {
+export function spiral(q, s, corner = 0) {
+  // the middle only works out for some sizes: shrink the far sides a little (≤ 2 spacings) until it does
+  const tries = [];
+  for (let dw = 0; dw <= 2 * s; dw += 2.5) for (let dh = 0; dh <= 2 * s; dh += 2.5) tries.push([dw, dh]);
+  tries.sort((a, b) => a[0] + a[1] - b[0] - b[1]);
+  let first = null;
+  for (const [dw, dh] of tries) {
+    const sp = rawSpiral({ x0: q.x0, y0: q.y0, x1: q.x1 - dw, y1: q.y1 - dh }, s, corner, q);
+    if (!sp) continue;
+    first ||= sp;
+    if (cleanLoop(sp, s)) return sp;
+  }
+  return first;
+}
+
+/** True when no two parallel pieces of the loop are closer than the pipe spacing and no piece is tiny. */
+function cleanLoop(sp, s) {
+  const L = [...sp.supply, ...sp.ret];
+  const segs = [];
+  for (let i = 0; i + 1 < L.length; i++) segs.push([L[i], L[i + 1]]);
+  for (const [a, b] of segs) { const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > 0.01 && l < s * 0.5) return false; }
+  for (let i = 0; i < segs.length; i++) for (let j = i + 2; j < segs.length; j++) {
+    const [a, b] = segs[i], [c, d] = segs[j];
+    const hi = a[1] === b[1], hj = c[1] === d[1];
+    if (hi !== hj) continue;
+    const k = hi ? 0 : 1, o = 1 - k;
+    const ov = Math.min(Math.max(a[k], b[k]), Math.max(c[k], d[k])) - Math.max(Math.min(a[k], b[k]), Math.min(c[k], d[k]));
+    if (ov > 1 && Math.abs(a[o] - c[o]) < s - 0.5) return false;
+  }
+  return true;
+}
+
+/** The spiral itself in the rectangle {x0 … y1}; `frame` is the rectangle used for the mirroring (the full one). */
+function rawSpiral({ x0, y0, x1, y1 }, s, corner, frame) {
   const p = 2 * s;
   let l = x0, top = y0, r = x1, b = y1;
   const A = [[l, top]];
@@ -123,7 +178,7 @@ export function spiral({ x0, y0, x1, y1 }, s, corner = 0) {
   if (A.length < 2) return null;
   const B = offsetOrtho(A, s).reverse();
   const mx = corner === 1 || corner === 2, my = corner === 2 || corner === 3;
-  const tf = ([x, y]) => [Math.round((mx ? x0 + x1 - x : x) * 10) / 10, Math.round((my ? y0 + y1 - y : y) * 10) / 10];
+  const tf = ([x, y]) => [Math.round((mx ? frame.x0 + frame.x1 - x : x) * 10) / 10, Math.round((my ? frame.y0 + frame.y1 - y : y) * 10) / 10];
   return { supply: A.map(tf), ret: B.map(tf) };
 }
 
@@ -138,6 +193,22 @@ const splitRect = (q, n) => {
   return out;
 };
 const corners = (q) => [[q.x0, q.y0], [q.x1, q.y0], [q.x1, q.y1], [q.x0, q.y1]];
+/** Corner of a rectangle (0 … 3) nearest to a point. */
+const nearestCorner = (q, p) => {
+  const cs = corners(q);
+  let best = 0;
+  cs.forEach((c, i) => { if (Math.hypot(c[0] - p[0], c[1] - p[1]) < Math.hypot(cs[best][0] - p[0], cs[best][1] - p[1])) best = i; });
+  return best;
+};
+/** Where a probe route first reaches the room (its first raster cell inside the room polygon). */
+function entryPoint(R, probe, poly) {
+  if (!R || !probe) return null;
+  for (const c of probe.cells) {
+    const x = R.x0 + ((c % R.W) + 0.5) * CELL, y = R.y0 + (Math.floor(c / R.W) + 0.5) * CELL;
+    if (inPoly(x, y, poly)) return [x, y];
+  }
+  return null;
+}
 
 /** Fingerprint of everything the heating plan depends on (to see that it is out of date). */
 export function heatKey(b, lib) {
@@ -204,6 +275,26 @@ export function generateHeating(b, lib) {
     jobs.get(col.s.id).push({ f, r, poly, cfg });
   }
 
+  // heated floor per room, per floor: smallest rooms first, so where rooms overlap (open kitchen in a
+  // living area …) the floor is heated once, by the smaller room
+  const allJobs = [...jobs.values()].flat();
+  for (const f of b.floors) {
+    const list = allJobs.filter((j) => j.f === f).sort((p, q) => roomArea(p.poly) - roomArea(q.poly));
+    if (!list.length) continue;
+    const claim = newClaim(list.map((j) => j.poly));
+    for (const j of list) j.rects = floorRects(j.poly, heatCfg(b).margin, 4 * j.cfg.spacing, heatCfg(b).minArea, claim);
+    // feed pipes avoid running through heated floor (except close to the walls)
+    const R = rasterOf(f);
+    if (!R) continue;
+    R.pen = new Float32Array(R.W * R.H).fill(1);
+    const inset = 25;
+    for (const j of list) for (const q of j.rects) {
+      const i0 = Math.max(0, Math.ceil((q.x0 + inset - R.x0) / CELL)), i1 = Math.min(R.W - 1, Math.floor((q.x1 - inset - R.x0) / CELL) - 1);
+      const j0 = Math.max(0, Math.ceil((q.y0 + inset - R.y0) / CELL)), j1 = Math.min(R.H - 1, Math.floor((q.y1 - inset - R.y0) / CELL) - 1);
+      for (let jj = j0; jj <= j1; jj++) for (let ii = i0; ii <= i1; ii++) R.pen[jj * R.W + ii] = 4;
+    }
+  }
+
   for (const col of cols) {
     const f = col.floor;
     const R = rasterOf(f);
@@ -214,18 +305,33 @@ export function generateHeating(b, lib) {
     // feed length estimate per room: route to the middle of every rectangle
     for (const { r, poly, cfg } of jobs.get(col.s.id)) {
       const s = cfg.spacing;
-      const rects = floorRects(poly, heatCfg(b).margin, 4 * s, heatCfg(b).minArea);
+      const rects = jobs.get(col.s.id).find((j) => j.r === r).rects || [];
       if (!rects.length) { warnings.push(t('{r}: te klein voor vloerverwarming.', { r: r.name || '?' })); continue; }
       for (const q of rects) {
         // probe route (not marked as used) to find where the feed enters and how long it is
-        const probe = R && route({ ...R, used: new Uint8Array(R.W * R.H) }, cp, [(q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2]);
+        const probeR = R && { ...R, used: new Uint8Array(R.W * R.H) };
+        const probe = R && route(probeR, cp, [(q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2]);
         const feed = probe ? routeLen(R, probe) / 100 : (Math.abs(cp[0] - q.x0) + Math.abs(cp[1] - q.y0)) / 100;
+        const entry = entryPoint(R, probe, poly) || cp;
         const coilEst = ((q.x1 - q.x0) * (q.y1 - q.y0)) / s / 100; // m
         let n = Math.max(1, Math.ceil(coilEst / Math.max(cfg.maxLen * 0.25, cfg.maxLen - 2 * feed)));
         // never narrower than 4 spacings
         const long = Math.max(q.x1 - q.x0, q.y1 - q.y0);
-        n = Math.min(n, Math.max(1, Math.floor(long / (4 * s))));
-        for (const part of splitRect(q, n)) pieces.push({ r, poly, cfg, q: part, probe, feed });
+        const nMax = Math.max(1, Math.floor(long / (4 * s)));
+        n = Math.min(n, nMax);
+        // check the real lengths (spiral + feed to its corner and back) and split further when needed
+        for (; n < nMax; n++) {
+          const ok = splitRect(q, n).every((part) => {
+            const corner = nearestCorner(part, entry);
+            const sp = spiral(part, s, corner);
+            if (!sp) return true;
+            const rt = probeR && route({ ...probeR, used: new Uint8Array(R.W * R.H) }, cp, sp.supply[0]);
+            const fl = rt ? routeLen(R, rt) / 100 : feed;
+            return (pathLength(sp.supply) + pathLength(sp.ret) + s) / 100 + 2 * fl + 0.5 <= cfg.maxLen;
+          });
+          if (ok) break;
+        }
+        for (const part of splitRect(q, n)) pieces.push({ r, poly, cfg, q: part, entry, feed });
       }
     }
     // closest pieces first: they get the low outlet numbers and the straightest feeds
@@ -234,18 +340,7 @@ export function generateHeating(b, lib) {
       const { r, cfg, q } = pc;
       const s = cfg.spacing;
       // entry corner: nearest to where the feed reaches the room (or to the manifold)
-      let entry = cp;
-      if (pc.probe && R) {
-        const cells = pc.probe.cells;
-        const inside = cells.find((c) => {
-          const x = R.x0 + ((c % R.W) + 0.5) * CELL, y = R.y0 + (Math.floor(c / R.W) + 0.5) * CELL;
-          return inPoly(x, y, pc.poly);
-        });
-        if (inside != null) entry = [R.x0 + ((inside % R.W) + 0.5) * CELL, R.y0 + (Math.floor(inside / R.W) + 0.5) * CELL];
-      }
-      const cs = corners(q);
-      let corner = 0;
-      cs.forEach((c, i) => { if (Math.hypot(c[0] - entry[0], c[1] - entry[1]) < Math.hypot(cs[corner][0] - entry[0], cs[corner][1] - entry[1])) corner = i; });
+      const corner = nearestCorner(q, pc.entry);
       const sp = spiral(q, s, corner);
       if (!sp) return;
       const n = idx + 1;

@@ -165,6 +165,7 @@ function snap(R, x, y) {
  */
 function astar(R, from, to) {
   const { W, H, grid, nearWall, used } = R;
+  const pen = R.pen; // optional extra cost per cell (e.g. heated floor that feed pipes should avoid)
   const N = W * H * 4;
   const g = new Float64Array(N).fill(Infinity);
   const prev = new Int32Array(N).fill(-1);
@@ -214,7 +215,7 @@ function astar(R, from, to) {
       if (grid[n]) continue;
       const ns = n * 4 + nd;
       if (closed[ns]) continue;
-      const step = (nearWall[n] ? 0.8 : 1) * (used[n] ? 0.5 : 1) + (nd === d ? 0 : TURN);
+      const step = (nearWall[n] ? 0.8 : 1) * (used[n] ? 0.5 : 1) * (pen ? pen[n] : 1) + (nd === d ? 0 : TURN);
       const ng = g[st] + step;
       if (ng < g[ns]) { g[ns] = ng; prev[ns] = st; pushH(ng + hcost(n), ns); }
     }
@@ -267,11 +268,20 @@ export function bundle(R, routes, spacing = SPACING) {
       return [...elbow(a, m, false), m, ...elbow(b, m, true).reverse()];
     }
     const dir = [], off = [];
-    for (let k = 0; k + 1 < cells.length; k++) {
-      const horizontal = Math.abs(cells[k + 1] - cells[k]) === 1;
-      const list = edges.get(ek(cells[k], cells[k + 1]));
-      dir.push(horizontal ? 'h' : 'v');
-      off.push((list.indexOf(idx) - (list.length - 1) / 2) * spacing);
+    for (let k = 0; k + 1 < cells.length; k++) dir.push(Math.abs(cells[k + 1] - cells[k]) === 1 ? 'h' : 'v');
+    // one offset per straight run: the place in the busiest piece of that run, so a route keeps its lane
+    // where others leave the bundle (no stair steps); it only changes lane at a bend
+    for (let k0 = 0; k0 < dir.length;) {
+      let k1 = k0;
+      while (k1 + 1 < dir.length && dir[k1 + 1] === dir[k0]) k1++;
+      let best = null;
+      for (let k = k0; k <= k1; k++) {
+        const list = edges.get(ek(cells[k], cells[k + 1]));
+        if (!best || list.length > best.length) best = list;
+      }
+      const o = (best.indexOf(idx) - (best.length - 1) / 2) * spacing;
+      for (let k = k0; k <= k1; k++) off.push(o);
+      k0 = k1 + 1;
     }
     // offset of a point: horizontal pieces shift in y, vertical pieces in x
     const shift = (p, d, o) => (d === 'h' ? [p[0], p[1] + o] : [p[0] + o, p[1]]);
