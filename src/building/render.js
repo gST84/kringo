@@ -534,13 +534,30 @@ function traceSvg(b, floor, k, sw) {
 
 const HEAT_COLORS = { s: '#e03131', r: '#1971c2' };
 
+/** Path through the points with every corner rounded (radius at most half of the pieces beside it). */
+export function roundedPath(P, rad) {
+  const q = P.filter((p, i) => !i || Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]) > 0.01);
+  if (q.length < 3) return 'M' + q.map((p) => p.map(r2).join(' ')).join('L');
+  let d = `M${r2(q[0][0])} ${r2(q[0][1])}`;
+  for (let i = 1; i < q.length - 1; i++) {
+    const [ax, ay] = q[i - 1], [bx, by] = q[i], [cx, cy] = q[i + 1];
+    const l1 = Math.hypot(bx - ax, by - ay), l2 = Math.hypot(cx - bx, cy - by);
+    const r = Math.min(rad, l1 / 2, l2 / 2);
+    const p1 = [bx - ((bx - ax) / l1) * r, by - ((by - ay) / l1) * r], p2 = [bx + ((cx - bx) / l2) * r, by + ((cy - by) / l2) * r];
+    d += `L${r2(p1[0])} ${r2(p1[1])}Q${r2(bx)} ${r2(by)} ${r2(p2[0])} ${r2(p2[1])}`;
+  }
+  return d + `L${r2(q.at(-1)[0])} ${r2(q.at(-1)[1])}`;
+}
+
 /** Heating: main pipes (thick), feed pipes and the spiral loops (supply red, return blue), loop numbers. */
 function heatSvg(list, k, sw) {
   let s = '<g class="pheat">';
   const order = { loop: 0, feed: 1, main: 2 };
   for (const it of [...list].filter((x) => x.pts).sort((a, c) => order[a.t] - order[c.t])) {
     const w = it.t === 'main' ? 3.4 : it.t === 'feed' ? 1.6 : 1.3;
-    s += `<polyline class="pheatl" points="${pts(it.pts)}" style="stroke:${HEAT_COLORS[it.role] || '#555'};stroke-width:${r2(sw * w)}"/>`;
+    // pipes are bent, not mitred: rounded corners (half the spacing in a loop)
+    const rad = it.t === 'loop' ? (it.s || 15) / 2 : it.t === 'feed' ? 5 : 10;
+    s += `<path class="pheatl" d="${roundedPath(it.pts, rad)}" style="stroke:${HEAT_COLORS[it.role] || '#555'};stroke-width:${r2(sw * w)}"/>`;
   }
   for (const it of list) {
     if (it.t !== 'label') continue;

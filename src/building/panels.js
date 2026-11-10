@@ -1319,7 +1319,8 @@ export function heatingDialog(app) {
     const defaults = h('div', { class: 'cablegrid' },
       h('label', { class: 'tf' }, h('span', null, t('Legafstand (cm)')), numIn(cfg.spacing, (v) => { (b.heatCfg ||= {}).spacing = v || HEAT_DEFAULTS.spacing; })),
       h('label', { class: 'tf' }, h('span', null, t('Max. lengte per kring (m)')), numIn(cfg.maxLen, (v) => { (b.heatCfg ||= {}).maxLen = v || HEAT_DEFAULTS.maxLen; })),
-      h('label', { class: 'tf' }, h('span', null, t('Afstand tot de muur (cm)')), numIn(cfg.margin, (v) => { (b.heatCfg ||= {}).margin = v ?? HEAT_DEFAULTS.margin; })));
+      h('label', { class: 'tf' }, h('span', null, t('Afstand tot de muur (cm)')), numIn(cfg.margin, (v) => { (b.heatCfg ||= {}).margin = v ?? HEAT_DEFAULTS.margin; })),
+      h('label', { class: 'tf' }, h('span', null, t('Afstand tussen aanvoerleidingen (cm)')), numIn(cfg.feedGap, (v) => { (b.heatCfg ||= {}).feedGap = v || HEAT_DEFAULTS.feedGap; })));
     const rooms = [];
     b.floors.forEach((f) => (f.rooms || []).forEach((r) => rooms.push({ f, r })));
     const roomRows = rooms.map(({ f, r }) => {
@@ -1340,7 +1341,7 @@ export function heatingDialog(app) {
     const show = h('input', { type: 'checkbox', checked: !!b.heatShow, disabled: !hr });
     show.addEventListener('change', () => { app.mutate(() => { b.heatShow = show.checked; }); app.emit('change'); });
     const parts = [
-      h('p', { class: 'hint' }, 'Per verwarmde ruimte wordt de vloer gevuld met kringen in een dubbele spiraal (aanvoer naar binnen, retour ertussen terug naar buiten), vertrekkend van de collector. Een kring is nooit langer dan het maximum (aanvoer- en retourleiding naar de collector meegerekend); grote ruimtes krijgen meerdere kringen. Leidingen gaan enkel door deuren en muurdoorvoeren voor CV. De hoofdleidingen lopen van de CV-ketel naar elke collector.'),
+      h('p', { class: 'hint' }, 'Per verwarmde ruimte wordt de vloer gevuld met kringen in een dubbele spiraal (aanvoer naar binnen, retour ertussen terug naar buiten), vertrekkend van de collector. Een kring is nooit langer dan het maximum (aanvoer- en retourleiding naar de collector meegerekend); grote ruimtes krijgen meerdere kringen. De aanvoerleidingen liggen elk in een eigen strook (behalve aan de collector en in deuren) en tellen mee als verwarming: de spiralen liggen eromheen. Leidingen gaan enkel door deuren en muurdoorvoeren voor CV. De hoofdleidingen lopen van de CV-ketel naar elke collector.'),
       h('h4', null, t('Standaard')), defaults,
       h('h4', null, t('Ruimtes')),
       rooms.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable' },
@@ -1350,7 +1351,11 @@ export function heatingDialog(app) {
       h('div', { class: 'btnrow' },
         h('button', {
           class: 'primary',
-          onclick: () => {
+          onclick: async (e) => {
+            // can take a few seconds on a large floor: show that it is busy first
+            e.currentTarget.disabled = true;
+            e.currentTarget.textContent = t('Bezig met berekenen…');
+            await new Promise((r) => setTimeout(r, 30));
             app.mutate(() => { generateHeating(b, app.lib); b.heatShow = true; });
             app.setMode('building');
             app.emit('change');

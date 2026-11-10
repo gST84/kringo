@@ -7,13 +7,14 @@
 import { t } from '../i18n.js';
 import { pathLength } from './render.js';
 import { roomArea, roomPolygon } from './rooms.js';
-import { bundle, CELL, raster, route, routeLen } from './traces.js';
+import { bundle, CELL, centre, raster, route, routeLen } from './traces.js';
 
 export const HEAT_DEFAULTS = {
   spacing: 15, // cm between pipes
   maxLen: 100, // m per loop, feed pipes included
   margin: 10, // cm from the wall to the first pipe
-  minArea: 0.5, // m², smaller pieces of a room stay unheated
+  feedGap: 10, // cm between feed pipes (each its own lane, except at the manifold)
+  minArea: 1, // m², smaller pieces of a room stay unheated
 };
 export const heatCfg = (b) => ({ ...HEAT_DEFAULTS, ...(b.heatCfg || {}) });
 /** Settings of a room (its own values over the project defaults). */
@@ -182,13 +183,15 @@ function rawSpiral({ x0, y0, x1, y1 }, s, corner, frame) {
   return { supply: A.map(tf), ret: B.map(tf) };
 }
 
-/** Splits a rectangle into n strips across its longer side. */
-const splitRect = (q, n) => {
+/** Splits a rectangle into n strips across its longer side, `s` apart (pipe spacing between loops). */
+const splitRect = (q, n, s = 0) => {
   const out = [];
   const horiz = q.x1 - q.x0 >= q.y1 - q.y0;
+  const g = n > 1 ? s / 2 : 0;
   for (let k = 0; k < n; k++) {
-    if (horiz) out.push({ ...q, x0: q.x0 + ((q.x1 - q.x0) * k) / n, x1: q.x0 + ((q.x1 - q.x0) * (k + 1)) / n });
-    else out.push({ ...q, y0: q.y0 + ((q.y1 - q.y0) * k) / n, y1: q.y0 + ((q.y1 - q.y0) * (k + 1)) / n });
+    const a = k ? g : 0, z = k < n - 1 ? g : 0;
+    if (horiz) out.push({ ...q, x0: q.x0 + ((q.x1 - q.x0) * k) / n + a, x1: q.x0 + ((q.x1 - q.x0) * (k + 1)) / n - z });
+    else out.push({ ...q, y0: q.y0 + ((q.y1 - q.y0) * k) / n + a, y1: q.y0 + ((q.y1 - q.y0) * (k + 1)) / n - z });
   }
   return out;
 };
@@ -204,7 +207,7 @@ const nearestCorner = (q, p) => {
 function entryPoint(R, probe, poly) {
   if (!R || !probe) return null;
   for (const c of probe.cells) {
-    const x = R.x0 + ((c % R.W) + 0.5) * CELL, y = R.y0 + (Math.floor(c / R.W) + 0.5) * CELL;
+    const [x, y] = centre(R, c);
     if (inPoly(x, y, poly)) return [x, y];
   }
   return null;
@@ -244,21 +247,24 @@ export function generateHeating(b, lib) {
   const loops = [];
   const collectors = [];
   const names = collectorNames(b, lib);
+  const hc = heatCfg(b);
   const all = [];
   for (const f of b.floors) for (const s of f.symbols) { const hv = lib.get(s.sym)?.hvac; if (hv) all.push({ s, floor: f, hv }); }
   const boilers = all.filter((x) => x.hv === 'boiler');
   const cols = all.filter((x) => x.hv === 'collector');
+  // two rasters per floor: 10 cm for estimates and the main pipes, 5 cm for the feed pipes (own lane each)
   const rasters = new Map();
-  const rasterOf = (f) => {
-    if (!rasters.has(f.id)) rasters.set(f.id, raster(f, f.symbols.map((s) => [s.x, s.y]), 'cv'));
-    return rasters.get(f.id);
+  const rasterOf = (f, cell = CELL) => {
+    const key = f.id + ':' + cell;
+    if (!rasters.has(key)) rasters.set(key, raster(f, f.symbols.map((s) => [s.x, s.y]), 'cv', cell));
+    return rasters.get(key);
   };
   const draw = (f) => (floors[f.id] ||= []);
 
   if (!cols.length) warnings.push(t('Geen collector op het plan: plaats een collector (Technieken › CV en sanitair).'));
 
   // rooms with underfloor heating, each assigned to a manifold
-  const jobs = new Map(cols.map((c) => [c.s.id, []]));
+  const jobs = [];
   for (const f of b.floors) for (const r of f.rooms || []) {
     const cfg = roomHeat(b, r);
     if (!cfg.on) continue;
@@ -272,101 +278,172 @@ export function generateHeating(b, lib) {
     }
     if (!col) { warnings.push(t('{r}: geen collector op deze verdieping.', { r: r.name || '?' })); continue; }
     if (col.floor !== f) { warnings.push(t('{r}: de collector staat op een andere verdieping.', { r: r.name || '?' })); continue; }
-    jobs.get(col.s.id).push({ f, r, poly, cfg });
+    jobs.push({ f, r, poly, cfg, col });
   }
 
-  // heated floor per room, per floor: smallest rooms first, so where rooms overlap (open kitchen in a
-  // living area …) the floor is heated once, by the smaller room
-  const allJobs = [...jobs.values()].flat();
   for (const f of b.floors) {
-    const list = allJobs.filter((j) => j.f === f).sort((p, q) => roomArea(p.poly) - roomArea(q.poly));
-    if (!list.length) continue;
-    const claim = newClaim(list.map((j) => j.poly));
-    for (const j of list) j.rects = floorRects(j.poly, heatCfg(b).margin, 4 * j.cfg.spacing, heatCfg(b).minArea, claim);
-    // feed pipes avoid running through heated floor (except close to the walls)
-    const R = rasterOf(f);
-    if (!R) continue;
-    R.pen = new Float32Array(R.W * R.H).fill(1);
-    const inset = 25;
-    for (const j of list) for (const q of j.rects) {
-      const i0 = Math.max(0, Math.ceil((q.x0 + inset - R.x0) / CELL)), i1 = Math.min(R.W - 1, Math.floor((q.x1 - inset - R.x0) / CELL) - 1);
-      const j0 = Math.max(0, Math.ceil((q.y0 + inset - R.y0) / CELL)), j1 = Math.min(R.H - 1, Math.floor((q.y1 - inset - R.y0) / CELL) - 1);
-      for (let jj = j0; jj <= j1; jj++) for (let ii = i0; ii <= i1; ii++) R.pen[jj * R.W + ii] = 4;
-    }
-  }
-
-  for (const col of cols) {
-    const f = col.floor;
-    const R = rasterOf(f);
-    const name = names.get(col.s.id);
-    const routes = []; // {cells, a, b, role, label}
-    const pieces = [];
-    const cp = [col.s.x, col.s.y];
-    // feed length estimate per room: route to the middle of every rectangle
-    for (const { r, poly, cfg } of jobs.get(col.s.id)) {
-      const s = cfg.spacing;
-      const rects = jobs.get(col.s.id).find((j) => j.r === r).rects || [];
-      if (!rects.length) { warnings.push(t('{r}: te klein voor vloerverwarming.', { r: r.name || '?' })); continue; }
-      for (const q of rects) {
-        // probe route (not marked as used) to find where the feed enters and how long it is
-        const probeR = R && { ...R, used: new Uint8Array(R.W * R.H) };
-        const probe = R && route(probeR, cp, [(q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2]);
-        const feed = probe ? routeLen(R, probe) / 100 : (Math.abs(cp[0] - q.x0) + Math.abs(cp[1] - q.y0)) / 100;
-        const entry = entryPoint(R, probe, poly) || cp;
-        const coilEst = ((q.x1 - q.x0) * (q.y1 - q.y0)) / s / 100; // m
-        let n = Math.max(1, Math.ceil(coilEst / Math.max(cfg.maxLen * 0.25, cfg.maxLen - 2 * feed)));
-        // never narrower than 4 spacings
-        const long = Math.max(q.x1 - q.x0, q.y1 - q.y0);
-        const nMax = Math.max(1, Math.floor(long / (4 * s)));
-        n = Math.min(n, nMax);
-        // check the real lengths (spiral + feed to its corner and back) and split further when needed
-        for (; n < nMax; n++) {
-          const ok = splitRect(q, n).every((part) => {
-            const corner = nearestCorner(part, entry);
-            const sp = spiral(part, s, corner);
-            if (!sp) return true;
-            const rt = probeR && route({ ...probeR, used: new Uint8Array(R.W * R.H) }, cp, sp.supply[0]);
-            const fl = rt ? routeLen(R, rt) / 100 : feed;
-            return (pathLength(sp.supply) + pathLength(sp.ret) + s) / 100 + 2 * fl + 0.5 <= cfg.maxLen;
-          });
-          if (ok) break;
+    const fjobs = jobs.filter((j) => j.f === f).sort((p, q) => roomArea(p.poly) - roomArea(q.poly));
+    const fcols = cols.filter((c) => c.floor === f);
+    if (!fjobs.length || !fcols.length) continue;
+    // pass 1: lay out and route; then keep strips free around the feed pipes and lay out again, so the
+    // loops lie around the feed pipes instead of under them (the feed pipes heat those strips)
+    let res = layoutFloor(f, fjobs, fcols, null);
+    const free = res.claimTemplate;
+    if (free && res.feedCells.length) {
+      const Rf = res.Rf;
+      const keep = Math.max(...fjobs.map((j) => j.cfg.spacing)); // distance feed pipe ↔ loop
+      for (const c of res.feedCells) {
+        const [x, y] = centre(Rf, c);
+        if (res.nearCol(x, y)) continue;
+        for (let dy = -keep; dy <= keep; dy += RC) for (let dx = -keep; dx <= keep; dx += RC) {
+          const k = claimIdx(free, x + dx, y + dy);
+          if (k >= 0) free.grid[k] = 1;
         }
-        for (const part of splitRect(q, n)) pieces.push({ r, poly, cfg, q: part, entry, feed });
+      }
+      res = layoutFloor(f, fjobs, fcols, free);
+      // a loop that came out too long (its feed pipes made a detour): one loop more in that piece of floor
+      const bump = new Map();
+      for (let i = 0; i < 3 && res.over.size; i++) {
+        for (const k of res.over) bump.set(k, (bump.get(k) || 0) + 1);
+        res = layoutFloor(f, fjobs, fcols, free, bump);
       }
     }
-    // closest pieces first: they get the low outlet numbers and the straightest feeds
-    pieces.sort((p, q) => p.feed - q.feed);
-    pieces.forEach((pc, idx) => {
-      const { r, cfg, q } = pc;
-      const s = cfg.spacing;
-      // entry corner: nearest to where the feed reaches the room (or to the manifold)
-      const corner = nearestCorner(q, pc.entry);
-      const sp = spiral(q, s, corner);
-      if (!sp) return;
-      const n = idx + 1;
-      const label = `${name}.${n}`;
-      const coil = (pathLength(sp.supply) + pathLength(sp.ret) + s) / 100;
-      const sup = R && route(R, cp, sp.supply[0]);
-      const ret = R && route(R, sp.ret.at(-1), cp);
-      if (sup) routes.push({ ...sup, role: 's', n });
-      if (ret) routes.push({ ...ret, role: 'r', n });
-      const feed = ((sup ? routeLen(R, sup) : 0) + (ret ? routeLen(R, ret) : 0)) / 100;
-      if (!sup || !ret) warnings.push(t('{l} ({r}): geen doorgang naar de collector (deur of muurdoorvoer CV).', { l: label, r: r.name || '?' }));
-      draw(f).push({ t: 'loop', role: 's', pts: sp.supply, n }, { t: 'loop', role: 'r', pts: [sp.supply.at(-1), ...sp.ret], n },
-        { t: 'label', at: [(q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2], label });
-      const total = Math.round((coil + feed) * 10) / 10;
-      loops.push({ collector: col.s.id, name, n, room: r.name || '', floor: f.name, area: Math.round(((q.x1 - q.x0) * (q.y1 - q.y0)) / 1e3) / 10, spacing: s, coil: Math.round(coil * 10) / 10, feed: Math.round(feed * 10) / 10, total, max: cfg.maxLen });
-      if (total > cfg.maxLen) warnings.push(t('{l} ({r}): {n} m is langer dan het maximum van {m} m.', { l: label, r: r.name || '?', n: String(total).replace('.', ','), m: cfg.maxLen }));
-    });
-    const outlets = +col.s.props?.outlets || 0;
-    const used = pieces.length;
-    collectors.push({ id: col.s.id, name, floor: f.name, loops: used, outlets });
-    if (outlets && used > outlets) warnings.push(t('{c}: {n} kringen maar slechts {m} uitgangen.', { c: name, n: used, m: outlets }));
-    // feed pipes of one manifold lie side by side
-    if (R && routes.length) {
-      const lines = bundle(R, routes, 5);
-      routes.forEach((rt, i) => draw(f).push({ t: 'feed', role: rt.role, n: rt.n, pts: lines[i].map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) }));
+    for (const w of res.warnings) warnings.push(w);
+    for (const it of res.draw) draw(f).push(it);
+    loops.push(...res.loops);
+    collectors.push(...res.collectors);
+  }
+
+  /** Loops of one floor: rectangles, spirals and the feed pipes (each in its own lane). */
+  function layoutFloor(f, fjobs, fcols, preClaim, bump = new Map()) {
+    const out = { warnings: [], draw: [], loops: [], collectors: [], feedCells: [], over: new Set() };
+    const R = rasterOf(f, CELL), Rf = rasterOf(f, RC);
+    out.Rf = Rf;
+    if (!R || !Rf) return out;
+    const claim = newClaim(fjobs.map((j) => j.poly));
+    out.claimTemplate = claim && { ...claim, grid: new Uint8Array(claim.grid.length) };
+    if (claim && preClaim) claim.grid.set(preClaim.grid);
+    for (const j of fjobs) j.rects = floorRects(j.poly, hc.margin, 3 * j.cfg.spacing, hc.minArea, claim);
+    // feed pipes avoid heated floor (except close to the walls); in pass 2 they may not cross it at all
+    for (const RR of [R, Rf]) {
+      RR.pen = new Float32Array(RR.W * RR.H).fill(1);
+      RR.used.fill(0);
+      const inset = preClaim ? 5 : 20;
+      for (const j of fjobs) for (const q of j.rects) {
+        const C = RR.cell;
+        const i0 = Math.max(0, Math.ceil((q.x0 + inset - RR.x0) / C)), i1 = Math.min(RR.W - 1, Math.floor((q.x1 - inset - RR.x0) / C) - 1);
+        const j0 = Math.max(0, Math.ceil((q.y0 + inset - RR.y0) / C)), j1 = Math.min(RR.H - 1, Math.floor((q.y1 - inset - RR.y0) / C) - 1);
+        for (let jj = j0; jj <= j1; jj++) for (let ii = i0; ii <= i1; ii++) RR.pen[jj * RR.W + ii] = 12;
+      }
     }
+    // pipes come together at the manifold: no own lanes within 60 cm of it
+    const nearCol = (x, y) => fcols.some((c) => Math.hypot(x - c.s.x, y - c.s.y) < 60);
+    out.nearCol = nearCol;
+    const lanes = new Uint8Array(Rf.W * Rf.H);
+    // pass 2: the loops' floor is out of bounds for feed pipes of other loops
+    let rectMask = null;
+    if (preClaim) {
+      rectMask = new Uint8Array(Rf.W * Rf.H);
+      for (const j of fjobs) for (const q of j.rects) {
+        const i0 = Math.max(0, Math.floor((q.x0 - Rf.x0) / RC)), i1 = Math.min(Rf.W - 1, Math.ceil((q.x1 - Rf.x0) / RC) - 1);
+        const j0 = Math.max(0, Math.floor((q.y0 - Rf.y0) / RC)), j1 = Math.min(Rf.H - 1, Math.ceil((q.y1 - Rf.y0) / RC) - 1);
+        for (let jj = j0; jj <= j1; jj++) for (let ii = i0; ii <= i1; ii++) rectMask[jj * Rf.W + ii] = 1;
+      }
+    }
+    const lane = Math.max(0, Math.round((hc.feedGap || 10) / RC) - 1); // cells blocked beside a pipe
+    const takeLane = (cells) => {
+      for (const c of cells) {
+        const [x, y] = centre(Rf, c);
+        if (nearCol(x, y) || Rf.door[c]) continue; // at the manifold and in doors the pipes lie close together
+        const i = c % Rf.W, jj = Math.floor(c / Rf.W);
+        for (let dj = -lane; dj <= lane; dj++) for (let di = -lane; di <= lane; di++) {
+          const ni = i + di, nj = jj + dj;
+          const k = nj * Rf.W + ni;
+          if (ni >= 0 && nj >= 0 && ni < Rf.W && nj < Rf.H && !Rf.door[k]) lanes[k] = 1;
+        }
+      }
+    };
+    // own lane and not over other loops; else closer together; else (no other way) across a loop
+    const routeLane = (a, z) => {
+      const both = rectMask ? lanes.map((v, i) => v | rectMask[i]) : lanes;
+      for (const [blk, squeezed] of [[both, false], [rectMask, true], [null, true]]) {
+        Rf.block = blk;
+        const r = route(Rf, a, z);
+        if (r) { r.squeezed = squeezed; Rf.block = null; return r; }
+      }
+      Rf.block = null;
+      return null;
+    };
+
+    for (const col of fcols) {
+      const name = names.get(col.s.id);
+      const cp = [col.s.x, col.s.y];
+      const pieces = [];
+      for (const { r, poly, cfg, rects } of fjobs.filter((j) => j.col === col)) {
+        const s = cfg.spacing;
+        if (!rects?.length) { out.warnings.push(t('{r}: te klein voor vloerverwarming.', { r: r.name || '?' })); continue; }
+        for (const [qi, q] of rects.entries()) {
+          const key = `${r.id}:${qi}`;
+          const probe = route({ ...R, used: new Uint8Array(R.W * R.H) }, cp, [(q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2]);
+          const feed = probe ? routeLen(R, probe) / 100 : (Math.abs(cp[0] - q.x0) + Math.abs(cp[1] - q.y0)) / 100;
+          const entry = entryPoint(R, probe, poly) || cp;
+          const coilEst = ((q.x1 - q.x0) * (q.y1 - q.y0)) / s / 100;
+          const long = Math.max(q.x1 - q.x0, q.y1 - q.y0);
+          const nMax = Math.max(1, Math.floor(long / (3 * s)));
+          let n = Math.min(nMax, Math.max(1, Math.ceil(coilEst / Math.max(cfg.maxLen * 0.25, cfg.maxLen - 2 * feed))));
+          // check the real lengths (spiral + feed to its corner and back) and split further when needed
+          for (; n < nMax; n++) {
+            const ok = splitRect(q, n, s).every((part) => {
+              const sp = spiral(part, s, nearestCorner(part, entry));
+              if (!sp) return true;
+              const rt = route({ ...R, used: new Uint8Array(R.W * R.H) }, cp, sp.supply[0]);
+              const fl = rt ? routeLen(R, rt) / 100 : feed;
+              return (pathLength(sp.supply) + pathLength(sp.ret) + s) / 100 + 2 * fl + 0.5 <= cfg.maxLen;
+            });
+            if (ok) break;
+          }
+          n = Math.min(nMax, n + (bump.get(key) || 0));
+          for (const part of splitRect(q, n, s)) pieces.push({ r, cfg, q: part, entry, feed, key });
+        }
+      }
+      // closest pieces first: they get the low outlet numbers and the straightest feeds
+      pieces.sort((p, q) => p.feed - q.feed);
+      const routes = [];
+      const squeezed = [];
+      pieces.forEach((pc, idx) => {
+        const { r, cfg, q } = pc;
+        const s = cfg.spacing;
+        const sp = spiral(q, s, nearestCorner(q, pc.entry));
+        if (!sp) return;
+        const n = idx + 1;
+        const label = `${name}.${n}`;
+        const coil = (pathLength(sp.supply) + pathLength(sp.ret) + s) / 100;
+        const sup = routeLane(cp, sp.supply[0]);
+        if (sup) takeLane(sup.cells);
+        const ret = routeLane(sp.ret.at(-1), cp);
+        if (ret) takeLane(ret.cells);
+        for (const rt of [sup, ret]) if (rt) { routes.push({ ...rt, role: rt === sup ? 's' : 'r', n }); out.feedCells.push(...rt.cells); }
+        const feed = ((sup ? routeLen(Rf, sup) : 0) + (ret ? routeLen(Rf, ret) : 0)) / 100;
+        if (!sup || !ret) out.warnings.push(t('{l} ({r}): geen doorgang naar de collector (deur of muurdoorvoer CV).', { l: label, r: r.name || '?' }));
+        else if (preClaim && (sup.squeezed || ret.squeezed)) squeezed.push(label);
+        out.draw.push({ t: 'loop', role: 's', pts: sp.supply, n, s }, { t: 'loop', role: 'r', pts: [sp.supply.at(-1), ...sp.ret], n, s },
+          { t: 'label', at: [(q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2], label });
+        const total = Math.round((coil + feed) * 10) / 10;
+        out.loops.push({ collector: col.s.id, name, n, room: r.name || '', floor: f.name, area: Math.round(((q.x1 - q.x0) * (q.y1 - q.y0)) / 1e3) / 10, spacing: s, coil: Math.round(coil * 10) / 10, feed: Math.round(feed * 10) / 10, total, max: cfg.maxLen });
+        if (total > cfg.maxLen) out.over.add(pc.key);
+        if (total > cfg.maxLen) out.warnings.push(t('{l} ({r}): {n} m is langer dan het maximum van {m} m.', { l: label, r: r.name || '?', n: String(total).replace('.', ','), m: cfg.maxLen }));
+      });
+      if (squeezed.length) out.warnings.push(t('{c}: te weinig plaats om alle aanvoerleidingen {g} cm uit elkaar te leggen ({l}); ze liggen daar dichter bij elkaar.', { c: name, g: hc.feedGap, l: squeezed.join(', ') }));
+      const outlets = +col.s.props?.outlets || 0;
+      out.collectors.push({ id: col.s.id, name, floor: f.name, loops: pieces.length, outlets });
+      if (outlets && pieces.length > outlets) out.warnings.push(t('{c}: {n} kringen maar slechts {m} uitgangen.', { c: name, n: pieces.length, m: outlets }));
+      if (routes.length) {
+        // own lanes: the pipes only share cells at the manifold, where they lie close together
+        const lines = bundle(Rf, routes, 3);
+        routes.forEach((rt, i) => out.draw.push({ t: 'feed', role: rt.role, n: rt.n, pts: lines[i].map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) }));
+      }
+    }
+    return out;
   }
 
   // main pipes: boiler → every manifold (supply and return). On another floor: to the riser below the manifold.
@@ -376,8 +453,9 @@ export function generateHeating(b, lib) {
     for (const col of cols) {
       const boiler = boilers.find((x) => x.floor === col.floor) || boilers[0];
       const f = boiler.floor;
-      const R = rasterOf(f);
+      const R = rasterOf(f, CELL);
       if (!R) continue;
+      R.block = null;
       const a = [boiler.s.x, boiler.s.y], z = [col.s.x, col.s.y];
       const sup = route(R, a, z), ret = route(R, z, a);
       if (!sup || !ret) { warnings.push(t('{c}: geen doorgang van de CV-ketel naar de collector.', { c: names.get(col.s.id) })); continue; }

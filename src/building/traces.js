@@ -65,21 +65,25 @@ const inPoly = (x, y, poly) => {
 function fillPoly(grid, R, poly, value, only = -1) {
   let px0 = Infinity, py0 = Infinity, px1 = -Infinity, py1 = -Infinity;
   for (const [x, y] of poly) { px0 = Math.min(px0, x); py0 = Math.min(py0, y); px1 = Math.max(px1, x); py1 = Math.max(py1, y); }
-  const i0 = Math.max(0, Math.floor((px0 - R.x0) / CELL)), i1 = Math.min(R.W - 1, Math.ceil((px1 - R.x0) / CELL));
-  const j0 = Math.max(0, Math.floor((py0 - R.y0) / CELL)), j1 = Math.min(R.H - 1, Math.ceil((py1 - R.y0) / CELL));
+  const C = R.cell;
+  const i0 = Math.max(0, Math.floor((px0 - R.x0) / C)), i1 = Math.min(R.W - 1, Math.ceil((px1 - R.x0) / C));
+  const j0 = Math.max(0, Math.floor((py0 - R.y0) / C)), j1 = Math.min(R.H - 1, Math.ceil((py1 - R.y0) / C));
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-    if ((only < 0 || grid[j * R.W + i] === only) && inPoly(R.x0 + (i + 0.5) * CELL, R.y0 + (j + 0.5) * CELL, poly)) grid[j * R.W + i] = value;
+    if ((only < 0 || grid[j * R.W + i] === only) && inPoly(R.x0 + (i + 0.5) * C, R.y0 + (j + 0.5) * C, poly)) grid[j * R.W + i] = value;
   }
 }
 
-/** Raster of a floor: 0 = free, 1 = wall, 2 = outside the building. `media`: which wall passages are open. */
-export function raster(floor, extra, media = 'elec') {
+/**
+ * Raster of a floor: 0 = free, 1 = wall, 2 = outside the building. `media`: which wall passages are
+ * open; `cell`: raster size in cm.
+ */
+export function raster(floor, extra, media = 'elec', cell = CELL) {
   const polys = floor.walls.filter((w) => w.kind !== 'divider').map((w) => wallPolygon(w, floor.walls)); // room dividers do not stop cables
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const p of [...polys.flat(), ...extra]) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
   if (!Number.isFinite(x0)) return null;
   x0 -= 100; y0 -= 100; x1 += 100; y1 += 100;
-  const R = { x0, y0, W: Math.ceil((x1 - x0) / CELL), H: Math.ceil((y1 - y0) / CELL) };
+  const R = { x0, y0, cell, W: Math.ceil((x1 - x0) / cell), H: Math.ceil((y1 - y0) / cell) };
   if (R.W * R.H > 3e6) return null;
   const grid = new Uint8Array(R.W * R.H);
   for (const p of polys) fillPoly(grid, R, p, 1);
@@ -105,15 +109,19 @@ export function raster(floor, extra, media = 'elec') {
   if (R.closed) for (let c = 0; c < grid.length; c++) if (out[c]) grid[c] = 2;
   // doors and openings: cut through the wall (a bit wider than the wall, so the cut is complete)
   const byId = new Map(floor.walls.map((w) => [w.id, w]));
+  const before = grid.slice();
   for (const o of floor.openings || []) {
     const w = byId.get(o.wall);
     if (!w || !passable(o, media)) continue;
     const g = wallGeom(w);
-    const half = (w.t || 20) / 2 + CELL;
+    const half = (w.t || 20) / 2 + cell;
     const a = Math.max(0, o.pos - o.width / 2 + 5), b = Math.min(g.len, o.pos + o.width / 2 - 5);
     if (b <= a) continue;
     fillPoly(grid, R, [...wallPath(w, a, b, half, g), ...wallPath(w, b, a, -half, g)], 0, 1); // wall cells only, not outside
   }
+  // cells in a door / passage (pipes may lie close together there)
+  R.door = new Uint8Array(R.W * R.H);
+  for (let c = 0; c < grid.length; c++) if (before[c] === 1 && grid[c] === 0) R.door[c] = 1;
   // free cells 20–30 cm from a wall: cables like to run there (not right against it, so a bundle fits)
   R.nearWall = new Uint8Array(R.W * R.H);
   const tooClose = new Uint8Array(R.W * R.H);
@@ -126,30 +134,30 @@ export function raster(floor, extra, media = 'elec') {
       }
     }
   };
-  ring(3, R.nearWall);
-  ring(1, tooClose);
+  ring(Math.round(30 / cell), R.nearWall);
+  ring(Math.round(10 / cell), tooClose);
   for (let c = 0; c < grid.length; c++) if (tooClose[c]) R.nearWall[c] = 0;
   return R;
 }
 
 const cellOf = (R, x, y) => {
-  const i = Math.min(R.W - 1, Math.max(0, Math.floor((x - R.x0) / CELL)));
-  const j = Math.min(R.H - 1, Math.max(0, Math.floor((y - R.y0) / CELL)));
+  const i = Math.min(R.W - 1, Math.max(0, Math.floor((x - R.x0) / R.cell)));
+  const j = Math.min(R.H - 1, Math.max(0, Math.floor((y - R.y0) / R.cell)));
   return j * R.W + i;
 };
-export const centre = (R, c) => [R.x0 + ((c % R.W) + 0.5) * CELL, R.y0 + (Math.floor(c / R.W) + 0.5) * CELL];
+export const centre = (R, c) => [R.x0 + ((c % R.W) + 0.5) * R.cell, R.y0 + (Math.floor(c / R.W) + 0.5) * R.cell];
 
 /** Nearest free cell inside the building (symbols sit against or in a wall). */
 function snap(R, x, y) {
   const c0 = cellOf(R, x, y);
-  if (!R.grid[c0]) return c0;
+  if (!R.grid[c0] && !R.block?.[c0]) return c0;
   let best = -1, bd = Infinity;
-  const r = 12; // cells
+  const r = Math.round(120 / R.cell);
   const i0 = c0 % R.W, j0 = Math.floor(c0 / R.W);
   for (let j = Math.max(0, j0 - r); j <= Math.min(R.H - 1, j0 + r); j++) {
     for (let i = Math.max(0, i0 - r); i <= Math.min(R.W - 1, i0 + r); i++) {
       const c = j * R.W + i;
-      if (R.grid[c]) continue;
+      if (R.grid[c] || R.block?.[c]) continue;
       const [cx, cy] = centre(R, c);
       const d = Math.hypot(cx - x, cy - y);
       if (d < bd) { bd = d; best = c; }
@@ -166,6 +174,7 @@ function snap(R, x, y) {
 function astar(R, from, to) {
   const { W, H, grid, nearWall, used } = R;
   const pen = R.pen; // optional extra cost per cell (e.g. heated floor that feed pipes should avoid)
+  const block = R.block; // optional: cells taken by other pipes (each pipe its own lane)
   const N = W * H * 4;
   const g = new Float64Array(N).fill(Infinity);
   const prev = new Int32Array(N).fill(-1);
@@ -198,7 +207,7 @@ function astar(R, from, to) {
   if (from === to) return [from];
   for (let d = 0; d < 4; d++) { g[from * 4 + d] = 0; pushH(hcost(from), from * 4 + d); }
   const DI = [1, -1, 0, 0], DJ = [0, 0, 1, -1];
-  const TURN = 3;
+  const TURN = 30 / R.cell; // a bend costs as much as 30 cm of route
   let end = -1;
   while (heap.length) {
     const [, st] = popH();
@@ -212,7 +221,7 @@ function astar(R, from, to) {
       const ni = i + DI[nd], nj = j + DJ[nd];
       if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
       const n = nj * W + ni;
-      if (grid[n]) continue;
+      if (grid[n] || (block && block[n] && n !== to)) continue;
       const ns = n * 4 + nd;
       if (closed[ns]) continue;
       const step = (nearWall[n] ? 0.8 : 1) * (used[n] ? 0.5 : 1) * (pen ? pen[n] : 1) + (nd === d ? 0 : TURN);
@@ -309,7 +318,7 @@ export function bundle(R, routes, spacing = SPACING) {
 /** Length of a route along the raster (without the bundle offsets). */
 export const routeLen = (R, rt) => {
   const P = rt.cells.map((c) => centre(R, c));
-  return Math.abs(rt.a[0] - P[0][0]) + Math.abs(rt.a[1] - P[0][1]) + (rt.cells.length - 1) * CELL + Math.abs(rt.b[0] - P.at(-1)[0]) + Math.abs(rt.b[1] - P.at(-1)[1]);
+  return Math.abs(rt.a[0] - P[0][0]) + Math.abs(rt.a[1] - P[0][1]) + (rt.cells.length - 1) * R.cell + Math.abs(rt.b[0] - P.at(-1)[0]) + Math.abs(rt.b[1] - P.at(-1)[1]);
 };
 
 // ---------- generation ----------
