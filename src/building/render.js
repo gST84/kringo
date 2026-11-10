@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, isDivider, MEDIA, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isDivider, MEDIA, planTitle, symDisc, wallGeom, wallPath } from './model.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
 /** Sheet millimetres per plan centimetre. */
@@ -402,12 +402,17 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   const sw = 0.25 / k; // 0.25 mm on paper
   const sel = opts.selection || new Set();
   const [ox, oy] = PLAN_ORIGIN;
+  // installation plan (overlay): the floor drawing lighter, only the symbols / passages / notes of its type
+  const layer = opts.layer || null;
+  const disc = layer?.disc || null;
+  const note = (x) => !x.plan || x.plan === layer?.id;
+  const shown = (sym) => !!disc && symDisc(sym, lib.get(sym.sym)) === disc;
   let s = `<rect class="sheet" x="0" y="0" width="${SHEET.w}" height="${SHEET.h}"/>`;
   if (opts.grid) s += `<rect class="plangrid" x="${FRAME.area.x0}" y="${FRAME.area.y0}" width="${FRAME.area.x1 - FRAME.area.x0}" height="${FRAME.area.y1 - FRAME.area.y0}"/>`;
-  s += frameSvg(project, { title: floor.name }, floorIdx, b.floors.length);
+  s += frameSvg(project, { title: layer ? planTitle(b, layer) : floor.name }, floorIdx, b.floors.length);
   // scale note
   s += textSvg(FRAME.area.x1 - 3, FRAME.area.y1 - 4, t('Schaal 1:{n}', { n: b.scale }), 2.5, 'end', 'tx');
-  s += `<g class="plan ink" transform="translate(${ox} ${oy}) scale(${k})">`;
+  s += `<g class="plan ink${disc ? ' under' : ''}" transform="translate(${ox} ${oy}) scale(${k})">`;
   // background image (traced drawing)
   const bg = floor.bg;
   const bgUrl = bg && (opts.imageUrl ? opts.imageUrl(bg.img) : project.images?.[bg.img]);
@@ -423,7 +428,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     if (poly) s += `<polygon class="proom${on ? ' sel' : ''}" data-k="R:${r.id}" points="${pts(poly)}" style="fill:${roomColor(r)};stroke-width:${sw * 2}"/>`;
     roomLabels.push([r, poly, on]);
   }
-  for (const sh of floor.shapes || []) if (sh.type === 'area') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
+  for (const sh of floor.shapes || []) if (sh.type === 'area' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   // walls
   // walls: first every wall with a black outline, then every wall filled on top of that, so the
   // outlines disappear where walls meet and the walls read as one whole
@@ -447,11 +452,12 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   const wallsById = new Map(floor.walls.map((w) => [w.id, w]));
   for (const o of floor.openings) {
     const w = wallsById.get(o.wall);
+    if (o.type === 'passage' && (o.media || 'elec') !== disc) continue; // a wall passage only on the plan of its type
     if (w) s += openingSvg(o, w, sw, sel.has('O:' + o.id));
   }
   for (const st of floor.stairs) s += stairSvg(st, sw, sel.has('S:' + st.id));
-  for (const sh of floor.shapes || []) if (sh.type === 'line') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
-  for (const d of floor.dims || []) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
+  for (const sh of floor.shapes || []) if (sh.type === 'line' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
+  for (const d of floor.dims || []) if (note(d)) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
   // room names
   for (const t of floor.texts) {
     s += `<g class="ptext${sel.has('T:' + t.id) ? ' sel' : ''}" data-k="T:${t.id}" transform="translate(${r2(t.x)} ${r2(t.y)}) scale(${1 / k})">`;
@@ -464,7 +470,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   const symById = new Map(floor.symbols.map((x) => [x.id, x]));
   if (opts.showLinks !== false) for (const l of floor.links) {
     const a = symById.get(l.a), c = symById.get(l.b);
-    if (!a || !c) continue;
+    if (!a || !c || !shown(a) || !shown(c)) continue;
     const kind = linkKind(lib.get(a.sym), lib.get(c.sym));
     const mx = (a.x + c.x) / 2, my = (a.y + c.y) / 2;
     const dx = c.x - a.x, dy = c.y - a.y;
@@ -473,14 +479,14 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     s += `<path class="plink${sel.has('L:' + l.id) ? ' sel' : ''}" data-k="L:${l.id}" d="M ${r2(a.x)} ${r2(a.y)} Q ${r2(qx)} ${r2(qy)} ${r2(c.x)} ${r2(c.y)}" style="stroke:${LINK_COLORS[kind]};stroke-width:${sw * 1.2}" stroke-dasharray="${sw * 6} ${sw * 4}"/>`;
     if (!opts.print) s += `<path class="hit" data-k="L:${l.id}" d="M ${r2(a.x)} ${r2(a.y)} Q ${r2(qx)} ${r2(qy)} ${r2(c.x)} ${r2(c.y)}" style="stroke-width:${sw * 10}"/>`;
   }
-  if (b.heatShow && b.heat?.floors?.[floor.id]) s += heatSvg(b.heat.floors[floor.id], k, sw);
-  if (b.traceShow && b.traces?.floors?.[floor.id]) s += traceSvg(b, floor, k, sw);
+  if (disc === 'cv' && b.heatShow && b.heat?.floors?.[floor.id]) s += heatSvg(b.heat.floors[floor.id], k, sw);
+  if (disc === 'elec' && b.traceShow && b.traces?.floors?.[floor.id]) s += traceSvg(b, floor, k, sw);
   for (const sym of floor.symbols) {
     const def = lib.get(sym.sym);
-    if (def) s += symbolSvg(sym, def, k, b, sel.has('A:' + sym.id), opts);
+    if (def && shown(sym)) s += symbolSvg(sym, def, k, b, sel.has('A:' + sym.id), opts);
   }
   for (const [r, poly, on] of roomLabels) s += roomLabelSvg(r, poly, k, on, opts);
-  for (const sh of floor.shapes || []) if (sh.type === 'callout') s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
+  for (const sh of floor.shapes || []) if (sh.type === 'callout' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   s += '</g>';
   return s;
 }
@@ -548,11 +554,13 @@ export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
 .plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
+.plan.under .walloutline polygon{fill:#9aa1aa;stroke:#9aa1aa}.plan.under .wall{fill:#d5d8dc}.plan.under .wall.inner{fill:#e2e4e7}.plan.under .proom{opacity:.45}.plan.under .stair,.plan.under .opening:not(:has(.passage)),.plan.under .divider{opacity:.55}
 .plan .pheat{pointer-events:none}.plan .pheatl{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.plan .pheatbox{fill:#fff;stroke:#c92a2a;stroke-width:.3}.plan .pheattx{fill:#c92a2a;font-weight:bold;dominant-baseline:central}
 .plan .ptraces{pointer-events:none}.plan .ptrace{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.8}.plan .ptracetx{fill:#fff;font-weight:bold;dominant-baseline:central}
 `;
 
-export function standalonePlanSvg(project, floorIdx, lib) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET.w} ${SHEET.h}" width="${SHEET.w}mm" height="${SHEET.h}mm"><style>${SVG_STYLE}${PLAN_STYLE}</style>${planSvg(project, floorIdx, lib, { print: true })}</svg>`;
+/** A floor plan (layer null) or an installation plan as a complete SVG (print, export). */
+export function standalonePlanSvg(project, floorIdx, lib, layer = null) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET.w} ${SHEET.h}" width="${SHEET.w}mm" height="${SHEET.h}mm"><style>${SVG_STYLE}${PLAN_STYLE}</style>${planSvg(project, floorIdx, lib, { print: true, layer })}</svg>`;
 }
 

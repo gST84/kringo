@@ -96,10 +96,10 @@ const tools = [
 const toolBtns = new Map();
 const gridSel = h('select', { title: 'Raster', onchange: (e) => { editor.grid = +e.target.value; } },
   [5, 2.5, 1].map((g) => h('option', { value: g, selected: g === 5 }, t('raster {g}', { g }))));
-/** Page choice: 'f:<i>' = floor plan, 'p:<i>' = sheet (switches between plan and sheets in the building app). */
+/** Page choice: 'f:<i>' = floor plan, 'v:<planId>' = installation plan, 'p:<i>' = sheet (switches between plan and sheets in the building app). */
 const goTo = (v) => {
   const [kind, i] = v.split(':');
-  if (kind === 'f') { app.setMode('building'); app.setFloor(+i); } else { app.setMode('schematic'); app.setPage(+i); }
+  if (kind === 'f') { app.setMode('building'); app.setFloor(+i); } else if (kind === 'v') { app.setMode('building'); app.setLayer(i); } else { app.setMode('schematic'); app.setPage(+i); }
 };
 const pageLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => goTo(e.target.value) });
 const panelBtn = (side, label, title) => h('button', {

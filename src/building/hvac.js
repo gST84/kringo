@@ -12,10 +12,11 @@ const WHITE = { fill: 'white' };
 const INK = { fill: 'ink' };
 
 export const HVAC_ROOT = 'Technieken';
-const CV = HVAC_ROOT + '/CV en sanitair', VENT = HVAC_ROOT + '/Ventilatie';
+const CV = HVAC_ROOT + '/CV', WATER = HVAC_ROOT + '/Sanitair', DRAIN = HVAC_ROOT + '/Afvoer', VENT = HVAC_ROOT + '/Ventilatie';
+const DISC_OF = { [CV]: 'cv', [WATER]: 'water', [DRAIN]: 'drain', [VENT]: 'vent' };
 
 const def = (id, name, folder, kind, hvac, graphics, o = {}) => ({
-  id: 'hvac/' + id, name, folder, kind, hvac, role: 'device', prefix: o.prefix || 'W', arei: true,
+  id: 'hvac/' + id, name, folder, kind, hvac, disc: DISC_OF[folder], role: 'device', prefix: o.prefix || 'W', arei: true,
   graphics, pins: [{ id: '1', x: 0, y: o.pinY ?? 2.5, name: '' }], tagAt: { x: 0, y: -5, anchor: 'middle' },
   wall: !!o.wall, pinText: false, ...o.extra,
 });
@@ -39,10 +40,20 @@ export const HVAC = [
   def('fancoil', 'Ventiloconvector', CV, 'appliance', 'emitter',
     [R(-5, -2.6, 10, 3.6, WHITE), ...fan(0, -0.8, 1.4), L(-4.2, -2, -2.4, -2, { w: 0.15 }), L(2.4, -2, 4.2, -2, { w: 0.15 })],
     { wall: true, pinY: 1, prefix: 'W', extra: { box: true, half: 5 } }),
-  def('drain', 'Afvoerpunt', CV, 'hvac', 'drain',
+  // Sanitair
+  def('tap', 'Tappunt koud water', WATER, 'hvac', 'tap',
+    [C(0, 0, 1.6, WHITE), L(0, 1.6, 0, 2.5), T(0, 0.65, 'K', 1.6)], { wall: true, pinY: 2.5, prefix: 'W' }),
+  def('tap-hot', 'Tappunt warm water', WATER, 'hvac', 'tap',
+    [C(0, 0, 1.6, WHITE), L(0, 1.6, 0, 2.5), T(0, 0.65, 'W', 1.6)], { wall: true, pinY: 2.5, prefix: 'W' }),
+  def('meter', 'Watermeter', WATER, 'hvac', 'meter',
+    [C(0, 0, 2.2, WHITE), L(-2.2, 0, 2.2, 0, { w: 0.15 }), P('M -1 -0.5 L 0 -1.6 L 1 -0.5', { w: 0.2 })], { wall: true, pinY: 2.2, prefix: 'W' }),
+  def('heater', 'Warmwaterboiler', WATER, 'appliance', 'heater',
+    [C(0, 0, 3, WHITE), T(0, 0.6, 'WW', 1.6)], { wall: true, pinY: 3, prefix: 'W' }),
+  // Afvoer
+  def('drain', 'Afvoerpunt', DRAIN, 'hvac', 'drain',
     [C(0, 0, 1.6, WHITE), L(-1.13, -1.13, 1.13, 1.13, { w: 0.2 }), L(-1.13, 1.13, 1.13, -1.13, { w: 0.2 })],
     { pinY: 1.6, prefix: 'W' }),
-  def('floordrain', 'Vloerputje', CV, 'hvac', 'drain',
+  def('floordrain', 'Vloerputje', DRAIN, 'hvac', 'drain',
     [R(-1.8, -1.8, 3.6, 3.6, WHITE), ...[-0.9, 0, 0.9].map((y) => L(-1.2, y, 1.2, y, { w: 0.2 }))],
     { pinY: 1.8, prefix: 'W' }),
   // Ventilatie
@@ -53,6 +64,9 @@ export const HVAC = [
   def('vent-out', 'Afvoerventiel', VENT, 'hvac', 'vent-out',
     [C(0, 0, 2, WHITE), L(0, -1.2, 0, 1.4, { w: 0.25 }), P('M -0.8 -0.3 L 0 -1.4 L 0.8 -0.3', { w: 0.25 })], { pinY: 2, prefix: 'W' }),
 ];
+
+/** Installation type of each symbol (id without 'hvac/'), also for symbols in older projects. */
+export const HVAC_DISC = Object.fromEntries(HVAC.map((d) => [d.id.slice(5), d.disc]));
 
 /** Kinds without an electrical circuit (no "Kring" section in the properties). */
 export const isHydronic = (def) => def?.kind === 'hvac';

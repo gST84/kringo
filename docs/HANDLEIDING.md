@@ -55,7 +55,19 @@ Algemeen: klik = selecteren, Shift + klik = erbij selecteren, slepen = verplaats
 
 ## 3. Gebouw: het grondplan tekenen
 
-Alle tekentools staan links onder **Grondplan**.
+### Plattegrond en installatieplannen
+
+Een gebouw bestaat uit **plattegronden** (één per verdieping) en **installatieplannen** daarbovenop. Ze staan in het paneel links onder **Bladen**, gegroepeerd per type:
+
+- **Plattegronden**: hier teken je het gebouw zelf – muren, deuren, ramen, trappen, ruimtes, ruimtenamen en de achtergrond. Er staan geen installatiesymbolen op.
+- **⚡ Elektriciteit**, **🚰 Sanitair**, **♨ CV**, **🌀 Ventilatie** en **⤓ Afvoer**: met **＋ plan** maak je een plan van dat type op een plattegrond. Het grondplan staat er lichter en **vergrendeld** onder; je plaatst er enkel de symbolen, muurdoorvoeren, maatlijnen en aantekeningen van dat type. Wijzig je een muur op de plattegrond, dan volgen alle plannen.
+- Het paneel **Symbolen** toont op elk plan enkel wat er past: op de plattegrond de tekentools, op een installatieplan de symbolen van dat type (op Elektriciteit de AREI-symbolen, op CV de ketel, collector, radiatoren …). De keuzelijst bovenaan en ◀ ▶ wisselen tussen de plannen van hetzelfde type.
+- Op de plattegrond (niets geselecteerd) open of maak je de plannen van die verdieping met één klik. Op een installatieplan kun je het plan verwijderen (met zijn symbolen).
+- Afdrukken: elk plan op een eigen blad, met het type in de titel (bv. *CV – Gelijkvloers*).
+
+Oudere projecten krijgen vanzelf een Elektriciteit-plan per verdieping met symbolen.
+
+Alle tekentools staan links onder **Grondplan** (op de plattegrond).
 
 ### Muren
 
@@ -69,7 +81,7 @@ Alle tekentools staan links onder **Grondplan**.
 - Kies **Deur**, **Deuropening** (zonder deurblad), **Dubbele deur**, **Raam**, **Schuifraam / -deur** of **Garagepoort** en klik op een muur. De kant waar je muis staat bepaalt de draairichting.
 - Verslepen schuift de opening langs de muur; de **blauwe bolletjes aan de uiteinden** maken ze breder of smaller.
 - In de eigenschappen: type, breedte, hoogte, draairichting, scharnierzijde en *Zonder deurblad*.
-- **Muurdoorvoeren** (eigen groep in het paneel): een plaats waar leidingen door een muur mogen, per type een kleur: **CV** (rood), **sanitair** (blauw), **afvoer** (bruin), **ventilatie** (groen) en **kabels** (oranje). De muur blijft dicht; enkel leidingen van dat type gaan er bij het genereren door. Het type wijzig je in de eigenschappen. Een doorvoer voor kabels telt ook mee in de kabeltrace.
+- **Muurdoorvoeren** (eigen groep in het paneel, op het installatieplan van dat type): een plaats waar leidingen door een muur mogen, per type een kleur: **CV** (rood), **sanitair** (blauw), **afvoer** (bruin), **ventilatie** (groen) en **kabels** (oranje). De muur blijft dicht; enkel leidingen van dat type gaan er bij het genereren door. Het type wijzig je in de eigenschappen. Een doorvoer voor kabels telt ook mee in de kabeltrace.
 
 ### Trappen
 
@@ -102,6 +114,7 @@ Open **Kringen** bovenaan. Je bouwt er de boom: *verdeelbord → differentieel �
 
 ### Symbolen plaatsen
 
+- Open het plan **Elektriciteit** van de verdieping (Bladen).
 - Kies in de werkbalk de **actieve kring** (bv. *Kring A*). Nieuwe symbolen komen in die kring en krijgen een volgnummer: A1, A2 …
 - Klik een symbool in het paneel en klik op het plan (of sleep het naar het plan). Wandsymbolen draaien vanzelf tegen de dichtstbijzijnde muur; `Alt` = vrij plaatsen.
 - In de eigenschappen: kring, volgnummer, ruimte, omschrijving, montagehoogte, vermogen …
@@ -290,10 +303,10 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 ### I. Vloerverwarming
 
-In het paneel **Symbolen** staan onder **CV en sanitair** de CV-ketel, de collector, radiator, convector, ventiloconvector, afvoerpunt en vloerputje, en onder **Ventilatie** de ventilatie-unit en de toevoer- en afvoerventielen.
+Symbolen per type: op een **CV**-plan de CV-ketel, collector, radiator, convector en ventiloconvector; op **Sanitair** tappunten koud / warm water, watermeter en warmwaterboiler; op **Afvoer** afvoerpunt en vloerputje; op **Ventilatie** de ventilatie-unit en de toevoer- en afvoerventielen.
 
-1. Duid de ruimtes aan met **Ruimte** (zie G) en zet een **Collector vloerverwarming** en een **CV-ketel** op het plan. In de eigenschappen van de collector vul je het **aantal uitgangen** in; zijn naam op het plan is de omschrijving of anders VV1, VV2 …
-2. Zet in de eigenschappen van een ruimte **Vloerverwarming in deze ruimte** aan. De **legafstand** (standaard 15 cm) en de **maximale lengte per kring** (standaard 100 m) kun je per ruimte aanpassen. Alles samen kan ook in het venster **Vloerverwarming** bovenaan.
+1. Duid de ruimtes aan met **Ruimte** op de plattegrond (zie G). Open (of maak) het **CV**-plan van de verdieping en zet een **Collector vloerverwarming** en een **CV-ketel** op het plan. In de eigenschappen van de collector vul je het **aantal uitgangen** in; zijn naam op het plan is de omschrijving of anders VV1, VV2 …
+2. Klik op het CV-plan een ruimte aan en zet **Vloerverwarming in deze ruimte** aan. De **legafstand** (standaard 15 cm) en de **maximale lengte per kring** (standaard 100 m) kun je per ruimte aanpassen. Alles samen kan ook in het venster **Vloerverwarming** bovenaan.
 3. Klik op **Vloerverwarming genereren**. Per ruimte wordt de vloer gevuld met kringen in een **dubbele spiraal**: de aanvoer (rood) loopt naar binnen op twee keer de legafstand, keert in het midden en de retour (blauw) loopt ertussen terug naar buiten. De spiraal begint in de hoek die het dichtst bij de collector ligt, en blijft op een afstand van de muur (standaard 10 cm).
 4. Een kring is nooit langer dan het maximum, **aanvoer- en retourleiding naar de collector meegerekend**. Een grotere ruimte wordt in stroken verdeeld met elk een eigen kring; een L-vormige ruimte krijgt per rechthoek een kring. De kringen worden genummerd vanaf de collector (VV1.1, VV1.2 …), de dichtstbijzijnde eerst.
 5. De leidingen naar de collector liggen gebundeld naast elkaar en gaan enkel door **deuren en muurdoorvoeren voor CV**. De **hoofdleidingen** (dik) lopen van de CV-ketel naar elke collector; staat de ketel op een andere verdieping, dan lopen ze tot de stijgleiding onder de collector.

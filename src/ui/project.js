@@ -9,6 +9,7 @@ import { renumberDevices, renumberTerminals } from '../schematic/tags.js';
 import { alertDlg, confirmDlg, field, modal, toast } from './dialogs.js';
 import { importQet } from '../import/qet.js';
 import { standalonePlanSvg } from '../building/render.js';
+import { DISCS, planTitle, plansOf } from '../building/model.js';
 
 export async function projectDialog(app) {
   const p = app.project;
@@ -237,7 +238,7 @@ export function printProject(app, pages = null, floors = null) {
   const root = document.getElementById('print-root');
   const p = app.project;
   const idx = pages || (floors ? [] : p.pages.map((_, i) => i));
-  root.innerHTML = (floors || []).map((i) => `<div class="print-page">${standalonePlanSvg(p, i, app.lib)}</div>`).join('')
+  root.innerHTML = (floors || []).map((x) => { const [i, layer] = Array.isArray(x) ? x : [x, null]; return `<div class="print-page">${standalonePlanSvg(p, i, app.lib, layer)}</div>`; }).join('')
     + idx.map((i) => { const z = p.pages[i].sheet || 'A3'; return `<div class="print-page sheet-${z}">${standalonePageSvg(p, p.pages[i], i, an)}</div>`; }).join('');
   const done = () => { root.innerHTML = ''; window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
@@ -269,10 +270,12 @@ export async function printDialog(app) {
 async function printPlansDialog(app) {
   const b = app.project.building;
   const sheets = app.project.pages.length;
+  const nPlans = b.floors.length + b.plans.length;
+  const curName = app.layer ? planTitle(b, app.layer) : app.floor.name;
   const opts = [
-    ['all', t('Alles: plattegronden ({floors}) + eendraadschema ({sheets})', { floors: b.floors.length, sheets })],
-    ['plans', t('Alle plattegronden ({n})', { n: b.floors.length })],
-    ['floor', t('Huidige plattegrond ({name})', { name: app.floor.name })],
+    ['all', t('Alles: plannen ({floors}) + eendraadschema ({sheets})', { floors: nPlans, sheets })],
+    ['plans', t('Alle plattegronden en installatieplannen ({n})', { n: nPlans })],
+    ['floor', t('Huidig plan ({name})', { name: curName })],
     ...(sheets ? [['sheets', t('Eendraadschema ({n} bladen)', { n: sheets })]] : []),
   ];
   const radios = opts.map(([v, l], i) => [v, h('input', { type: 'radio', name: 'pp', value: v, checked: i === 0 }), l]);
@@ -283,10 +286,12 @@ async function printPlansDialog(app) {
       h('p', { class: 'hint' }, t('A3 liggend, plattegronden op schaal 1:{scale}. Kies "Opslaan als PDF" in het afdrukvenster; marges op "Geen".', { scale: b.scale }))),
     buttons: [{ label: 'Annuleren', value: false }, { label: 'SVG van plattegrond', value: 'svg' }, { label: 'Afdrukken', value: 'print', primary: true }],
   });
-  if (ok === 'svg') { download(`${safeName(app.project.name)} - ${safeName(app.floor.name)}.svg`, standalonePlanSvg(app.project, app.floorIdx, app.lib), 'image/svg+xml'); return; }
+  if (ok === 'svg') { download(`${safeName(app.project.name)} - ${safeName(curName)}.svg`, standalonePlanSvg(app.project, app.floorIdx, app.lib, app.layer), 'image/svg+xml'); return; }
   if (ok !== 'print') return;
   const pick = radios.find(([, r]) => r.checked)[0];
-  const floors = pick === 'all' || pick === 'plans' ? b.floors.map((_, i) => i) : pick === 'floor' ? [app.floorIdx] : [];
+  // every floor plan, then the installation plans per type (electricity, plumbing, heating …)
+  const everything = [...b.floors.map((_, i) => [i, null]), ...Object.keys(DISCS).flatMap((d) => plansOf(b, d).map((pl) => [b.floors.findIndex((f) => f.id === pl.floor), pl]))];
+  const floors = pick === 'all' || pick === 'plans' ? everything : pick === 'floor' ? [[app.floorIdx, app.layer]] : [];
   const pages = pick === 'all' || pick === 'sheets' ? app.project.pages.map((_, i) => i) : [];
   printProject(app, pages, floors);
 }

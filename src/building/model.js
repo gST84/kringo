@@ -1,10 +1,36 @@
 // Building data model: floors (plans in centimetres), boards with residual current devices and circuits.
 import { uid } from '../util.js';
 import { t } from '../i18n.js';
+import { HVAC_DISC } from './hvac.js';
 
 export function newFloor(name = t('Gelijkvloers')) {
   return { id: uid('f'), name, walls: [], openings: [], stairs: [], texts: [], symbols: [], links: [], dims: [], shapes: [], rooms: [], bg: null };
 }
+
+// ---------- installation plans (overlays) ----------
+// A floor holds the building drawing (walls, openings, rooms …) and every installation symbol. A plan
+// is an overlay of one installation type on a floor: it shows the floor drawing (locked) with only the
+// symbols, wall passages and notes of its type. Notes / dimension lines with `plan` belong to that plan.
+
+/** Installation types; the key is also the medium of their wall passages. */
+export const DISCS = {
+  elec: { label: 'Elektriciteit', icon: '⚡' },
+  water: { label: 'Sanitair', icon: '🚰' },
+  cv: { label: 'CV', icon: '♨' },
+  vent: { label: 'Ventilatie', icon: '🌀' },
+  drain: { label: 'Afvoer', icon: '⤓' },
+};
+/** Installation type of a symbol on a plan (AREI symbols and own symbols: electricity). */
+export const symDisc = (s, def) => s?.disc || def?.disc || HVAC_DISC[String(s?.sym).replace(/^hvac\//, '')] || 'elec';
+
+export const newPlan = (floorId, disc) => ({ id: uid('pl'), floor: floorId, disc });
+/** Name of a plan: "Elektriciteit – Gelijkvloers". */
+export function planTitle(b, plan) {
+  const f = b.floors.find((x) => x.id === plan?.floor);
+  return plan ? `${t(DISCS[plan.disc]?.label || plan.disc)} – ${f?.name || '?'}` : '';
+}
+/** Plans of a type in floor order. */
+export const plansOf = (b, disc) => b.floors.flatMap((f) => b.plans.filter((p) => p.disc === disc && p.floor === f.id));
 
 // ---------- distribution tree ----------
 // Boards, residual current devices and circuits form a tree through `parent`:
@@ -39,6 +65,7 @@ export function newBuilding() {
     rcds: [rcd],
     circuits: [newCircuit('A', rcd.id)],
     domotics: { modules: [] },
+    plans: [],
   };
 }
 
@@ -130,6 +157,15 @@ export function normalizeBuilding(b) {
   b.circuits ||= [];
   b.domotics ||= { modules: [] };
   b.domotics.modules ||= [];
+  if (!Array.isArray(b.plans)) {
+    // projects from before the plans: an overlay per floor and type that has symbols on it
+    b.plans = [];
+    for (const f of b.floors) {
+      const discs = new Set(f.symbols.map((s) => symDisc(s)));
+      for (const d of Object.keys(DISCS)) if (discs.has(d)) b.plans.push(newPlan(f.id, d));
+    }
+  }
+  b.plans = b.plans.filter((p) => DISCS[p.disc] && b.floors.some((f) => f.id === p.floor));
   // migrate the flat structure (board.rcds, circuit.board / circuit.rcd) to the tree
   for (const bd of b.boards) {
     bd.main ||= { In: 40, poles: 2, rcd: 300 };

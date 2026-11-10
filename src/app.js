@@ -12,6 +12,7 @@ export class App {
     this.project = null;
     this.pageIdx = 0;
     this.floorIdx = 0;
+    this.layerId = null; // building: the installation plan (overlay) shown on the floor, null = the floor plan itself
     this.mode = 'schematic'; // 'schematic' | 'building'
     this.sel = new Set();
     this.undoStack = [];
@@ -35,6 +36,10 @@ export class App {
 
   get page() { return this.project.pages[this.pageIdx]; }
   get floor() { return this.project.building.floors[this.floorIdx]; }
+  /** The installation plan that is open (null: the floor plan itself, where the building is drawn). */
+  get layer() { return (this.layerId && this.project?.building?.plans?.find((p) => p.id === this.layerId)) || null; }
+  /** Installation type of the open plan ('elec', 'cv' …) or null on the floor plan. */
+  get disc() { return this.layer?.disc || null; }
 
   /** Building projects switch between plan view ('building') and their single-line sheets ('schematic'). */
   setMode(mode) {
@@ -46,11 +51,22 @@ export class App {
     this.emit('change');
   }
 
-  setFloor(i) {
-    if (i < 0 || i >= this.project.building.floors.length || i === this.floorIdx) return;
+  /** Shows floor i: its floor plan (layerId null) or one of its installation plans. */
+  setFloor(i, layerId = null) {
+    if (i < 0 || i >= this.project.building.floors.length || (i === this.floorIdx && layerId === this.layerId)) return;
     this.floorIdx = i;
+    this.layerId = layerId;
     this.sel.clear();
+    this.emit('layer');
     this.emit('change');
+  }
+
+  /** Shows an installation plan (overlay). */
+  setLayer(id) {
+    const b = this.project.building;
+    const pl = b.plans.find((p) => p.id === id);
+    if (!pl) return;
+    this.setFloor(b.floors.findIndex((f) => f.id === pl.floor), pl.id);
   }
 
   analysis() {
@@ -67,7 +83,12 @@ export class App {
     this.lib.project = this.project;
     this.pageIdx = 0;
     this.floorIdx = 0;
+    this.layerId = null;
     this.mode = this.project.kind === 'building' ? 'building' : 'schematic';
+    // a building opens on its first installation plan (electricity), when there is one
+    const b = this.project.building;
+    const first = this.project.kind === 'building' && (b.plans.find((p) => p.disc === 'elec' && p.floor === b.floors[0]?.id) || b.plans[0]);
+    if (first) { this.layerId = first.id; this.floorIdx = Math.max(0, b.floors.findIndex((f) => f.id === first.floor)); }
     this.sel.clear();
     this.undoStack = [];
     this.redoStack = [];
@@ -115,6 +136,7 @@ export class App {
     this.lib.project = this.project;
     this.pageIdx = Math.max(0, Math.min(this.pageIdx, this.project.pages.length - 1));
     this.floorIdx = Math.min(this.floorIdx, this.project.building.floors.length - 1);
+    if (this.layerId && !this.layer) { this.layerId = null; this.emit('layer'); }
     // undoing the generation of the only single-line sheets: back to the floor plan
     if (this.mode === 'schematic' && !this.project.pages.length) { this.mode = 'building'; this.emit('mode', this.mode); }
     this.pruneSelection();

@@ -12,7 +12,7 @@ import { dimGeom, hasLeaf, OPENING_TYPES, pathLength, traceColor } from './rende
 import { loadBackground } from './background.js';
 import { HVAC_ROOT, isHydronic } from './hvac.js';
 import { collectorNames, generateHeating, heatCfg, heatKey, HEAT_DEFAULTS, roomHeat } from './heating.js';
-import { MEDIA } from './model.js';
+import { DISCS, MEDIA, newPlan, planTitle, plansOf, symDisc } from './model.js';
 import { alignItems, alignSelection, ALIGN_MODES } from './align.js';
 
 let alignGap = null; // fixed spacing (cm) for distributing, or null = spread evenly between the outer ones
@@ -48,7 +48,7 @@ export const circuitOptions = (b, withNone = true) => [
 export function buildingLeftPanel(app, el, { plan, editor }) {
   let tab = 'symbols';
   let filter = '';
-  const open = new Set(['Grondplan', 'Aantekeningen', 'AREI', 'AREI/Verlichting', 'Technieken/CV en sanitair']);
+  const open = new Set(['Grondplan', 'Muurdoorvoeren', 'Aantekeningen', 'AREI', 'AREI/Verlichting', 'Technieken/CV', 'Technieken/Sanitair', 'Technieken/Afvoer', 'Technieken/Ventilatie']);
   const render = () => {
     const tabs = h('div', { class: 'tabs inner' },
       h('button', { class: tab === 'symbols' ? 'active' : '', onclick: () => { tab = 'symbols'; render(); } }, 'Symbolen'),
@@ -66,7 +66,9 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
     const q = filter.trim().toLowerCase();
     const out = [];
     for (const group of ['Grondplan', 'Muurdoorvoeren', 'Aantekeningen']) {
-      const items = PLAN_PALETTE.filter((p) => (p.group || 'Grondplan') === group && (!q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q)));
+      const disc = app.disc;
+      const fits = (p) => (p.on === 'base' ? !disc : !p.on || p.on === 'any' ? true : p.on === disc);
+      const items = PLAN_PALETTE.filter((p) => (p.group || 'Grondplan') === group && fits(p) && (!q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q)));
       if (!items.length) continue;
       const isOpen = q || open.has(group);
       out.push(h('div', { class: 'folder' + (isOpen ? ' open' : ''), onclick: () => { toggleFolder(open, group); render(); } },
@@ -93,8 +95,15 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
     const roots = ['AREI', HVAC_ROOT].map((k) => tree.get(k)).filter(Boolean);
     const out = app.project?.kind === 'building' ? paletteNodes() : [];
     if (!roots.length) return out.length ? out : [h('p', { class: 'hint' }, 'Geen symbolen gevonden.')];
+    const disc = app.disc;
+    const head = app.project?.kind === 'building' && app.mode === 'building'
+      ? h('div', { class: 'planhead' }, disc ? `${DISCS[disc].icon} ${t(DISCS[disc].label)}` : t('Plattegrond: het gebouw tekenen'),
+        h('small', null, disc ? t('Grondplan vergrendeld – symbolen van dit type plaatsen') : t('Symbolen plaats je op een installatieplan (Bladen)'))) : null;
+    if (head) out.unshift(head);
     for (const f of roots.flatMap((root) => [...root.folders.values()])) {
       if (f.name === 'Eendraad' && app.mode === 'building') continue;
+      // on a plan only the symbols of its type; on the floor plan none
+      if (app.mode === 'building' && app.project?.kind === 'building' && !f.symbols.concat([...f.folders.values()].flatMap((x) => x.symbols)).some((d) => symDisc({ sym: d.id }, d) === disc)) continue;
       const isOpen = filter || open.has(f.path);
       out.push(h('div', { class: 'folder' + (isOpen ? ' open' : ''), onclick: () => { toggleFolder(open, f.path); render(); } },
         h('span', { class: 'caret' }, isOpen ? '▾' : '▸'), ' ', f.name));
@@ -144,17 +153,45 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
           onclick: async () => {
             if (b.floors.length < 2) return toast('Er moet minstens één verdieping zijn.');
             if (!(await confirmDlg('Verdieping verwijderen', t('"{name}" met alle muren en symbolen verwijderen?', { name: app.floor.name }), 'Verwijderen', true))) return;
-            app.mutate(() => b.floors.splice(app.floorIdx, 1));
+            app.mutate(() => { const [gone] = b.floors.splice(app.floorIdx, 1); b.plans = b.plans.filter((p) => p.floor !== gone.id); });
+            app.layerId = null;
             app.floorIdx = Math.max(0, app.floorIdx - 1);
             app.sel.clear();
             app.emit('change');
           },
         }, '🗑')),
       h('ol', { class: 'pagelist' }, h('h4', null, 'Plattegronden'), b.floors.map((f, i) => h('li', {
-        class: app.mode === 'building' && i === app.floorIdx ? 'active' : '', onclick: () => { app.setMode('building'); app.setFloor(i); },
+        class: app.mode === 'building' && i === app.floorIdx && !app.layerId ? 'active' : '', onclick: () => { app.setMode('building'); app.setFloor(i); },
         ondblclick: async () => { const n = await prompt('Naam verdieping', f.name); if (n !== null) app.mutate(() => { f.name = n; }); },
       }, h('span', { class: 'no' }, i + 1), h('span', { class: 'ttl' }, f.name),
-      h('small', { class: 'hint' }, ` ${f.symbols.length} symb.`))),
+      h('small', { class: 'hint' }, ` ${f.rooms.length} ${t('ruimtes')}`))),
+      ...Object.entries(DISCS).flatMap(([disc, info]) => {
+        const list = plansOf(b, disc);
+        const free = b.floors.filter((f) => !list.some((p) => p.floor === f.id));
+        return [
+          h('h4', { class: 'dischead' }, `${info.icon} ${t(info.label)}`,
+            free.length ? h('button', {
+              class: 'link', title: t('Nieuw plan {d} op een plattegrond', { d: t(info.label) }),
+              onclick: async () => {
+                let floor = free[0];
+                if (free.length > 1) {
+                  const sel = h('select', null, free.map((f) => h('option', { value: f.id }, f.name)));
+                  const ok = await modal({ title: t('Nieuw plan {d}', { d: t(info.label) }), body: h('div', { class: 'form' }, field('Op plattegrond', sel)), buttons: [{ label: 'Annuleren', value: false }, { label: 'Toevoegen', value: true, primary: true }] });
+                  if (!ok) return;
+                  floor = free.find((f) => f.id === sel.value);
+                }
+                const pl = newPlan(floor.id, disc);
+                app.mutate(() => b.plans.push(pl));
+                app.setMode('building');
+                app.setLayer(pl.id);
+              },
+            }, t('＋ plan')) : null),
+          ...list.map((pl) => h('li', {
+            class: app.mode === 'building' && app.layerId === pl.id ? 'active' : '', onclick: () => { app.setMode('building'); app.setLayer(pl.id); },
+          }, h('span', { class: 'no' }, info.icon), h('span', { class: 'ttl' }, b.floors.find((f) => f.id === pl.floor)?.name || '?'),
+          h('small', { class: 'hint' }, ` ${b.floors.find((f) => f.id === pl.floor)?.symbols.filter((s) => symDisc(s, app.lib.get(s.sym)) === disc).length || 0} symb.`))),
+        ];
+      }),
       h('h4', null, 'Eendraadschema'),
       app.project.pages.length ? app.project.pages.map((pg, i) => h('li', {
         class: app.mode === 'schematic' && i === app.pageIdx ? 'active' : '', onclick: () => { app.setMode('schematic'); app.setPage(i); },
@@ -163,6 +200,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
       h('p', { class: 'hint' }, 'Dubbelklik om te hernoemen.'));
   };
   app.on('change', () => { if (tab === 'floors') render(); });
+  app.on('layer', render);
   app.on('mode', render);
   app.on('planTool', render);
   app.on('project', render);
@@ -333,7 +371,12 @@ export function buildingProps(app, plan) {
       h('p', { class: 'hint' }, 'Sleep de hoekpunten om de vorm aan te passen.'))];
   }
   if (kind === 'B') return backgroundSection(app, plan);
-  if (kind === 'R') return roomProps(app, plan, f.rooms.find((x) => x.id === id));
+  if (kind === 'R') {
+    const r = f.rooms.find((x) => x.id === id);
+    // on the CV plan a room only carries its floor heating (the room itself is drawn on the floor plan)
+    if (r && app.disc === 'cv') return [section(r.name || t('Ruimte'), h('p', { class: 'hint' }, t('De ruimte zelf wijzig je op de plattegrond.'))), heatSection(app, r)];
+    return roomProps(app, plan, r);
+  }
   if (kind === 'T') {
     const tx = f.texts.find((x) => x.id === id);
     if (!tx) return [];
@@ -519,18 +562,67 @@ function floorProps(app, plan) {
   const set = (fn) => app.mutate(fn);
   const checks = checkCircuits(b, app.lib);
   const errors = checks.filter((c) => c.level === 'error').length;
+  const layer = app.layer;
+  if (layer) {
+    const disc = layer.disc;
+    const mine = f.symbols.filter((s) => symDisc(s, app.lib.get(s.sym)) === disc);
+    return [
+      section(planTitle(b, layer),
+        h('p', { class: 'hint' }, t('Installatieplan op de plattegrond "{f}": het grondplan staat vergrendeld eronder. Muren, deuren en ruimtes wijzig je op de plattegrond; alle plannen volgen.', { f: f.name })),
+        h('p', null, t('{n} symbool/symbolen op dit plan.', { n: mine.length })),
+        h('div', { class: 'btnrow' },
+          h('button', { onclick: () => app.setFloor(app.floorIdx) }, t('▦ Naar de plattegrond')),
+          h('button', {
+            class: 'danger',
+            onclick: async () => {
+              if (!(await confirmDlg('Plan verwijderen', t('"{p}" verwijderen, met zijn {n} symbool/symbolen, muurdoorvoeren en aantekeningen?', { p: planTitle(b, layer), n: mine.length }), 'Verwijderen', true))) return;
+              const gone = new Set(mine.map((s) => s.id));
+              app.mutate(() => {
+                f.symbols = f.symbols.filter((s) => !gone.has(s.id));
+                f.links = f.links.filter((l) => !gone.has(l.a) && !gone.has(l.b));
+                f.openings = f.openings.filter((o) => !(o.type === 'passage' && (o.media || 'elec') === disc));
+                f.shapes = f.shapes.filter((x) => x.plan !== layer.id);
+                f.dims = f.dims.filter((x) => x.plan !== layer.id);
+                b.plans = b.plans.filter((p) => p !== layer);
+              });
+              app.setFloor(app.floorIdx);
+            },
+          }, t('Plan verwijderen')))),
+      disc === 'elec' ? section('Kringen',
+        h('p', null, t('{c} kring(en), {b} verdeelbord(en).', { c: b.circuits.length, b: b.boards.length })),
+        checks.length ? h('p', { class: errors ? 'warn' : 'hint' }, (errors ? '⚠ ' : '') + t('{n} opmerking(en) bij de AREI-controle.', { n: checks.length })) : h('p', { class: 'hint' }, '✓ Geen opmerkingen.'),
+        h('div', { class: 'btnrow' },
+          h('button', { onclick: () => circuitsDialog(app) }, 'Kringen & borden…'),
+          h('button', { onclick: () => cablesDialog(app) }, 'Kabels…'),
+          h('button', { class: 'primary', onclick: () => generateDialog(app) }, 'Eendraadschema'))) : null,
+      disc === 'cv' ? section('Vloerverwarming',
+        h('p', { class: 'hint' }, t('Klik een ruimte aan om vloerverwarming aan te zetten, of open het venster.')),
+        h('button', { class: 'primary', onclick: () => heatingDialog(app) }, '♨ Vloerverwarming…')) : null,
+      section('Sneltoetsen', h('p', { class: 'hint keys' },
+        disc === 'elec' ? 'M maatlijn · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: niet tegen muur'
+          : 'M maatlijn · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: niet tegen muur')),
+    ];
+  }
   return [
     section(f.name,
       field('Naam', inp(f.name, (v) => set(() => { f.name = v; }), { key: 'fname' })),
       h('div', { class: 'grid2' },
         field('Schaal 1:', sel(b.scale, [[20, '20'], [50, '50'], [75, '75'], [100, '100']], (v) => set(() => { b.scale = +v; }), 'scale')),
         field('Raster (cm)', sel(b.grid, [[1, '1'], [5, '5'], [10, '10'], [25, '25']], (v) => set(() => { b.grid = +v; }), 'grid')))),
-    section('Kringen',
-      h('p', null, t('{c} kring(en), {b} verdeelbord(en).', { c: b.circuits.length, b: b.boards.length })),
-      checks.length ? h('p', { class: errors ? 'warn' : 'hint' }, (errors ? '⚠ ' : '') + t('{n} opmerking(en) bij de AREI-controle.', { n: checks.length })) : h('p', { class: 'hint' }, '✓ Geen opmerkingen.'),
-      h('div', { class: 'btnrow' },
-        h('button', { onclick: () => circuitsDialog(app) }, 'Kringen & borden…'),
-        h('button', { class: 'primary', onclick: () => generateDialog(app) }, 'Eendraadschema'))),
+    section('Installatieplannen',
+      h('p', { class: 'hint' }, t('Op deze plattegrond teken je het gebouw. De installaties (elektriciteit, sanitair, CV, ventilatie, afvoer) staan elk op een eigen plan erbovenop.')),
+      h('div', { class: 'btnrow wrap' }, Object.entries(DISCS).map(([disc, info]) => {
+        const pl = b.plans.find((p) => p.floor === f.id && p.disc === disc);
+        return h('button', {
+          class: pl ? '' : 'ghost', title: pl ? t('Open het plan') : t('Nieuw plan op deze plattegrond'),
+          onclick: () => {
+            if (pl) { app.setLayer(pl.id); return; }
+            const np = newPlan(f.id, disc);
+            app.mutate(() => b.plans.push(np));
+            app.setLayer(np.id);
+          },
+        }, `${info.icon} ${t(info.label)}${pl ? '' : ' ＋'}`);
+      }))),
     ...backgroundSection(app, plan),
     section('Sneltoetsen', h('p', { class: 'hint keys' },
       'W muur (cijfers + Enter = lengte in cm) · A gebogen muur · D deur · N raam · M maatlijn · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),

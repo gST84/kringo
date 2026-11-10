@@ -4,6 +4,7 @@ import { AREI } from '../building/arei.js';
 import { PlanEditor } from '../building/editor.js';
 import { buildingLeftPanel, buildingProps, cablesDialog, circuitOptions, circuitsDialog, domoticsDialog, generateDialog, heatingDialog, influencesDialog } from '../building/panels.js';
 import { HVAC } from '../building/hvac.js';
+import { DISCS, planTitle, plansOf } from '../building/model.js';
 import { guessPreset, newRoom, presetInfl, presetOf, syncPresets } from '../building/rooms.js';
 import { toast } from '../ui/dialogs.js';
 import { t } from '../i18n.js';
@@ -44,8 +45,13 @@ boot({
   pageOptions: ({ app, floorLbl }, pageOpts) => {
     const floors = app.project.building.floors;
     const onPlan = app.mode === 'building';
+    const b = app.project.building;
     const grouped = () => [
-      h('optgroup', { label: t('Plattegronden') }, floors.map((f, i) => h('option', { value: 'f:' + i, selected: onPlan && i === app.floorIdx }, `${f.name} (${i + 1}/${floors.length})`))),
+      h('optgroup', { label: t('Plattegronden') }, floors.map((f, i) => h('option', { value: 'f:' + i, selected: onPlan && i === app.floorIdx && !app.layerId }, `${f.name} (${i + 1}/${floors.length})`))),
+      ...Object.entries(DISCS).map(([disc, info]) => {
+        const list = plansOf(b, disc);
+        return list.length ? h('optgroup', { label: `${info.icon} ${t(info.label)}` }, list.map((pl) => h('option', { value: 'v:' + pl.id, selected: onPlan && app.layerId === pl.id }, planTitle(b, pl)))) : null;
+      }),
       app.project.pages.length ? h('optgroup', { label: t('Bladen') }, pageOpts(true)) : null,
     ].filter(Boolean);
     floorLbl.replaceChildren(...grouped());
@@ -76,9 +82,9 @@ boot({
     const heatChk = h('label', { class: 'check small', title: 'Vloerverwarming tonen (genereren via Vloerverwarming)' }, heatBox, 'verwarming');
     const syncTrace = () => {
       const b = app.project?.building;
-      traceChk.hidden = !b?.traces;
+      traceChk.hidden = !b?.traces || app.disc !== 'elec';
       traceBox.checked = !!b?.traceShow;
-      heatChk.hidden = !b?.heat;
+      heatChk.hidden = !b?.heat || app.disc !== 'cv';
       heatBox.checked = !!b?.heatShow;
     };
     const floorLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => goTo(e.target.value) });
@@ -97,9 +103,30 @@ boot({
       h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: true, onchange: (e) => { plan.showGrid = e.target.checked; plan.render(); } }), 'raster'),
       traceChk, heatChk,
       h('span', { class: 'grow' }),
-      btn('◀', 'Vorige verdieping', () => app.setFloor(app.floorIdx - 1)),
+      btn('◀', 'Vorige verdieping', () => step(-1)),
       floorLbl,
-      btn('▶', 'Volgende verdieping', () => app.setFloor(app.floorIdx + 1))));
+      btn('▶', 'Volgende verdieping', () => step(1))));
+
+    /** Previous / next floor, staying on the same kind of plan (floor plan or e.g. the CV plans). */
+    function step(d) {
+      const b = app.project.building;
+      if (!app.layer) return app.setFloor(app.floorIdx + d);
+      const list = plansOf(b, app.disc);
+      const next = list[list.indexOf(app.layer) + d];
+      if (next) app.setLayer(next.id);
+    }
+    // toolbar parts per plan: wall types on the floor plan, the active circuit on the electricity plan
+    const syncLayer = () => {
+      const disc = app.disc;
+      wallSel.hidden = !!disc;
+      circSel.hidden = disc !== 'elec';
+      traceChk.hidden = disc !== 'elec' || !app.project?.building?.traces;
+      heatChk.hidden = disc !== 'cv' || !app.project?.building?.heat;
+      if (!plan.toolAllowed(plan.tool, { type: plan.openingType, media: plan.openingMedia })) plan.setTool('select');
+    };
+    app.on('layer', syncLayer);
+    app.on('project', syncLayer);
+    app.on('mode', syncLayer);
 
     const PLAN_HINTS = {
       select: 'Klik = selecteren · slepen = verplaatsen (muurhoeken schuiven mee, deuren / ramen langs de muur) · dubbelklik = eigenschappen',

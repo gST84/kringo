@@ -6,7 +6,7 @@ import { geometry } from '../symbols/geom.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
 import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
 import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js';
-import { linkGroup, nearestWall, nextNumber, projectOnWall, rotateStair, setGroupCircuit, wallFrame, wallGeom } from './model.js';
+import { linkGroup, nearestWall, nextNumber, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -20,38 +20,42 @@ const POLY = new Set(['area', 'roomPoly']);
 
 const ico = (inner) => `<svg viewBox="0 0 40 40" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 
-/** Drawing tools of the plan, shown as tiles in the left panel ('Grondplan'). */
+/**
+ * Drawing tools of the plan, shown as tiles in the left panel ('Grondplan'). `on`: where the tool works –
+ * 'base' only on the floor plan (the building itself), 'any' also on installation plans, or an
+ * installation type ('elec', 'cv' …) for that type's plans only.
+ */
 export const PLAN_PALETTE = [
-  { key: 'wall', label: 'Muur', tool: 'wall', icon: ico('<rect x="4" y="16" width="32" height="8" fill="currentColor" stroke="none"/>') },
-  { key: 'arcwall', label: 'Gebogen muur', tool: 'arcwall', icon: ico('<path d="M5 32 A 20 20 0 0 1 35 32" stroke-width="7"/>') },
-  { key: 'divider', label: 'Ruimtescheiding', tool: 'wall', opts: { divider: true }, icon: ico('<path d="M6 8h28v24H6z" stroke-width="1.6"/><path d="M20 8v24" stroke-width="2.5" stroke-dasharray="4 3"/>') },
-  { key: 'door', label: 'Deur', tool: 'opening', opts: { type: 'door' }, icon: ico('<path d="M4 30h6M30 30h6M10 30V8"/><path d="M10 8 A 22 22 0 0 1 30 30" stroke-dasharray="3 2" stroke-width="1.4"/>') },
-  { key: 'doorway', label: 'Deuropening', tool: 'opening', opts: { type: 'door', leaf: false }, icon: ico('<path d="M2 26h10M28 26h10" stroke-width="7"/><path d="M12 22v8M28 22v8"/>') },
-  { key: 'door2', label: 'Dubbele deur', tool: 'opening', opts: { type: 'door2' }, icon: ico('<path d="M3 30h4M33 30h4M7 30V14M33 30V14"/><path d="M7 14 A 13 13 0 0 1 20 30M33 14 A 13 13 0 0 0 20 30" stroke-dasharray="3 2" stroke-width="1.4"/>') },
-  { key: 'window', label: 'Raam', tool: 'opening', opts: { type: 'window' }, icon: ico('<path d="M2 20h8M30 20h8" stroke-width="8"/><rect x="10" y="16" width="20" height="8" stroke-width="1.4"/><path d="M10 20h20" stroke-width="1.4"/>') },
-  { key: 'slide', label: 'Schuifraam / -deur', tool: 'opening', opts: { type: 'slide' }, icon: ico('<path d="M2 20h6M32 20h6" stroke-width="8"/><path d="M8 17h16M16 23h16" stroke-width="2.4"/>') },
-  { key: 'garage', label: 'Garagepoort', tool: 'opening', opts: { type: 'garage' }, icon: ico('<path d="M1 12h6M33 12h6" stroke-width="7"/><path d="M7 12h26" stroke-width="3"/><rect x="7" y="16" width="26" height="14" stroke-dasharray="3 2" stroke-width="1.4"/>') },
-  { key: 'passage-cv', group: 'Muurdoorvoeren', label: 'Muurdoorvoer CV', tool: 'opening', opts: { type: 'passage', media: 'cv' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#e03131" fill-opacity=".6" stroke="#e03131" stroke-width="1.6"/><path d="M20 8v24" stroke="#e03131" stroke-width="1.2" stroke-dasharray="3 2"/>') },
-  { key: 'passage-water', group: 'Muurdoorvoeren', label: 'Muurdoorvoer sanitair', tool: 'opening', opts: { type: 'passage', media: 'water' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#1c7ed6" fill-opacity=".6" stroke="#1c7ed6" stroke-width="1.6"/><path d="M20 8v24" stroke="#1c7ed6" stroke-width="1.2" stroke-dasharray="3 2"/>') },
-  { key: 'passage-drain', group: 'Muurdoorvoeren', label: 'Muurdoorvoer afvoer', tool: 'opening', opts: { type: 'passage', media: 'drain' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#7d5a3c" fill-opacity=".6" stroke="#7d5a3c" stroke-width="1.6"/><path d="M20 8v24" stroke="#7d5a3c" stroke-width="1.2" stroke-dasharray="3 2"/>') },
-  { key: 'passage-vent', group: 'Muurdoorvoeren', label: 'Muurdoorvoer ventilatie', tool: 'opening', opts: { type: 'passage', media: 'vent' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#2f9e44" fill-opacity=".6" stroke="#2f9e44" stroke-width="1.6"/><path d="M20 8v24" stroke="#2f9e44" stroke-width="1.2" stroke-dasharray="3 2"/>') },
-  { key: 'passage-elec', group: 'Muurdoorvoeren', label: 'Muurdoorvoer kabels', tool: 'opening', opts: { type: 'passage', media: 'elec' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#f08c00" fill-opacity=".6" stroke="#f08c00" stroke-width="1.6"/><path d="M20 8v24" stroke="#f08c00" stroke-width="1.2" stroke-dasharray="3 2"/>') },
-  { key: 'stair', label: 'Trap', tool: 'stair', opts: { stair: 'straight' }, icon: ico('<rect x="12" y="3" width="16" height="34" stroke-width="1.6"/><path d="M12 10h16M12 16h16M12 22h16M12 28h16" stroke-width="1"/><path d="M20 34V6M16 10l4-4 4 4" stroke-width="1.4"/>') },
-  { key: 'quarter', label: 'Kwartdraaitrap', tool: 'stair', opts: { stair: 'quarter' }, icon: ico('<path d="M4 4h32v12H16v20H4z" stroke-width="1.6"/><path d="M4 28h12M4 22h12M16 16L4 4M22 4v12M29 4v12" stroke-width="1"/><path d="M10 34V10h24M30 7l4 3-4 3" stroke-width="1.4"/>') },
-  { key: 'spiral', label: 'Wenteltrap', tool: 'spiral', icon: ico('<circle cx="20" cy="20" r="16" stroke-width="1.6"/><circle cx="20" cy="20" r="3" stroke-width="1.2"/><path d="M20 17V4M23 20h13M20 23v13M17 20H4M22 18l9-9M22 22l9 9M18 22l-9 9M18 18 9 9" stroke-width="1"/>') },
-  { key: 'room', label: 'Ruimte', tool: 'room', icon: ico('<path d="M6 8h28v24H6z" fill="#dbeafe" stroke-width="2.5"/><circle cx="20" cy="20" r="3" fill="currentColor"/><path d="M23 23l6 6" stroke-width="1.5"/>') },
-  { key: 'roomPoly', label: 'Ruimte (hoeken)', tool: 'roomPoly', icon: ico('<path d="M6 8h18l10 10v14H6z" fill="#dbeafe" stroke-width="2"/><circle cx="6" cy="8" r="3" fill="currentColor"/><circle cx="24" cy="8" r="3" fill="currentColor"/><circle cx="34" cy="18" r="3" fill="currentColor"/><circle cx="34" cy="32" r="3" fill="currentColor"/><circle cx="6" cy="32" r="3" fill="currentColor"/>') },
-  { key: 'text', label: 'Ruimtenaam', tool: 'text', icon: ico('<path d="M10 10h20M20 10v22" stroke-width="3"/>') },
+  { key: 'wall', on: 'base', label: 'Muur', tool: 'wall', icon: ico('<rect x="4" y="16" width="32" height="8" fill="currentColor" stroke="none"/>') },
+  { key: 'arcwall', on: 'base', label: 'Gebogen muur', tool: 'arcwall', icon: ico('<path d="M5 32 A 20 20 0 0 1 35 32" stroke-width="7"/>') },
+  { key: 'divider', on: 'base', label: 'Ruimtescheiding', tool: 'wall', opts: { divider: true }, icon: ico('<path d="M6 8h28v24H6z" stroke-width="1.6"/><path d="M20 8v24" stroke-width="2.5" stroke-dasharray="4 3"/>') },
+  { key: 'door', on: 'base', label: 'Deur', tool: 'opening', opts: { type: 'door' }, icon: ico('<path d="M4 30h6M30 30h6M10 30V8"/><path d="M10 8 A 22 22 0 0 1 30 30" stroke-dasharray="3 2" stroke-width="1.4"/>') },
+  { key: 'doorway', on: 'base', label: 'Deuropening', tool: 'opening', opts: { type: 'door', leaf: false }, icon: ico('<path d="M2 26h10M28 26h10" stroke-width="7"/><path d="M12 22v8M28 22v8"/>') },
+  { key: 'door2', on: 'base', label: 'Dubbele deur', tool: 'opening', opts: { type: 'door2' }, icon: ico('<path d="M3 30h4M33 30h4M7 30V14M33 30V14"/><path d="M7 14 A 13 13 0 0 1 20 30M33 14 A 13 13 0 0 0 20 30" stroke-dasharray="3 2" stroke-width="1.4"/>') },
+  { key: 'window', on: 'base', label: 'Raam', tool: 'opening', opts: { type: 'window' }, icon: ico('<path d="M2 20h8M30 20h8" stroke-width="8"/><rect x="10" y="16" width="20" height="8" stroke-width="1.4"/><path d="M10 20h20" stroke-width="1.4"/>') },
+  { key: 'slide', on: 'base', label: 'Schuifraam / -deur', tool: 'opening', opts: { type: 'slide' }, icon: ico('<path d="M2 20h6M32 20h6" stroke-width="8"/><path d="M8 17h16M16 23h16" stroke-width="2.4"/>') },
+  { key: 'garage', on: 'base', label: 'Garagepoort', tool: 'opening', opts: { type: 'garage' }, icon: ico('<path d="M1 12h6M33 12h6" stroke-width="7"/><path d="M7 12h26" stroke-width="3"/><rect x="7" y="16" width="26" height="14" stroke-dasharray="3 2" stroke-width="1.4"/>') },
+  { key: 'passage-cv', on: 'cv', group: 'Muurdoorvoeren', label: 'Muurdoorvoer CV', tool: 'opening', opts: { type: 'passage', media: 'cv' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#e03131" fill-opacity=".6" stroke="#e03131" stroke-width="1.6"/><path d="M20 8v24" stroke="#e03131" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-water', on: 'water', group: 'Muurdoorvoeren', label: 'Muurdoorvoer sanitair', tool: 'opening', opts: { type: 'passage', media: 'water' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#1c7ed6" fill-opacity=".6" stroke="#1c7ed6" stroke-width="1.6"/><path d="M20 8v24" stroke="#1c7ed6" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-drain', on: 'drain', group: 'Muurdoorvoeren', label: 'Muurdoorvoer afvoer', tool: 'opening', opts: { type: 'passage', media: 'drain' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#7d5a3c" fill-opacity=".6" stroke="#7d5a3c" stroke-width="1.6"/><path d="M20 8v24" stroke="#7d5a3c" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-vent', on: 'vent', group: 'Muurdoorvoeren', label: 'Muurdoorvoer ventilatie', tool: 'opening', opts: { type: 'passage', media: 'vent' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#2f9e44" fill-opacity=".6" stroke="#2f9e44" stroke-width="1.6"/><path d="M20 8v24" stroke="#2f9e44" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-elec', on: 'elec', group: 'Muurdoorvoeren', label: 'Muurdoorvoer kabels', tool: 'opening', opts: { type: 'passage', media: 'elec' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#f08c00" fill-opacity=".6" stroke="#f08c00" stroke-width="1.6"/><path d="M20 8v24" stroke="#f08c00" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'stair', on: 'base', label: 'Trap', tool: 'stair', opts: { stair: 'straight' }, icon: ico('<rect x="12" y="3" width="16" height="34" stroke-width="1.6"/><path d="M12 10h16M12 16h16M12 22h16M12 28h16" stroke-width="1"/><path d="M20 34V6M16 10l4-4 4 4" stroke-width="1.4"/>') },
+  { key: 'quarter', on: 'base', label: 'Kwartdraaitrap', tool: 'stair', opts: { stair: 'quarter' }, icon: ico('<path d="M4 4h32v12H16v20H4z" stroke-width="1.6"/><path d="M4 28h12M4 22h12M16 16L4 4M22 4v12M29 4v12" stroke-width="1"/><path d="M10 34V10h24M30 7l4 3-4 3" stroke-width="1.4"/>') },
+  { key: 'spiral', on: 'base', label: 'Wenteltrap', tool: 'spiral', icon: ico('<circle cx="20" cy="20" r="16" stroke-width="1.6"/><circle cx="20" cy="20" r="3" stroke-width="1.2"/><path d="M20 17V4M23 20h13M20 23v13M17 20H4M22 18l9-9M22 22l9 9M18 22l-9 9M18 18 9 9" stroke-width="1"/>') },
+  { key: 'room', on: 'base', label: 'Ruimte', tool: 'room', icon: ico('<path d="M6 8h28v24H6z" fill="#dbeafe" stroke-width="2.5"/><circle cx="20" cy="20" r="3" fill="currentColor"/><path d="M23 23l6 6" stroke-width="1.5"/>') },
+  { key: 'roomPoly', on: 'base', label: 'Ruimte (hoeken)', tool: 'roomPoly', icon: ico('<path d="M6 8h18l10 10v14H6z" fill="#dbeafe" stroke-width="2"/><circle cx="6" cy="8" r="3" fill="currentColor"/><circle cx="24" cy="8" r="3" fill="currentColor"/><circle cx="34" cy="18" r="3" fill="currentColor"/><circle cx="34" cy="32" r="3" fill="currentColor"/><circle cx="6" cy="32" r="3" fill="currentColor"/>') },
+  { key: 'text', on: 'base', label: 'Ruimtenaam', tool: 'text', icon: ico('<path d="M10 10h20M20 10v22" stroke-width="3"/>') },
   { key: 'dim', label: 'Maatlijn', tool: 'dim', icon: ico('<path d="M5 26h30M5 20v12M35 20v12M2 29l6-6M32 29l6-6" stroke-width="1.6"/><text x="20" y="18" font-size="11" text-anchor="middle" fill="currentColor" stroke="none" font-family="sans-serif">385</text>') },
   { key: 'area', label: 'Gekleurd vlak', tool: 'area', icon: ico('<path d="M6 30 10 8l20 4 4 18z" fill="#93c5fd" fill-opacity=".7" stroke="#3b82f6"/>') },
   { key: 'line', label: 'Lijn', tool: 'line', icon: ico('<path d="M5 32 16 12l9 14 10-18" stroke="#dc2626" stroke-width="2.5"/>') },
-  { key: 'link', label: 'Koppelen', tool: 'link', icon: ico('<circle cx="9" cy="28" r="4"/><circle cx="31" cy="12" r="4"/><path d="M12 25q4-14 16-11" stroke-dasharray="3 2"/>') },
+  { key: 'link', on: 'elec', label: 'Koppelen', tool: 'link', icon: ico('<circle cx="9" cy="28" r="4"/><circle cx="31" cy="12" r="4"/><path d="M12 25q4-14 16-11" stroke-dasharray="3 2"/>') },
   { key: 'arrow', group: 'Aantekeningen', label: 'Pijl', tool: 'line', opts: { arrow: 'end' }, icon: ico('<path d="M6 32 32 8"/><path d="M33 7 21 11l8 8z" fill="currentColor"/>') },
   { key: 'arrow2', group: 'Aantekeningen', label: 'Dubbele pijl', tool: 'line', opts: { arrow: 'both' }, icon: ico('<path d="M9 31 31 9"/><path d="M33 7 21 11l8 8zM7 33l12-4-8-8z" fill="currentColor"/>') },
   { key: 'callout', group: 'Aantekeningen', label: 'Tekstballon', tool: 'callout', opts: { leader: true }, icon: ico('<rect x="14" y="4" width="23" height="15" rx="3"/><path d="M18 19 5 34" /><path d="M18 10h14M18 14h10" stroke-width="1.3"/>') },
   { key: 'textbox', group: 'Aantekeningen', label: 'Tekstvak', tool: 'callout', opts: { leader: false }, icon: ico('<rect x="4" y="10" width="32" height="20" rx="2"/><path d="M9 17h22M9 23h16" stroke-width="1.3"/>') },
-  { key: 'bg', label: 'Achtergrond (afbeelding / PDF)', action: 'background', icon: ico('<rect x="4" y="7" width="32" height="26" rx="2" stroke-width="1.6"/><path d="m6 29 9-10 7 7 4-4 8 7" stroke-width="1.4"/><circle cx="27" cy="14" r="3" stroke-width="1.4"/>') },
-  { key: 'calib', label: 'Schaal bepalen', tool: 'calib', icon: ico('<path d="M4 30 36 10" stroke-width="1.6"/><circle cx="4" cy="30" r="3"/><circle cx="36" cy="10" r="3"/><path d="M14 33l3-5M24 27l3-5" stroke-width="1.2"/>') },
+  { key: 'bg', on: 'base', label: 'Achtergrond (afbeelding / PDF)', action: 'background', icon: ico('<rect x="4" y="7" width="32" height="26" rx="2" stroke-width="1.6"/><path d="m6 29 9-10 7 7 4-4 8 7" stroke-width="1.4"/><circle cx="27" cy="14" r="3" stroke-width="1.4"/>') },
+  { key: 'calib', on: 'base', label: 'Schaal bepalen', tool: 'calib', icon: ico('<path d="M4 30 36 10" stroke-width="1.6"/><circle cx="4" cy="30" r="3"/><circle cx="36" cy="10" r="3"/><path d="M14 33l3-5M24 27l3-5" stroke-width="1.2"/>') },
 ];
 
 export class PlanEditor {
@@ -224,7 +228,23 @@ export class PlanEditor {
   }
 
   // ---------- tools ----------
+  /** Can this tool be used on the open plan? (the building on the floor plan, symbols on installation plans) */
+  toolAllowed(tool, opts = {}) {
+    const disc = this.app.disc;
+    if (tool === 'select' || tool === 'pan') return true;
+    if (tool === 'opening' && opts.type === 'passage') return disc === (opts.media || 'cv');
+    if (['place', 'strip'].includes(tool)) return !!disc;
+    if (tool === 'link') return disc === 'elec';
+    if (['dim', 'area', 'line', 'callout'].includes(tool)) return true;
+    return !disc; // walls, doors, stairs, rooms, room names, calibration
+  }
+
   setTool(tool, opts = {}) {
+    if (!this.toolAllowed(tool, opts)) {
+      this.app.emit('planToast', this.app.disc ? 'Muren, deuren, trappen en ruimtes teken je op de plattegrond zelf (Bladen › Plattegronden); dit plan toont ze vergrendeld.'
+        : 'Symbolen plaats je op een installatieplan (Bladen › Elektriciteit, Sanitair, CV …), niet op de plattegrond.');
+      tool = 'select'; opts = {};
+    }
     this.tool = tool;
     this.toolKey = opts.key || (tool === 'opening' ? (opts.leaf === false ? 'doorway' : opts.type === 'passage' ? 'passage-' + (opts.media || 'cv') : opts.type || this.openingType) : tool === 'stair' ? (opts.stair === 'quarter' ? 'quarter' : 'stair') : tool);
     this.chain = null;
@@ -250,7 +270,7 @@ export class PlanEditor {
     this.defs.innerHTML = `<pattern id="pgp" width="${g}" height="${g}" x="${PLAN_ORIGIN[0] - g / 2}" y="${PLAN_ORIGIN[1] - g / 2}" patternUnits="userSpaceOnUse"><circle cx="${g / 2}" cy="${g / 2}" r="0.25" fill="#b9c0cc"/></pattern>`;
     const sel = new Set(this.app.sel);
     if (this.linkFrom) sel.add('A:' + this.linkFrom);
-    this.layer.innerHTML = planSvg(this.app.project, this.app.floorIdx, this.app.lib, { selection: sel, grid: this.showGrid, showRooms: true, imageUrl: (id) => this.imageUrl(id) });
+    this.layer.innerHTML = planSvg(this.app.project, this.app.floorIdx, this.app.lib, { selection: sel, grid: this.showGrid, showRooms: true, imageUrl: (id) => this.imageUrl(id), layer: this.app.layer });
     if (this.app.sel.size === 1) {
       const hs = this.handles([...this.app.sel][0]);
       if (hs) this.layer.insertAdjacentHTML('beforeend', `<g transform="translate(${PLAN_ORIGIN[0]} ${PLAN_ORIGIN[1]}) scale(${k})">${hs}</g>`);
@@ -471,7 +491,29 @@ export class PlanEditor {
     this.renderOverlay();
   }
 
-  hitKey(t) { return t.closest?.('[data-k]')?.dataset.k || null; }
+  hitKey(t) {
+    const key = t.closest?.('[data-k]')?.dataset.k || null;
+    return this.editable(key) ? key : null;
+  }
+
+  /**
+   * Can this element be selected on the open plan? On an installation plan the building (walls,
+   * openings, stairs, room names, notes of the floor plan) is locked; rooms can be picked on the CV plan
+   * (floor heating), but not moved.
+   */
+  editable(key) {
+    if (!key) return false;
+    const disc = this.app.disc, f = this.floor;
+    const [type, id] = key.split(':');
+    if (type.length > 1) return true; // handles of a selected element
+    if (!disc) return !['A', 'L'].includes(type);
+    if (type === 'A' || type === 'L') return true;
+    if (type === 'R') return disc === 'cv';
+    if (type === 'O') { const o = f.openings.find((x) => x.id === id); return o?.type === 'passage' && (o.media || 'elec') === disc; }
+    if (type === 'D') return f.dims.find((x) => x.id === id)?.plan === this.app.layerId;
+    if (type === 'P') return f.shapes.find((x) => x.id === id)?.plan === this.app.layerId;
+    return false;
+  }
 
   onDown(e) {
     const app = this.app;
@@ -584,6 +626,7 @@ export class PlanEditor {
       const inR = (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
       if (x1 - x0 > 1 || y1 - y0 > 1) {
         const f = this.floor;
+        const disc = this.app.disc, lib = this.app.lib;
         this.app.select([
           ...f.walls.filter((w) => inR(w.x1, w.y1) && inR(w.x2, w.y2)).map((w) => 'W:' + w.id),
           ...f.symbols.filter((s) => inR(s.x, s.y)).map((s) => 'A:' + s.id),
@@ -592,7 +635,7 @@ export class PlanEditor {
           ...f.dims.filter((m) => inR(m.x1, m.y1) && inR(m.x2, m.y2)).map((m) => 'D:' + m.id),
           ...f.shapes.filter((sh) => sh.pts.every(([x, y]) => inR(x, y))).map((sh) => 'P:' + sh.id),
           ...f.rooms.filter((r) => inR(...roomLabelPos(r, roomPolygon(f, r)))).map((r) => 'R:' + r.id),
-        ], d.add);
+        ].filter((key) => this.editable(key) && !(key.startsWith('A:') && symDisc(f.symbols.find((x) => 'A:' + x.id === key), lib.get(f.symbols.find((x) => 'A:' + x.id === key)?.sym)) !== disc) && !(disc && key.startsWith('R:'))), d.add);
       }
       this.renderOverlay();
     } else if (d.type === 'stair') {
@@ -879,6 +922,7 @@ export class PlanEditor {
     const d = { id: uid('dm'), x1: a[0], y1: a[1], x2: b[0], y2: b[1] };
     const { n } = dimGeom(d);
     d.off = r2((p[0] - a[0]) * n[0] + (p[1] - a[1]) * n[1]);
+    if (this.app.layerId) d.plan = this.app.layerId;
     this.app.mutate(() => this.floor.dims.push(d));
     this.pts = [];
     this.renderOverlay();
@@ -934,6 +978,7 @@ export class PlanEditor {
     const last = this.lastStyle?.[type === 'line' && this.lineArrow ? 'arrow' : type] || {};
     const sh = { id: uid('sh'), type, pts: list, ...last };
     if (type === 'line') { if (this.lineArrow) sh.arrow = this.lineArrow; else delete sh.arrow; }
+    if (this.app.layerId) sh.plan = this.app.layerId;
     this.app.mutate(() => this.floor.shapes.push(sh));
     this.app.select(['P:' + sh.id]);
     this.renderOverlay();
@@ -961,6 +1006,7 @@ export class PlanEditor {
   addCallout(pts, text) {
     if (!text) return;
     const sh = { id: uid('sh'), type: 'callout', pts, text, ...(this.lastStyle?.callout || {}) };
+    if (this.app.layerId) sh.plan = this.app.layerId;
     this.app.mutate(() => this.floor.shapes.push(sh));
     this.app.select(['P:' + sh.id]);
   }
@@ -1002,7 +1048,10 @@ export class PlanEditor {
     const def = this.app.lib.get(sym);
     if (!def) return;
     const pl = this.placement(def, raw, e);
-    const s = { id: uid('a'), sym, x: pl.x, y: pl.y, rot: pl.rot, circuit: this.activeCircuit || '', props: {} };
+    const disc = this.app.disc;
+    if (!disc) return;
+    const s = { id: uid('a'), sym, x: pl.x, y: pl.y, rot: pl.rot, circuit: disc === 'elec' ? this.activeCircuit || '' : '', props: {} };
+    if (symDisc({ sym }, def) !== disc) s.disc = disc; // an own symbol placed on e.g. the CV plan belongs there
     this.app.mutate(() => {
       if (s.circuit) s.n = nextNumber(this.b, s.circuit);
       this.floor.symbols.push(s);
@@ -1091,7 +1140,7 @@ export class PlanEditor {
       type: 'move', start, items, attached, moved: false, dx: 0, dy: 0,
       walls: walls.map((w) => ({ o: w, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, cx: w.cx, cy: w.cy })),
       dims: f.dims.filter((d) => sel.has('D:' + d.id)).map((d) => ({ o: d, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 })),
-      rooms: f.rooms.filter((r) => sel.has('R:' + r.id)).map((r) => { const [x, y] = roomLabelPos(r, roomPolygon(f, r)); return { o: r, x, y }; }),
+      rooms: f.rooms.filter((r) => !this.app.disc && sel.has('R:' + r.id)).map((r) => { const [x, y] = roomLabelPos(r, roomPolygon(f, r)); return { o: r, x, y }; }),
       shapes: f.shapes.filter((s) => sel.has('P:' + s.id)).map((s) => ({
         o: s, pts: s.pts.map((p) => [...p]),
         // dragging a single balloon moves the balloon, its arrow keeps pointing at the same spot
