@@ -166,6 +166,8 @@ export function normalizeBuilding(b) {
     }
   }
   b.plans = b.plans.filter((p) => DISCS[p.disc] && b.floors.some((f) => f.id === p.floor));
+  // generated floor heating of 0.91 – 0.95 (pipes are drawn by hand now)
+  delete b.heat; delete b.heatShow;
   // migrate the flat structure (board.rcds, circuit.board / circuit.rcd) to the tree
   for (const bd of b.boards) {
     bd.main ||= { In: 40, poles: 2, rcd: 300 };

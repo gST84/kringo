@@ -37,7 +37,7 @@ boot({
     btn('Domotica', 'Domotica-modules en hun kanalen', () => domoticsDialog(app)),
     btn('Invloeden', 'Uitwendige invloeden per ruimte: tabel, CSV en blad', () => influencesDialog(app)),
     btn('Kabels', 'Kabeltrace op het grondplan en kabellengtes per type', () => cablesDialog(app)),
-    btn('Vloerverwarming', 'Vloerverwarming genereren: kringen per ruimte vanaf de collector, hoofdleidingen vanaf de CV-ketel', () => heatingDialog(app)),
+    btn('Vloerverwarming', 'Getekende vloerverwarmingskringen per collector met hun lengte', () => heatingDialog(app)),
     btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app)),
   ],
   // floor plans and single-line sheets in one list, grouped
@@ -78,14 +78,10 @@ boot({
     };
     const traceBox = h('input', { type: 'checkbox', onchange: (e) => { app.mutate(() => { app.project.building.traceShow = e.target.checked; }); app.emit('change'); } });
     const traceChk = h('label', { class: 'check small', title: 'Kabeltrace tonen (genereren via Kabels)' }, traceBox, 'kabels');
-    const heatBox = h('input', { type: 'checkbox', onchange: (e) => { app.mutate(() => { app.project.building.heatShow = e.target.checked; }); app.emit('change'); } });
-    const heatChk = h('label', { class: 'check small', title: 'Vloerverwarming tonen (genereren via Vloerverwarming)' }, heatBox, 'verwarming');
     const syncTrace = () => {
       const b = app.project?.building;
       traceChk.hidden = !b?.traces || app.disc !== 'elec';
       traceBox.checked = !!b?.traceShow;
-      heatChk.hidden = !b?.heat || app.disc !== 'cv';
-      heatBox.checked = !!b?.heatShow;
     };
     const floorLbl = h('select', { class: 'pagesel', title: 'Pagina kiezen', onchange: (e) => goTo(e.target.value) });
     $('#toolbar').append(h('span', { class: 'tgroup view-plan' },
@@ -101,7 +97,7 @@ boot({
       btn('+', 'Inzoomen', () => plan.zoomBy(0.8)),
       btn('⤢', 'Passend (F)', () => plan.fit()),
       h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: true, onchange: (e) => { plan.showGrid = e.target.checked; plan.render(); } }), 'raster'),
-      traceChk, heatChk,
+      traceChk,
       h('span', { class: 'grow' }),
       btn('◀', 'Vorige verdieping', () => step(-1)),
       floorLbl,
@@ -121,7 +117,6 @@ boot({
       wallSel.hidden = !!disc;
       circSel.hidden = disc !== 'elec';
       traceChk.hidden = disc !== 'elec' || !app.project?.building?.traces;
-      heatChk.hidden = disc !== 'cv' || !app.project?.building?.heat;
       if (!plan.toolAllowed(plan.tool, { type: plan.openingType, media: plan.openingMedia })) plan.setTool('select');
     };
     app.on('layer', syncLayer);
@@ -144,6 +139,7 @@ boot({
       roomPoly: 'Klik de hoeken van de ruimte (hoeken op een muurhoek volgen de muur) · eerste punt, dubbelklik of Enter = sluiten · Backspace = punt terug · Esc',
       callout: 'Tekstballon: klik het punt waarnaar hij wijst, dan de plaats van de ballon · tekstvak: klik de plaats · Esc',
       text: 'Klik in een ruimte om een naam te plaatsen',
+      pipe: 'Buis tekenen: klik de punten (in een ruimte op het raster van de legafstand, haaks) · dubbelklik, Enter of rechtermuisknop = klaar · Backspace = punt terug · Alt = vrij · Esc',
       passage: 'Klik op een muur om een doorvoer te plaatsen: leidingen van dit type mogen daar door de muur',
       place: 'Klik om te plaatsen (tegen de dichtstbijzijnde muur) · R draaien · Alt = vrij plaatsen · Esc = stoppen',
       link: 'Klik de symbolen na elkaar: 1 → 2 → 3 … (bv. schakelaar → lamp → lamp) · opnieuw klikken op een gekoppeld paar = ontkoppelen · Esc = stoppen',

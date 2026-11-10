@@ -6,6 +6,7 @@ import { geometry } from '../symbols/geom.js';
 import { shapeSvg, textSvg } from '../schematic/render.js';
 import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
 import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js';
+import { heatCfg, nearestCollector, nextLoopName, PIPE_COLORS, roomGrid } from './heating.js';
 import { linkGroup, nearestWall, nextNumber, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 
@@ -14,7 +15,9 @@ const near = (a, b, tol = 0.5) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] 
 const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
 /** Tools that draw several points before they create something. */
-const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'strip', 'calib', 'callout', 'roomPoly']);
+const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'strip', 'calib', 'callout', 'roomPoly', 'pipe']);
+/** Tools that draw an open polyline (Enter / double-click / right click = done). */
+const OPEN = new Set(['line', 'strip', 'pipe']);
 /** Tools that draw a closed polygon. */
 const POLY = new Set(['area', 'roomPoly']);
 
@@ -40,6 +43,7 @@ export const PLAN_PALETTE = [
   { key: 'passage-drain', on: 'drain', group: 'Muurdoorvoeren', label: 'Muurdoorvoer afvoer', tool: 'opening', opts: { type: 'passage', media: 'drain' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#7d5a3c" fill-opacity=".6" stroke="#7d5a3c" stroke-width="1.6"/><path d="M20 8v24" stroke="#7d5a3c" stroke-width="1.2" stroke-dasharray="3 2"/>') },
   { key: 'passage-vent', on: 'vent', group: 'Muurdoorvoeren', label: 'Muurdoorvoer ventilatie', tool: 'opening', opts: { type: 'passage', media: 'vent' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#2f9e44" fill-opacity=".6" stroke="#2f9e44" stroke-width="1.6"/><path d="M20 8v24" stroke="#2f9e44" stroke-width="1.2" stroke-dasharray="3 2"/>') },
   { key: 'passage-elec', on: 'elec', group: 'Muurdoorvoeren', label: 'Muurdoorvoer kabels', tool: 'opening', opts: { type: 'passage', media: 'elec' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#f08c00" fill-opacity=".6" stroke="#f08c00" stroke-width="1.6"/><path d="M20 8v24" stroke="#f08c00" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'pipe', on: 'cv', group: 'Vloerverwarming', label: 'Buis tekenen', tool: 'pipe', icon: ico('<path d="M6 34V8h28v24H12V14h16v12H18v-6" stroke="#e03131" stroke-width="2.2"/>') },
   { key: 'stair', on: 'base', label: 'Trap', tool: 'stair', opts: { stair: 'straight' }, icon: ico('<rect x="12" y="3" width="16" height="34" stroke-width="1.6"/><path d="M12 10h16M12 16h16M12 22h16M12 28h16" stroke-width="1"/><path d="M20 34V6M16 10l4-4 4 4" stroke-width="1.4"/>') },
   { key: 'quarter', on: 'base', label: 'Kwartdraaitrap', tool: 'stair', opts: { stair: 'quarter' }, icon: ico('<path d="M4 4h32v12H16v20H4z" stroke-width="1.6"/><path d="M4 28h12M4 22h12M16 16L4 4M22 4v12M29 4v12" stroke-width="1"/><path d="M10 34V10h24M30 7l4 3-4 3" stroke-width="1.4"/>') },
   { key: 'spiral', on: 'base', label: 'Wenteltrap', tool: 'spiral', icon: ico('<circle cx="20" cy="20" r="16" stroke-width="1.6"/><circle cx="20" cy="20" r="3" stroke-width="1.2"/><path d="M20 17V4M23 20h13M20 23v13M17 20H4M22 18l9-9M22 22l9 9M18 22l-9 9M18 18 9 9" stroke-width="1"/>') },
@@ -182,7 +186,7 @@ export class PlanEditor {
       if (best) return best.q.map(r2);
     }
     for (const w of this.floor.walls) for (const q of [[w.x1, w.y1], [w.x2, w.y2]]) if (near(p, q, tol)) return [...q];
-    if (this.tool === 'area' || this.tool === 'line' || this.tool === 'strip') {
+    if (this.tool === 'area' || OPEN.has(this.tool)) {
       for (const sh of this.floor.shapes) for (const q of sh.pts) if (near(p, q, tol)) return [...q];
       if (this.pts.length && near(p, this.pts[0], tol)) return [...this.pts[0]];
     }
@@ -214,6 +218,23 @@ export class PlanEditor {
     return { p: this.snapPoint(p, e, this.pts[this.pts.length - 1]), ref: null };
   }
 
+  /**
+   * Point of a heating pipe: on the grid of the room under the cursor (its pipe spacing, from the wall
+   * distance), at right angles to the previous point; on a manifold when close to one. Alt = free.
+   */
+  pipeSnap(p, e, from) {
+    if (e?.altKey) return p.map(r2);
+    const col = nearestCollector(this.floor, this.app.lib, p);
+    if (col && dist([col.x, col.y], p) < this.px(14)) return [col.x, col.y];
+    const g = roomGrid(this.b, this.floor, p[0], p[1]);
+    let q = g ? g.snap(p) : [r2(snap(p[0], 5)), r2(snap(p[1], 5))];
+    if (from) {
+      // right angles: keep the axis with the larger move
+      if (Math.abs(q[0] - from[0]) >= Math.abs(q[1] - from[1])) q = [q[0], from[1]]; else q = [from[0], q[1]];
+    }
+    return q;
+  }
+
   /** Cursor position for the current tool. */
   cursorPoint(raw, e) {
     switch (this.tool) {
@@ -223,6 +244,7 @@ export class PlanEditor {
       case 'dim': return this.pts.length === 2 ? raw.map(r2) : this.snapPoint(raw, e, this.pts[0]);
       case 'area': case 'line': case 'strip': return this.snapPoint(raw, e, this.pts[this.pts.length - 1]);
       case 'roomPoly': return this.roomSnap(raw, e).p;
+      case 'pipe': return this.pipeSnap(raw, e, this.pts[this.pts.length - 1]);
       default: return this.snapPoint(raw, e);
     }
   }
@@ -235,6 +257,7 @@ export class PlanEditor {
     if (tool === 'opening' && opts.type === 'passage') return disc === (opts.media || 'cv');
     if (['place', 'strip'].includes(tool)) return !!disc;
     if (tool === 'link') return disc === 'elec';
+    if (tool === 'pipe') return disc === 'cv';
     if (['dim', 'area', 'line', 'callout'].includes(tool)) return true;
     return !disc; // walls, doors, stairs, rooms, room names, calibration
   }
@@ -373,14 +396,28 @@ export class PlanEditor {
       }
       s += cursor();
     }
-    if ((POLY.has(this.tool) || this.tool === 'line' || this.tool === 'strip') && this.pts.length) {
+    if (this.tool === 'pipe') {
+      // the grid of the room under the cursor (pipe spacing), the pipe so far and its total length
+      const g = roomGrid(this.b, this.floor, m[0], m[1]);
+      if (g) {
+        const rr = this.px(1.6);
+        s += `<g class="pipegrid">${g.points().map(([x, y]) => `<circle cx="${x}" cy="${y}" r="${rr}"/>`).join('')}</g>`;
+      }
+      if (this.pts.length) {
+        const list = [...this.pts, m];
+        s += `<polyline class="ghostpipe" points="${list.map((p) => p.join(',')).join(' ')}" style="fill:none;stroke-width:${sw * 2}"/>`;
+        let len = 0;
+        for (let i = 1; i < list.length; i++) len += dist(list[i - 1], list[i]);
+        s += label(m, `${(len / 100).toFixed(2).replace('.', ',')} m${g ? ` · ${g.s} cm` : ''}`);
+      }
+    } else if ((POLY.has(this.tool) || OPEN.has(this.tool)) && this.pts.length) {
       const list = [...this.pts, m];
       s += POLY.has(this.tool)
         ? `<polygon class="ghostarea" points="${list.map((p) => p.join(',')).join(' ')}" style="stroke-width:${sw}"/>`
         : `<polyline class="ghostline" points="${list.map((p) => p.join(',')).join(' ')}" style="fill:none;stroke-width:${sw}"/>`;
       s += label(m, r2(dist(this.pts[this.pts.length - 1], m)) + ' cm');
     }
-    if (POLY.has(this.tool) || this.tool === 'line' || this.tool === 'strip' || this.tool === 'room') s += cursor();
+    if (POLY.has(this.tool) || OPEN.has(this.tool) || this.tool === 'room') s += cursor();
     if (this.tool === 'callout' && this.pts.length) {
       const [a] = this.pts;
       s += `<line class="ghostline" x1="${a[0]}" y1="${a[1]}" x2="${m[0]}" y2="${m[1]}" style="stroke-width:${sw}"/>`;
@@ -527,7 +564,7 @@ export class PlanEditor {
     }
     if (e.button === 2) {
       if (this.tool === 'wall' && this.chain) { this.chain = null; this.typed = ''; this.renderOverlay(); }
-      else if ((POLY.has(this.tool) && this.pts.length >= 3) || ((this.tool === 'line' || this.tool === 'strip') && this.pts.length >= 2)) this.finishShape();
+      else if ((POLY.has(this.tool) && this.pts.length >= 3) || (OPEN.has(this.tool) && this.pts.length >= 2)) this.finishShape();
       else if (this.pts.length) { this.pts = []; this.renderOverlay(); }
       else if (this.tool !== 'select') this.setTool('select');
       return;
@@ -539,7 +576,7 @@ export class PlanEditor {
       case 'wall': return this.wallClick(p, e);
       case 'arcwall': return this.arcClick(p);
       case 'dim': return this.dimClick(p);
-      case 'area': case 'line': case 'strip': case 'roomPoly': return this.shapeClick(p, e);
+      case 'area': case 'line': case 'strip': case 'roomPoly': case 'pipe': return this.shapeClick(p, e);
       case 'room': return this.roomClick(p);
       case 'calib': return this.calibClick(p);
       case 'callout': return this.calloutClick(p);
@@ -664,7 +701,7 @@ export class PlanEditor {
 
   onDbl(e) {
     if (this.tool === 'wall') { this.chain = null; this.typed = ''; this.renderOverlay(); return; }
-    if (POLY.has(this.tool) || this.tool === 'line' || this.tool === 'strip') { this.finishShape(); return; }
+    if (POLY.has(this.tool) || OPEN.has(this.tool)) { this.finishShape(); return; }
     if (this.tool !== 'select') return;
     const key = this.hitKey(e.target);
     if (key?.startsWith('T:')) this.app.emit('planEditText', key.slice(2));
@@ -696,7 +733,7 @@ export class PlanEditor {
     }
     if (POINT_TOOLS.has(this.tool) && this.pts.length) {
       if (k === 'backspace') { e.preventDefault(); this.pts.pop(); this.ptRefs?.pop(); this.renderOverlay(); return; }
-      if (k === 'enter' && (POLY.has(this.tool) || this.tool === 'line' || this.tool === 'strip')) { this.finishShape(); return; }
+      if (k === 'enter' && (POLY.has(this.tool) || OPEN.has(this.tool))) { this.finishShape(); return; }
       if (k === 'escape') { this.pts = []; this.renderOverlay(); return; }
     }
     if (k === 'escape') {
@@ -834,8 +871,8 @@ export class PlanEditor {
     } else if (type === 'PH') {
       const sh = f.shapes.find((x) => x.id === id);
       if (!sh) return;
-      const p = this.snapPoint(raw, e);
       const i = +which;
+      const p = sh.type === 'pipe' ? this.pipeSnap(raw, e) : this.snapPoint(raw, e);
       if (near(sh.pts[i], p, 0.01)) return;
       begin();
       sh.pts[i] = p;
@@ -961,6 +998,7 @@ export class PlanEditor {
     const type = this.tool === 'area' ? 'area' : 'line';
     const list = this.pts.filter((p, i, a) => i === 0 || !near(p, a[i - 1], 0.01));
     if (this.tool === 'strip') { this.pts = []; this.addStrip(list); this.renderOverlay(); return; }
+    if (this.tool === 'pipe') { this.pts = []; this.addPipe(list); this.renderOverlay(); return; }
     if (this.tool === 'roomPoly') {
       // corners on wall corners keep a reference to the wall, so they follow it
       const refs = this.ptRefs || [];
@@ -982,6 +1020,22 @@ export class PlanEditor {
     this.app.mutate(() => this.floor.shapes.push(sh));
     this.app.select(['P:' + sh.id]);
     this.renderOverlay();
+  }
+
+  /** Heating pipe (CV plan): belongs to the manifold nearest its start, gets the next loop name and colour. */
+  addPipe(list) {
+    if (list.length < 2) return;
+    const b = this.b, lib = this.app.lib;
+    const col = nearestCollector(this.floor, lib, list[0]);
+    const g = roomGrid(b, this.floor, list[1][0], list[1][1]) || roomGrid(b, this.floor, list[0][0], list[0][1]);
+    const count = this.floor.shapes.filter((x) => x.type === 'pipe').length;
+    const sh = {
+      id: uid('sh'), type: 'pipe', pts: list, plan: this.app.layerId || undefined,
+      collector: col?.id || '', name: nextLoopName(b, lib, col?.id), color: PIPE_COLORS[count % PIPE_COLORS.length],
+      r: g?.s || heatCfg(b).spacing,
+    };
+    this.app.mutate(() => this.floor.shapes.push(sh));
+    this.app.select(['P:' + sh.id]);
   }
 
   calibClick(p) {

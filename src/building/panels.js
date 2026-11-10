@@ -11,7 +11,7 @@ import { PLAN_PALETTE } from './editor.js';
 import { dimGeom, hasLeaf, OPENING_TYPES, pathLength, traceColor } from './render.js';
 import { loadBackground } from './background.js';
 import { HVAC_ROOT, isHydronic } from './hvac.js';
-import { collectorNames, generateHeating, heatCfg, heatKey, HEAT_DEFAULTS, roomHeat } from './heating.js';
+import { allPipes, collectorNames, heatCfg, HEAT_DEFAULTS, PIPE_COLORS, pipeLength, pipeRoom, roomHeat } from './heating.js';
 import { DISCS, MEDIA, newPlan, planTitle, plansOf, symDisc } from './model.js';
 import { alignItems, alignSelection, ALIGN_MODES } from './align.js';
 
@@ -48,7 +48,7 @@ export const circuitOptions = (b, withNone = true) => [
 export function buildingLeftPanel(app, el, { plan, editor }) {
   let tab = 'symbols';
   let filter = '';
-  const open = new Set(['Grondplan', 'Muurdoorvoeren', 'Aantekeningen', 'AREI', 'AREI/Verlichting', 'Technieken/CV', 'Technieken/Sanitair', 'Technieken/Afvoer', 'Technieken/Ventilatie']);
+  const open = new Set(['Vloerverwarming', 'Grondplan', 'Muurdoorvoeren', 'Aantekeningen', 'AREI', 'AREI/Verlichting', 'Technieken/CV', 'Technieken/Sanitair', 'Technieken/Afvoer', 'Technieken/Ventilatie']);
   const render = () => {
     const tabs = h('div', { class: 'tabs inner' },
       h('button', { class: tab === 'symbols' ? 'active' : '', onclick: () => { tab = 'symbols'; render(); } }, 'Symbolen'),
@@ -65,7 +65,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
   const paletteNodes = () => {
     const q = filter.trim().toLowerCase();
     const out = [];
-    for (const group of ['Grondplan', 'Muurdoorvoeren', 'Aantekeningen']) {
+    for (const group of ['Vloerverwarming', 'Grondplan', 'Muurdoorvoeren', 'Aantekeningen']) {
       const disc = app.disc;
       const fits = (p) => (p.on === 'base' ? !disc : !p.on || p.on === 'any' ? true : p.on === disc);
       const items = PLAN_PALETTE.filter((p) => (p.group || 'Grondplan') === group && fits(p) && (!q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q)));
@@ -347,6 +347,7 @@ export function buildingProps(app, plan) {
     const sh = f.shapes.find((x) => x.id === id);
     if (!sh) return [];
     if (sh.type === 'callout') return calloutProps(app, plan, sh);
+    if (sh.type === 'pipe') return pipeProps(app, plan, sh);
     const area = sh.type === 'area';
     const style = (k, v) => set(() => {
       sh[k] = v;
@@ -434,9 +435,9 @@ function symbolProps(app, plan, s) {
   if (kind === 'board' && b.boards.length > 1) extra.push(field('Welk verdeelbord', sel(s.props.board || '', [['', '— automatisch —'], ...b.boards.map((x) => [x.id, x.name])], setProp('board'), 'pbd'), 'Voor de kabeltrace: kringen van dit bord vertrekken hier.'));
   if (def?.hvac === 'collector') {
     const nm = collectorNames(b, app.lib).get(s.id);
-    const used = (b.heat?.loops || []).filter((l) => l.collector === s.id).length;
+    const used = allPipes(b).filter(({ sh }) => sh.collector === s.id).length;
     extra.push(field('Aantal uitgangen (groepen)', inp(s.props.outlets ?? '', setProp('outlets'), { type: 'number', key: 'outl', placeholder: 'bv. 8' }),
-      t('Naam op het plan: {n} (de omschrijving, als die ingevuld is). {u} kring(en) gegenereerd.', { n: nm, u: used })),
+      t('Naam op het plan: {n} (de omschrijving, als die ingevuld is). {u} kring(en) getekend.', { n: nm, u: used })),
     h('button', { class: 'primary', onclick: () => heatingDialog(app) }, '♨ Vloerverwarming…'));
   }
   if (!strip && def && !isHydronic(def)) extra.push(field('Hoogte (cm)', inp(s.props.h ?? '', setProp('h'), { type: 'number', key: 'hgt', placeholder: String(symbolHeight({ ...s, props: {} }, def, traceCfg(b))) }), 'Voor de kabellengte; leeg = standaard (zie Kabels).'));
@@ -596,8 +597,10 @@ function floorProps(app, plan) {
           h('button', { onclick: () => cablesDialog(app) }, 'Kabels…'),
           h('button', { class: 'primary', onclick: () => generateDialog(app) }, 'Eendraadschema'))) : null,
       disc === 'cv' ? section('Vloerverwarming',
-        h('p', { class: 'hint' }, t('Klik een ruimte aan om vloerverwarming aan te zetten, of open het venster.')),
-        h('button', { class: 'primary', onclick: () => heatingDialog(app) }, '♨ Vloerverwarming…')) : null,
+        h('p', { class: 'hint' }, t('Teken de kringen met "Buis tekenen" (links, groep Vloerverwarming). Klik een ruimte aan voor haar legafstand en maximale lengte.')),
+        h('div', { class: 'btnrow' },
+          h('button', { class: 'primary', onclick: () => plan.setTool('pipe', { key: 'pipe' }) }, '✎ Buis tekenen'),
+          h('button', { onclick: () => heatingDialog(app) }, '♨ Overzicht…'))) : null,
       section('Sneltoetsen', h('p', { class: 'hint keys' },
         disc === 'elec' ? 'M maatlijn · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: niet tegen muur'
           : 'M maatlijn · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: niet tegen muur')),
@@ -708,19 +711,44 @@ function roomProps(app, plan, r) {
   ];
 }
 
-/** Underfloor heating of a room: on / off, own pipe spacing and maximum loop length. */
+/** Underfloor heating of a room: its pipe spacing (the drawing grid) and maximum loop length. */
 function heatSection(app, r) {
   const b = app.project.building;
-  const rh = roomHeat(b, r), cfg = heatCfg(b);
+  const cfg = heatCfg(b);
   const set = (fn) => app.mutate(() => { r.ufh ||= {}; fn(r.ufh); });
-  const loops = (b.heat?.loops || []).filter((l) => l.room === (r.name || '') && rh.on);
   return section('Vloerverwarming',
-    chk(rh.on, (v) => set((u) => { u.on = v; }), 'Vloerverwarming in deze ruimte', 'ufhon'),
-    rh.on ? h('div', { class: 'grid2' },
+    h('div', { class: 'grid2' },
       field('Legafstand (cm)', inp(r.ufh?.spacing ?? '', (v) => set((u) => { u.spacing = v > 0 ? v : undefined; }), { type: 'number', key: 'ufhs', placeholder: String(cfg.spacing) })),
-      field('Max. lengte kring (m)', inp(r.ufh?.maxLen ?? '', (v) => set((u) => { u.maxLen = v > 0 ? v : undefined; }), { type: 'number', key: 'ufhl', placeholder: String(cfg.maxLen) }))) : null,
-    loops.length ? h('p', { class: 'hint' }, loops.map((l) => `${l.name}.${l.n}: ${String(l.total).replace('.', ',')} m`).join(' · ')) : null,
-    h('button', { onclick: () => heatingDialog(app) }, '♨ Vloerverwarming…'));
+      field('Max. lengte kring (m)', inp(r.ufh?.maxLen ?? '', (v) => set((u) => { u.maxLen = v > 0 ? v : undefined; }), { type: 'number', key: 'ufhl', placeholder: String(cfg.maxLen) }))),
+    h('p', { class: 'hint' }, t('Met "Buis tekenen" springen de punten in deze ruimte op een raster van de legafstand, vanaf {m} cm van de muur.', { m: cfg.margin })),
+    h('button', { onclick: () => heatingDialog(app) }, '♨ Overzicht kringen…'));
+}
+
+/** Properties of a drawn heating pipe: name, manifold, colour, length (against the room's maximum). */
+function pipeProps(app, plan, sh) {
+  const b = app.project.building;
+  const f = app.floor;
+  const set = (fn) => app.mutate(fn);
+  const names = collectorNames(b, app.lib);
+  const cols = [];
+  for (const fl of b.floors) for (const s of fl.symbols) if (app.lib.get(s.sym)?.hvac === 'collector') cols.push([s.id, `${names.get(s.id)} (${fl.name})`]);
+  const len = pipeLength(sh);
+  const hit = pipeRoom(f, sh);
+  const max = roomHeat(b, hit?.room).maxLen;
+  const free = h('input', { type: 'color', value: sh.color || '#e03131', title: 'Vrije kleur kiezen' });
+  free.addEventListener('change', () => set(() => { sh.color = free.value; }));
+  return [section(t('Kring {n}', { n: sh.name || '' }),
+    h('p', { class: len > max ? 'warn' : '' }, t('Lengte'), ': ', h('b', null, `${len.toFixed(1).replace('.', ',')} m`), len > max ? ` – ${t('langer dan het maximum van {m} m', { m: max })}` : ` (max. ${max} m)`),
+    field('Naam', inp(sh.name, (v) => set(() => { sh.name = v; }), { key: 'pname', placeholder: 'bv. VV1.3' })),
+    field('Collector', sel(sh.collector || '', [['', '—'], ...cols], (v) => set(() => { sh.collector = v; }), 'pcol')),
+    field('Kleur', h('div', { class: 'chips colors' }, PIPE_COLORS.map((c) => h('button', {
+      class: 'cchip' + (c === sh.color ? ' active' : ''), style: { background: c }, title: c, onclick: () => set(() => { sh.color = c; }),
+    })), free)),
+    field('Bochtstraal (cm)', inp(sh.r ? sh.r / 2 : '', (v) => set(() => { sh.r = v > 0 ? v * 2 : undefined; }), { type: 'number', key: 'prad' }), 'Standaard de halve legafstand.'),
+    h('p', { class: 'hint' }, 'Sleep de punten om het verloop aan te passen (ze springen op het raster van de ruimte; Alt = vrij). Ctrl+D = dupliceren.'),
+    h('div', { class: 'btnrow' },
+      h('button', { onclick: () => heatingDialog(app) }, '♨ Overzicht…'),
+      h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen')))];
 }
 
 /** All rooms with their external influences: table, CSV, and the sheet in the project. */
@@ -1294,102 +1322,64 @@ export function cablesDialog(app) {
 
 // ---------- heating ----------
 
-/** Underfloor heating: defaults, the setting per room, generating and the loops per manifold. */
+/** Underfloor heating: the drawn loops per manifold with their lengths, and the default settings. */
 export function heatingDialog(app) {
   const b = app.project.building;
   const body = h('div', { class: 'cables heating' });
   const m1 = (v) => `${(Math.round(v * 10) / 10).toFixed(1).replace('.', ',')} m`;
-  const numIn = (value, commit, placeholder) => {
-    const el = h('input', { type: 'number', value: value ?? '', placeholder, min: 0, step: 1, class: 'narrow' });
+  const numIn = (value, commit) => {
+    const el = h('input', { type: 'number', value: value ?? '', min: 0, step: 1, class: 'narrow' });
     el.addEventListener('change', () => {
-      const v = el.value === '' ? null : Number(String(el.value).replace(',', '.'));
-      if (v !== null && !Number.isFinite(v)) return;
+      const v = Number(String(el.value).replace(',', '.'));
+      if (!Number.isFinite(v)) return;
       app.mutate(() => commit(v));
       render();
     });
     return el;
   };
+  const rows = () => {
+    const names = collectorNames(b, app.lib);
+    return allPipes(b).map(({ sh, floor }) => {
+      const hit = pipeRoom(floor, sh);
+      const rh = roomHeat(b, hit?.room);
+      return { sh, floor, col: names.get(sh.collector) || '—', room: hit?.room?.name || '', len: pipeLength(sh), max: rh.maxLen, spacing: rh.spacing };
+    }).sort((p, q) => p.col.localeCompare(q.col) || String(p.sh.name).localeCompare(String(q.sh.name), undefined, { numeric: true }));
+  };
   const render = () => {
     const cfg = heatCfg(b);
-    const hr = b.heat;
-    const stale = hr && hr.key !== heatKey(b, app.lib);
-    const names = collectorNames(b, app.lib);
-    const cols = [];
-    for (const f of b.floors) for (const s of f.symbols) if (app.lib.get(s.sym)?.hvac === 'collector') cols.push([s.id, `${names.get(s.id)} (${f.name})`]);
-    const defaults = h('div', { class: 'cablegrid' },
-      h('label', { class: 'tf' }, h('span', null, t('Legafstand (cm)')), numIn(cfg.spacing, (v) => { (b.heatCfg ||= {}).spacing = v || HEAT_DEFAULTS.spacing; })),
-      h('label', { class: 'tf' }, h('span', null, t('Max. lengte per kring (m)')), numIn(cfg.maxLen, (v) => { (b.heatCfg ||= {}).maxLen = v || HEAT_DEFAULTS.maxLen; })),
-      h('label', { class: 'tf' }, h('span', null, t('Afstand tot de muur (cm)')), numIn(cfg.margin, (v) => { (b.heatCfg ||= {}).margin = v ?? HEAT_DEFAULTS.margin; })),
-      h('label', { class: 'tf' }, h('span', null, t('Afstand tussen aanvoerleidingen (cm)')), numIn(cfg.feedGap, (v) => { (b.heatCfg ||= {}).feedGap = v || HEAT_DEFAULTS.feedGap; })));
-    const rooms = [];
-    b.floors.forEach((f) => (f.rooms || []).forEach((r) => rooms.push({ f, r })));
-    const roomRows = rooms.map(({ f, r }) => {
-      const rh = roomHeat(b, r);
-      const on = h('input', { type: 'checkbox', checked: rh.on });
-      on.addEventListener('change', () => { app.mutate(() => { (r.ufh ||= {}).on = on.checked; }); render(); });
-      const colSel = h('select', null, [['', t('— dichtstbijzijnde —')], ...cols].map(([v, l]) => h('option', { value: v, selected: v === rh.collector }, l)));
-      colSel.addEventListener('change', () => { app.mutate(() => { (r.ufh ||= {}).collector = colSel.value; }); render(); });
-      const area = roomArea(roomPolygon(f, r));
-      return h('tr', { class: rh.on ? '' : 'off' },
-        h('td', null, h('label', { class: 'check' }, on, ` ${r.name || '?'}`)),
-        h('td', null, f.name),
-        h('td', { class: 'num' }, area ? `${area.toFixed(1).replace('.', ',')} m²` : '–'),
-        h('td', null, numIn(r.ufh?.spacing, (v) => { (r.ufh ||= {}).spacing = v || undefined; }, String(cfg.spacing))),
-        h('td', null, numIn(r.ufh?.maxLen, (v) => { (r.ufh ||= {}).maxLen = v || undefined; }, String(cfg.maxLen))),
-        h('td', null, colSel));
-    });
-    const show = h('input', { type: 'checkbox', checked: !!b.heatShow, disabled: !hr });
-    show.addEventListener('change', () => { app.mutate(() => { b.heatShow = show.checked; }); app.emit('change'); });
+    const list = rows();
+    const groups = new Map();
+    for (const r of list) { if (!groups.has(r.col)) groups.set(r.col, []); groups.get(r.col).push(r); }
     const parts = [
-      h('p', { class: 'hint' }, 'Per verwarmde ruimte wordt de vloer gevuld met kringen in een dubbele spiraal (aanvoer naar binnen, retour ertussen terug naar buiten), vertrekkend van de collector. Een kring is nooit langer dan het maximum (aanvoer- en retourleiding naar de collector meegerekend); grote ruimtes krijgen meerdere kringen. De aanvoerleidingen liggen elk in een eigen strook (behalve aan de collector en in deuren) en tellen mee als verwarming: de spiralen liggen eromheen. Leidingen gaan enkel door deuren en muurdoorvoeren voor CV. De hoofdleidingen lopen van de CV-ketel naar elke collector.'),
-      h('h4', null, t('Standaard')), defaults,
-      h('h4', null, t('Ruimtes')),
-      rooms.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable' },
-        h('thead', null, h('tr', null, h('th', null, 'Vloerverwarming'), h('th', null, 'Verdieping'), h('th', null, 'Oppervlakte'), h('th', null, 'Legafstand (cm)'), h('th', null, 'Max. lengte (m)'), h('th', null, 'Collector'))),
-        h('tbody', null, roomRows)))
-        : h('p', { class: 'warn' }, 'Nog geen ruimtes op het plan: duid ze aan met "Ruimte" (klik in een kamer).'),
-      h('div', { class: 'btnrow' },
-        h('button', {
-          class: 'primary',
-          onclick: async (e) => {
-            // can take a few seconds on a large floor: show that it is busy first
-            e.currentTarget.disabled = true;
-            e.currentTarget.textContent = t('Bezig met berekenen…');
-            await new Promise((r) => setTimeout(r, 30));
-            app.mutate(() => { generateHeating(b, app.lib); b.heatShow = true; });
-            app.setMode('building');
-            app.emit('change');
-            render();
-          },
-        }, hr ? '⟳ Opnieuw genereren' : '⟳ Vloerverwarming genereren'),
-        h('label', { class: 'check' }, show, t('Toon op het grondplan'))),
+      h('p', { class: 'hint' }, 'Teken de kringen zelf op het CV-plan met "Buis tekenen" (groep Vloerverwarming): klik de punten van de buis, van de collector door de ruimte en terug; dubbelklik, Enter of rechtermuisknop = klaar. In een ruimte springen de punten op een raster van de legafstand, vanaf de afstand tot de muur. De lengte staat bij de buis en hieronder.'),
+      h('h4', null, t('Standaard')),
+      h('div', { class: 'cablegrid' },
+        h('label', { class: 'tf' }, h('span', null, t('Legafstand (cm)')), numIn(cfg.spacing, (v) => { (b.heatCfg ||= {}).spacing = v || HEAT_DEFAULTS.spacing; })),
+        h('label', { class: 'tf' }, h('span', null, t('Max. lengte per kring (m)')), numIn(cfg.maxLen, (v) => { (b.heatCfg ||= {}).maxLen = v || HEAT_DEFAULTS.maxLen; })),
+        h('label', { class: 'tf' }, h('span', null, t('Afstand tot de muur (cm)')), numIn(cfg.margin, (v) => { (b.heatCfg ||= {}).margin = v >= 0 ? v : HEAT_DEFAULTS.margin; }))),
+      h('p', { class: 'hint' }, 'Per ruimte kun je een eigen legafstand en maximale lengte instellen in de eigenschappen van de ruimte.'),
     ];
-    if (stale) parts.push(h('p', { class: 'warn' }, 'Het plan of de instellingen zijn gewijzigd sinds de laatste berekening – genereer opnieuw.'));
-    if (hr) {
-      for (const w of hr.warnings) parts.push(h('p', { class: 'warn' }, w));
-      for (const c of hr.collectors) {
-        const list = hr.loops.filter((l) => l.collector === c.id);
-        const total = list.reduce((a, l) => a + l.total, 0);
-        parts.push(
-          h('h4', null, `${c.name} – ${c.floor}: ${t('{n} kring(en)', { n: list.length })}${c.outlets ? ` / ${c.outlets} ${t('uitgangen')}` : ''}, ${m1(total)} ${t('buis')}${c.main ? ` · ${t('hoofdleidingen')} ${m1(c.main)}${c.riser ? ' + ' + t('stijgleiding') : ''}` : ''}`),
-          h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable' },
-            h('thead', null, h('tr', null, h('th', null, 'Kring'), h('th', null, 'Ruimte'), h('th', null, 'Oppervlakte'), h('th', null, 'Legafstand'), h('th', null, 'In de vloer'), h('th', null, 'Aanvoer + retour'), h('th', null, 'Totaal'))),
-            h('tbody', null, list.length ? list.map((l) => h('tr', { class: l.total > l.max ? 'over' : '' },
-              h('td', null, h('b', null, `${l.name}.${l.n}`)), h('td', null, l.room), h('td', { class: 'num' }, `${String(l.area).replace('.', ',')} m²`),
-              h('td', { class: 'num' }, `${l.spacing} cm`), h('td', { class: 'num' }, m1(l.coil)), h('td', { class: 'num' }, m1(l.feed)),
-              h('td', { class: 'num' }, h('b', null, m1(l.total)), l.total > l.max ? ' ⚠' : '')))
-              : h('tr', null, h('td', { colspan: 7, class: 'empty' }, 'Geen ruimtes met vloerverwarming op deze collector.'))))));
-      }
+    if (!list.length) parts.push(h('p', { class: 'hint' }, t('Nog geen kringen getekend.')));
+    for (const [col, items] of groups) {
+      const total = items.reduce((a, r) => a + r.len, 0);
+      const outlets = +[...b.floors].flatMap((fl) => fl.symbols).find((s) => s.id === items[0].sh.collector)?.props?.outlets || 0;
+      parts.push(
+        h('h4', null, `${col}: ${t('{n} kring(en)', { n: items.length })}${outlets ? ` / ${outlets} ${t('uitgangen')}` : ''}, ${m1(total)} ${t('buis')}`),
+        outlets && items.length > outlets ? h('p', { class: 'warn' }, t('{c}: {n} kringen maar slechts {m} uitgangen.', { c: col, n: items.length, m: outlets })) : null,
+        h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable' },
+          h('thead', null, h('tr', null, h('th', null, 'Kring'), h('th', null, 'Verdieping'), h('th', null, 'Ruimte'), h('th', null, 'Legafstand'), h('th', null, 'Lengte'))),
+          h('tbody', null, items.map((r) => h('tr', { class: r.len > r.max ? 'over' : '' },
+            h('td', null, h('span', { class: 'cabledot', style: { background: r.sh.color || '#e03131' } }), ' ', h('b', null, r.sh.name || '?')),
+            h('td', null, r.floor.name), h('td', null, r.room), h('td', { class: 'num' }, `${r.spacing} cm`),
+            h('td', { class: 'num' }, h('b', null, m1(r.len)), r.len > r.max ? ` ⚠ > ${r.max} m` : '')))))));
     }
-    body.replaceChildren(...parts);
+    body.replaceChildren(...parts.filter(Boolean));
   };
   render();
   const csv = () => {
-    const hr = b.heat;
-    if (!hr) return;
-    const rows = [[t('Collector'), t('Kring'), t('Verdieping'), t('Ruimte'), t('Oppervlakte (m²)'), t('Legafstand (cm)'), t('In de vloer (m)'), t('Aanvoer + retour (m)'), t('Totaal (m)')],
-      ...hr.loops.map((l) => [l.name, `${l.name}.${l.n}`, l.floor, l.room, String(l.area).replace('.', ','), l.spacing, String(l.coil).replace('.', ','), String(l.feed).replace('.', ','), String(l.total).replace('.', ',')])];
-    download(`${safeName(app.project.name)} - ${t('Vloerverwarming')}.csv`, '﻿' + toCsv(rows), 'text/csv;charset=utf-8');
+    const out = [[t('Collector'), t('Kring'), t('Verdieping'), t('Ruimte'), t('Legafstand (cm)'), t('Lengte (m)')],
+      ...rows().map((r) => [r.col, r.sh.name || '', r.floor.name, r.room, r.spacing, String(r.len).replace('.', ',')])];
+    download(`${safeName(app.project.name)} - ${t('Vloerverwarming')}.csv`, '\ufeff' + toCsv(out), 'text/csv;charset=utf-8');
   };
   return modal({
     title: 'Vloerverwarming', wide: true, body,

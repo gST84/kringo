@@ -455,6 +455,8 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     if (o.type === 'passage' && (o.media || 'elec') !== disc) continue; // a wall passage only on the plan of its type
     if (w) s += openingSvg(o, w, sw, sel.has('O:' + o.id));
   }
+  // underfloor heating pipes (CV plan): above the door gaps, under the stairs and symbols
+  for (const sh of floor.shapes || []) if (sh.type === 'pipe' && note(sh)) s += pipeSvg(sh, k, sw, sel.has('P:' + sh.id), opts);
   for (const st of floor.stairs) s += stairSvg(st, sw, sel.has('S:' + st.id));
   for (const sh of floor.shapes || []) if (sh.type === 'line' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   for (const d of floor.dims || []) if (note(d)) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
@@ -479,7 +481,6 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
     s += `<path class="plink${sel.has('L:' + l.id) ? ' sel' : ''}" data-k="L:${l.id}" d="M ${r2(a.x)} ${r2(a.y)} Q ${r2(qx)} ${r2(qy)} ${r2(c.x)} ${r2(c.y)}" style="stroke:${LINK_COLORS[kind]};stroke-width:${sw * 1.2}" stroke-dasharray="${sw * 6} ${sw * 4}"/>`;
     if (!opts.print) s += `<path class="hit" data-k="L:${l.id}" d="M ${r2(a.x)} ${r2(a.y)} Q ${r2(qx)} ${r2(qy)} ${r2(c.x)} ${r2(c.y)}" style="stroke-width:${sw * 10}"/>`;
   }
-  if (disc === 'cv' && b.heatShow && b.heat?.floors?.[floor.id]) s += heatSvg(b.heat.floors[floor.id], k, sw);
   if (disc === 'elec' && b.traceShow && b.traces?.floors?.[floor.id]) s += traceSvg(b, floor, k, sw);
   for (const sym of floor.symbols) {
     const def = lib.get(sym.sym);
@@ -532,9 +533,6 @@ function traceSvg(b, floor, k, sw) {
   return s + '</g>';
 }
 
-const HEAT_COLORS = { s: '#e03131', r: '#1971c2' };
-const LOOP_COLORS = ['#e03131', '#1c3fd8'];
-
 /** Path through the points with every corner rounded (radius at most half of the pieces beside it). */
 export function roundedPath(P, rad) {
   const q = P.filter((p, i) => !i || Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]) > 0.01);
@@ -550,22 +548,25 @@ export function roundedPath(P, rad) {
   return d + `L${r2(q.at(-1)[0])} ${r2(q.at(-1)[1])}`;
 }
 
-/** Heating: main pipes (thick), feed pipes and the spiral loops (supply red, return blue), loop numbers. */
-function heatSvg(list, k, sw) {
-  let s = '<g class="pheat">';
-  const order = { loop: 0, feed: 1, main: 2 };
-  for (const it of [...list].filter((x) => x.pts).sort((a, c) => order[a.t] - order[c.t])) {
-    const w = it.t === 'main' ? 3.4 : it.t === 'feed' ? 1.6 : 1.3;
-    // pipes are bent, not mitred: rounded corners (half the spacing in a loop)
-    const rad = it.t === 'loop' ? (it.s || 15) / 2 : it.t === 'feed' ? 5 : 10;
-    // one colour per loop (alternating, as on installer plans); main pipes: supply red, return blue
-    const col = it.t === 'main' ? HEAT_COLORS[it.role] : LOOP_COLORS[(it.n - 1) % LOOP_COLORS.length];
-    s += `<path class="pheatl" d="${roundedPath(it.pts, rad)}" style="stroke:${col || '#555'};stroke-width:${r2(sw * w)}"/>`;
-  }
-  for (const it of list) {
-    if (it.t !== 'label') continue;
-    const w = Math.max(6, it.label.length * 1.45 + 2);
-    s += `<g transform="translate(${r2(it.at[0])} ${r2(it.at[1])}) scale(${1 / k})"><rect x="${r2(-w / 2)}" y="-1.8" width="${r2(w)}" height="3.6" rx="0.8" class="pheatbox"/>${textSvg(0, 0, it.label, 2.3, 'middle', 'tx pheattx')}</g>`;
+/** A drawn underfloor heating pipe: rounded bends, the loop's colour, its name and length at the start. */
+function pipeSvg(sh, k, sw, sel, opts) {
+  const col = sh.color || '#e03131';
+  const d = roundedPath(sh.pts, (sh.r || 15) / 2);
+  let s = `<g class="ppipe${sel ? ' sel' : ''}" data-k="P:${sh.id}"><path class="ppipel" d="${d}" style="stroke:${col};stroke-width:${r2(sw * 1.6)}"/>`;
+  if (!opts.print) s += `<path class="hit" d="${d}" style="fill:none;stroke-width:${r2(Math.max(sw * 2, 3 / k))}"/>`;
+  if (sh.name && sh.pts.length) {
+    const len = (Math.round(pathLength(sh.pts) / 10) / 10).toFixed(1).replace('.', ',');
+    const text = `${sh.name} · ${len} m`;
+    // on the middle of the longest straight piece (not on the manifold where all pipes start)
+    let best = 0, at = sh.pts[0];
+    for (let i = 1; i < sh.pts.length; i++) {
+      const [ax, ay] = sh.pts[i - 1], [bx, by] = sh.pts[i];
+      const l = Math.hypot(bx - ax, by - ay);
+      if (l > best) { best = l; at = [(ax + bx) / 2, (ay + by) / 2]; }
+    }
+    const [x, y] = sh.label || at;
+    const w = text.length * 1.3 + 2;
+    s += `<g transform="translate(${r2(x)} ${r2(y)}) scale(${1 / k})"><rect x="${r2(-w / 2)}" y="-4.8" width="${r2(w)}" height="3.4" rx="0.8" class="pheatbox" style="stroke:${col}"/>${textSvg(0, -3.1, text, 2.1, 'middle', 'tx pheattx', ` style="fill:${col}"`)}</g>`;
   }
   return s + '</g>';
 }
@@ -575,7 +576,7 @@ export const PLAN_STYLE = `
 .plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
 .plan.under .walloutline polygon{fill:#9aa1aa;stroke:#9aa1aa}.plan.under .wall{fill:#d5d8dc}.plan.under .wall.inner{fill:#e2e4e7}.plan.under .proom{opacity:.45}.plan.under .stair,.plan.under .opening:not(:has(.passage)),.plan.under .divider{opacity:.55}
-.plan .pheat{pointer-events:none}.plan .pheatl{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.plan .pheatbox{fill:#fff;stroke:#c92a2a;stroke-width:.3}.plan .pheattx{fill:#c92a2a;font-weight:bold;dominant-baseline:central}
+.plan .ppipel{fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .ppipe.sel .ppipel{filter:drop-shadow(0 0 1.5px #1f6feb)}.plan .pheatbox{fill:#fff;stroke:#c92a2a;stroke-width:.3}.plan .pheattx{fill:#c92a2a;font-weight:bold;dominant-baseline:central}
 .plan .ptraces{pointer-events:none}.plan .ptrace{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.8}.plan .ptracetx{fill:#fff;font-weight:bold;dominant-baseline:central}
 `;
 

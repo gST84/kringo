@@ -449,6 +449,8 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .ink .handle.round { fill: #e8f0fe; }
 .overlay .ghostarea { fill: rgba(31, 111, 235, .2); stroke: var(--sel); stroke-dasharray: 2 1; }
 .overlay .ghostline { stroke: var(--sel); stroke-dasharray: 2 1; fill: none; }
+.overlay .ghostpipe { stroke: #e03131; fill: none; stroke-linejoin: round; opacity: .85; }
+.overlay .pipegrid circle { fill: #1f6feb; opacity: .45; }
 .overlay .ghostdim line, .overlay .ghostdim polyline { stroke: var(--sel); }
 .overlay .ghostdim text { fill: var(--sel); }
 .symgrid.tools .sym svg { color: #334155; }
