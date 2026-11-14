@@ -142,7 +142,7 @@ Open een plan **Elektriciteit** en klik bovenaan op **Kringen** (ook **Kringen &
 **Koppelen** (`L`): klik de symbolen na elkaar: 1 → 2 → 3 … Opnieuw klikken op een gekoppeld paar ontkoppelt. Koppelingen verschijnen als gekleurde stippellijnen (oranje = schakelen, paars = domotica, groen = PV / DC).
 
 - **Gekoppelde symbolen krijgen dezelfde kring en hetzelfde nummer** (een schakelaar en zijn lampen worden allemaal bv. B1). Pas je de kring of het nummer van één symbool aan, dan volgt de hele groep. Uitzondering: domotica-koppelingen.
-- Gekoppelde symbolen komen in het eendraadschema samen in één aftakking.
+- Gekoppelde symbolen komen in het eendraadschema samen in één aftakking. Dat geldt ook voor lampen die enkel onderling gekoppeld zijn (zonder schakelaar): één aftakking met ×n. Hangt één van die lampen aan een domotica-uitgang, dan staan ze allemaal achter dat relaiscontact. Domoticamodules op een kring krijgen elk hun eigen aftakking.
 
 ### AREI-controle
 

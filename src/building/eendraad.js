@@ -92,9 +92,29 @@ export function buildBranches(building, lib, circuit) {
     it.cable = cable;
   };
   const branches = [];
+  // lights linked to each other (without a switch in between) burn together: one branch, ×n
+  const inCircuit = new Set(items.map(({ s }) => s.id));
+  const lightGroup = (s) => {
+    const out = [s];
+    const seen = new Set([s.id]);
+    for (let i = 0; i < out.length; i++) {
+      for (const id of linksOf.get(out[i].id) || []) {
+        const o = symById.get(id);
+        if (!o || seen.has(id) || !inCircuit.has(id) || kindOf(o) !== 'light') continue;
+        seen.add(id);
+        out.push(o);
+      }
+    }
+    return out;
+  };
   // switches first, so the lights they control (which may share their number) end up in their chain;
+  // then the domotics outputs, so lights linked to a light on an output join that output;
   // the branches are put back in the order of the numbers afterwards
-  const ordered = [...items.filter(({ s }) => isControl(s)), ...items.filter(({ s }) => !isControl(s))];
+  const ordered = [
+    ...items.filter(({ s }) => isControl(s)),
+    ...items.filter(({ s }) => !isControl(s) && addr(s)),
+    ...items.filter(({ s }) => !isControl(s) && !addr(s)),
+  ];
   for (const { s } of ordered) {
     if (used.has(s.id)) continue;
     const at = branches.length;
@@ -105,6 +125,11 @@ export function buildBranches(building, lib, circuit) {
     if (relay && !isControl(s)) {
       // everything on this domotics channel in this circuit: the relay contact, then the loads
       const same = items.map(({ s: o }) => o).filter((o) => !used.has(o.id) && domKey(o) === domKey(s));
+      // lights linked to one of them (and on no other output) switch with them
+      for (const o of [...same]) {
+        if (kindOf(o) !== 'light') continue;
+        for (const x of lightGroup(o)) if (!same.includes(x) && !used.has(x.id) && !addr(x)) same.push(x);
+      }
       const groups = new Map();
       for (const o of same) {
         used.add(o.id);
@@ -145,7 +170,13 @@ export function buildBranches(building, lib, circuit) {
       }
       branches.push({ type: 'chain', switches: chain.map((o) => o.sym), lights: [...groups].map(([sym, count]) => ({ sym, count })) });
     } else if (kind === 'light') {
-      branches.push({ type: 'chain', switches: [], lights: [{ sym: s.sym, count: 1 }] });
+      const groups = new Map();
+      for (const o of lightGroup(s)) {
+        if (o !== s && (used.has(o.id) || addr(o))) continue;
+        used.add(o.id);
+        groups.set(o.sym, (groups.get(o.sym) || 0) + 1);
+      }
+      branches.push({ type: 'chain', switches: [], lights: [...groups].map(([sym, count]) => ({ sym, count })) });
     } else {
       // devices linked to each other in this circuit (inverter → PV panels → battery …): one branch
       const inCircuit = new Set(items.map(({ s: o }) => o.id));
@@ -210,9 +241,9 @@ export function buildBranches(building, lib, circuit) {
     }
     if (branches.length > at) branches[at].n = s.n || 0;
   }
-  // a circuit feeding domotics modules: the modules as an appliance box, first
+  // a circuit feeding domotics modules: every module its own box, first
   const mods = (building.domotics?.modules || []).filter((m) => m.circuit === circuit.id);
-  if (mods.length) branches.push({ type: 'box', sym: 'arei/dom-module', label: mods.map((m) => m.name).join(', '), n: -1 });
+  for (const m of mods) branches.push({ type: 'box', sym: 'arei/dom-module', label: m.name, n: -1 });
   return branches.sort((x, y) => x.n - y.n).map(({ n, ...br }) => br);
 }
 
