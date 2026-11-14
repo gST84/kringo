@@ -12,6 +12,7 @@ import { dimGeom, hasLeaf, OPENING_TYPES, pathLength, traceColor } from './rende
 import { loadBackground } from './background.js';
 import { HVAC_ROOT, isHydronic } from './hvac.js';
 import { SOCKET_DEFAULTS, SOCKET_MARKS } from './arei.js';
+import { clearVentLabels, flowText, placeVentLabels, VENT_TYPES, ventRows } from './vent.js';
 import { geometry } from '../symbols/geom.js';
 import { allPipes, clearGenerated, collectorNames, generateFloorHeating, heatCfg, HEAT_DEFAULTS, PIPE_COLORS, pipeLength, pipeRoom, roomHeat } from './heating.js';
 import { DISCS, MEDIA, newPlan, planTitle, plansOf, symDisc } from './model.js';
@@ -69,7 +70,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
     const out = [];
     for (const group of ['Vloerverwarming', 'Grondplan', 'Muurdoorvoeren', 'Aantekeningen']) {
       const disc = app.disc;
-      const fits = (p) => (p.on === 'base' ? !disc : !p.on || p.on === 'any' ? true : p.on === disc);
+      const fits = (p) => (p.on === 'base' ? !disc : !p.on || p.on === 'any' ? true : [p.on].flat().includes(disc));
       const items = PLAN_PALETTE.filter((p) => (p.group || 'Grondplan') === group && fits(p) && (!q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q)));
       if (!items.length) continue;
       const isOpen = q || open.has(group);
@@ -390,8 +391,8 @@ export function buildingProps(app, plan) {
   if (kind === 'B') return backgroundSection(app, plan);
   if (kind === 'R') {
     const r = f.rooms.find((x) => x.id === id);
-    // on the CV plan a room only carries its floor heating (the room itself is drawn on the floor plan)
-    if (r && app.disc === 'cv') return [section(r.name || t('Ruimte'), h('p', { class: 'hint' }, t('De ruimte zelf wijzig je op de plattegrond.'))), heatSection(app, r)];
+    // on the floor heating plan a room only carries its floor heating (the room itself is drawn on the floor plan)
+    if (r && app.disc === 'vv') return [section(r.name || t('Ruimte'), h('p', { class: 'hint' }, t('De ruimte zelf wijzig je op de plattegrond.'))), heatSection(app, r)];
     return roomProps(app, plan, r);
   }
   if (kind === 'T') {
@@ -622,15 +623,20 @@ function floorProps(app, plan) {
         h('div', { class: 'btnrow' },
           h('button', { onclick: () => circuitsDialog(app) }, 'Kringen & borden…'),
           h('button', { onclick: () => cablesDialog(app) }, 'Kabels…'),
+          h('button', { onclick: () => domoticsDialog(app) }, 'Domotica…'),
+          h('button', { onclick: () => influencesDialog(app) }, 'Invloeden…'),
           h('button', { class: 'primary', onclick: () => generateDialog(app) }, 'Eendraadschema'))) : null,
-      disc === 'cv' ? section('Vloerverwarming',
+      disc === 'vent' ? section('Ventilatie',
+        h('p', { class: 'hint' }, t('Bereken de nodige debieten per ruimte (NBN D 50-001) en zet ze op dit plan.')),
+        h('div', { class: 'btnrow' }, h('button', { class: 'primary', onclick: () => ventDialog(app) }, '≈ Debieten…'))) : null,
+      disc === 'vv' ? section('Vloerverwarming',
         h('p', { class: 'hint' }, t('Laat de kringen genereren voor de hele verdieping, of teken ze zelf met "Buis tekenen" (links, groep Vloerverwarming). Klik een ruimte aan voor haar legafstand en maximale lengte.')),
         h('div', { class: 'btnrow' },
           h('button', { class: 'primary', onclick: () => heatingDialog(app) }, '♨ Genereren…'),
           h('button', { onclick: () => plan.setTool('pipe', { key: 'pipe' }) }, '✎ Buis tekenen'))) : null,
       section('Sneltoetsen', h('p', { class: 'hint keys' },
-        disc === 'elec' ? 'M maatlijn · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: niet tegen muur'
-          : 'M maatlijn · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: niet tegen muur')),
+        disc === 'elec' ? 'M maatlijn · L koppelen · R draaien · Del verwijderen · Ctrl+C / X / V / D · rechtsklik = menu · Ctrl+Z / Y · F passend · Alt: niet tegen muur'
+          : 'M maatlijn · R draaien · Del verwijderen · Ctrl+C / X / V / D · rechtsklik = menu · Ctrl+Z / Y · F passend · Alt: niet tegen muur')),
     ];
   }
   return [
@@ -655,7 +661,7 @@ function floorProps(app, plan) {
       }))),
     ...backgroundSection(app, plan),
     section('Sneltoetsen', h('p', { class: 'hint keys' },
-      'W muur (cijfers + Enter = lengte in cm) · A gebogen muur · D deur · N raam · M maatlijn · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),
+      'W muur (cijfers + Enter = lengte in cm) · A gebogen muur · D deur · N raam · M maatlijn · T ruimtenaam · L koppelen · R draaien · Del verwijderen · Ctrl+C / X / V / D · rechtsklik = menu · Ctrl+Z / Y · F passend · Alt: zonder raster / niet tegen muur')),
   ];
 }
 
@@ -1355,13 +1361,13 @@ export function heatingDialog(app) {
   const b = app.project.building;
   const body = h('div', { class: 'cables heating' });
   let result = null; // of the last generation: { loops, length, warnings, ms }
-  /** Generates the loops of the current floor on its CV plan (made when there is none) and shows that plan. */
+  /** Generates the loops of the current floor on its floor heating plan (made when there is none) and shows that plan. */
   const run = () => {
     const floor = app.floor;
-    let pl = app.disc === 'cv' && app.layer?.floor === floor.id ? app.layer : b.plans.find((p) => p.disc === 'cv' && p.floor === floor.id);
+    let pl = app.disc === 'vv' && app.layer?.floor === floor.id ? app.layer : b.plans.find((p) => p.disc === 'vv' && p.floor === floor.id);
     const t0 = performance.now();
     app.mutate(() => {
-      if (!pl) { pl = newPlan(floor.id, 'cv'); b.plans.push(pl); }
+      if (!pl) { pl = newPlan(floor.id, 'vv'); b.plans.push(pl); }
       result = generateFloorHeating(b, floor, app.lib, pl.id);
     });
     result.ms = Math.round(performance.now() - t0);
@@ -1415,7 +1421,7 @@ export function heatingDialog(app) {
         gen ? h('button', { onclick: wipe }, t('Gegenereerde kringen wissen ({n})', { n: gen })) : null),
       result ? h('p', { class: 'hint' }, h('b', null, t('{f}: {n} kring(en), {l} buis gegenereerd.', { f: result.floor, n: result.loops, l: m1(result.length) }))) : null,
       ...(result?.warnings || []).map((w) => h('p', { class: 'warn' }, '⚠ ' + w)),
-      h('p', { class: 'hint' }, 'Zelf tekenen kan met "Buis tekenen" op het CV-plan (groep Vloerverwarming): klik de punten van de buis, van de collector door de ruimte en terug; dubbelklik, Enter of rechtermuisknop = klaar. Een gegenereerde kring pas je aan door zijn punten te verslepen.'),
+      h('p', { class: 'hint' }, 'Zelf tekenen kan met "Buis tekenen" op het vloerverwarmingsplan (groep Vloerverwarming): klik de punten van de buis, van de collector door de ruimte en terug; dubbelklik, Enter of rechtermuisknop = klaar. Een gegenereerde kring pas je aan door zijn punten te verslepen.'),
       h('h4', null, t('Standaard')),
       h('div', { class: 'cablegrid' },
         h('label', { class: 'tf' }, h('span', null, t('Legafstand (cm)')), numIn(cfg.spacing, (v) => { (b.heatCfg ||= {}).spacing = v || HEAT_DEFAULTS.spacing; })),
@@ -1447,6 +1453,83 @@ export function heatingDialog(app) {
   };
   return modal({
     title: 'Vloerverwarming', wide: true, body,
+    buttons: [{ label: 'CSV exporteren', value: 'csv' }, { label: 'Sluiten', value: false, primary: true }],
+    onButton: (v) => { if (v === 'csv') { csv(); return false; } return true; },
+  });
+}
+
+/**
+ * Ventilation flows (NBN D 50-001): per room its type, floor area, required and design flow, supply (T)
+ * or extract (A) and the transfer opening; the totals for the unit; labels on the ventilation plans.
+ */
+export function ventDialog(app) {
+  const b = app.project.building;
+  b.ventCfg ||= {};
+  const body = h('div', { class: 'cables vent' });
+  let note = '';
+  const limit = () => b.ventCfg.limit !== false;
+  const labels = () => b.floors.reduce((n, f) => n + (f.shapes || []).filter((sh) => sh.gen === 'vent').length, 0);
+  const place = () => {
+    let n = 0;
+    app.mutate(() => { n = placeVentLabels(b, limit()); });
+    const pl = b.plans.find((p) => p.floor === app.floor.id && p.disc === 'vent');
+    if (pl && app.layerId !== pl.id) app.setLayer(pl.id);
+    app.emit('change');
+    note = t('{n} debiet(en) op de ventilatieplannen gezet.', { n });
+    render();
+  };
+  const wipe = () => { let n = 0; app.mutate(() => { n = clearVentLabels(b); }); app.emit('change'); note = t('{n} label(s) gewist.', { n }); render(); };
+  const typeOpts = Object.entries(VENT_TYPES).map(([k, v]) => [k, t(v.label)]);
+  const render = () => {
+    const { rows, supply, extract, unit } = ventRows(b, limit());
+    const lim = h('input', { type: 'checkbox', checked: limit() });
+    lim.addEventListener('change', () => { app.mutate(() => { b.ventCfg.limit = lim.checked; }); render(); });
+    const n = labels();
+    const parts = [
+      h('p', { class: 'hint' }, t('Volgens NBN D 50-001 (woningen): droge ruimtes krijgen toevoer (T), natte ruimtes afvoer (A), 3,6 m³/h per m² vloer met een minimum per soort; gangen en hallen zijn doorstroomzones. Pas de soort aan waar de gok niet klopt en vul eventueel een eigen ontwerpdebiet in.')),
+      h('label', { class: 'check' }, lim, t('Begrenzen tot het maximum dat de norm toelaat (woonkamer 150, slaapkamer 72, natte ruimte 75 m³/h)')),
+      rows.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable venttable' },
+        h('thead', null, h('tr', null, h('th', null, 'Verdieping'), h('th', null, 'Ruimte'), h('th', null, 'Opp.'), h('th', null, 'Soort'),
+          h('th', null, 'Nodig'), h('th', null, 'Ontwerp'), h('th', null, 'T / A'), h('th', null, 'Doorstroom'))),
+        h('tbody', null, rows.map((x) => {
+          const typeSel = h('select', null, typeOpts.map(([k, l]) => h('option', { value: k, selected: k === x.type }, l)));
+          typeSel.addEventListener('change', () => { app.mutate(() => { (x.room.vent ||= {}).type = typeSel.value; }); render(); });
+          const own = h('input', { type: 'text', inputmode: 'decimal', value: x.room.vent?.flow ?? '', placeholder: x.side ? String(x.required) : '', disabled: !x.side, style: { width: '64px' } });
+          own.addEventListener('change', () => {
+            const v = parseFloat(String(own.value).replace(',', '.'));
+            app.mutate(() => { (x.room.vent ||= {}).flow = v > 0 ? v : undefined; if (!(v > 0)) delete x.room.vent.flow; });
+            render();
+          });
+          own.addEventListener('keydown', (e) => { if (e.key === 'Enter') own.blur(); });
+          return h('tr', { class: x.side && x.flow < x.required ? 'over' : '' },
+            h('td', null, x.floor.name), h('td', null, h('b', null, x.name)), h('td', { class: 'num' }, `${String(x.area).replace('.', ',')} m²`),
+            h('td', null, typeSel), h('td', { class: 'num' }, x.side ? `${x.required} m³/h` : '—'), h('td', null, own),
+            h('td', { class: 'num' }, x.side ? h('b', { style: { color: x.side === 'T' ? '#1c7ed6' : '#c2410c' } }, flowText(x.side, x.flow)) : '—'),
+            h('td', { class: 'num' }, x.transfer ? `≥ ${x.transfer} cm²` : '—'));
+        })))) : h('p', { class: 'warn' }, t('Nog geen ruimtes: duid eerst de ruimtes aan op de plattegrond (Ruimte).')),
+      h('h4', null, t('Totaal')),
+      h('p', null, t('Toevoer {s} m³/h · afvoer {e} m³/h', { s: supply, e: extract })),
+      h('p', null, h('b', null, t('Ventilatie-unit (systeem D): minstens {u} m³/h', { u: unit })),
+        supply !== extract ? ' ' + t('(stel toe- en afvoer in balans: verhoog de kleinste kant tot {u} m³/h)', { u: unit }) : ''),
+      h('p', { class: 'hint' }, t('Doorstroomopeningen (spleet onder de deur of rooster): minstens 70 cm² voor een WC en 140 cm² voor de andere ruimtes, behalve een open keuken.')),
+      h('div', { class: 'btnrow' },
+        h('button', { class: 'primary', onclick: place, disabled: !rows.some((x) => x.side) }, n ? t('Opnieuw op het plan zetten') : t('Op het plan zetten')),
+        n ? h('button', { onclick: wipe }, t('Labels wissen ({n})', { n })) : null),
+      note ? h('p', { class: 'hint' }, h('b', null, note)) : null,
+      h('p', { class: 'hint' }, t('De labels komen onder de naam van elke ruimte op het ventilatieplan van de verdieping (gemaakt als het nog niet bestaat). Verplaatste labels houden hun plaats bij opnieuw plaatsen.')),
+    ];
+    body.replaceChildren(...parts.filter(Boolean));
+  };
+  render();
+  const csv = () => {
+    const { rows, supply, extract } = ventRows(b, limit());
+    const out = [[t('Verdieping'), t('Ruimte'), t('Oppervlakte (m²)'), t('Soort'), t('Nodig (m³/h)'), t('Ontwerp (m³/h)'), t('Toevoer / afvoer'), t('Doorstroom (cm²)')],
+      ...rows.map((x) => [x.floor.name, x.name, String(x.area).replace('.', ','), t(VENT_TYPES[x.type].label), x.side ? x.required : '', x.side ? x.flow : '', x.side === 'T' ? t('Toevoer') : x.side === 'A' ? t('Luchtafvoer') : '', x.transfer || '']),
+      [], ['', t('Totaal'), '', '', '', '', `${t('Toevoer')} ${supply} / ${t('Luchtafvoer')} ${extract}`, '']];
+    download(`${safeName(app.project.name)} - ${t('Ventilatiedebieten')}.csv`, '﻿' + toCsv(out), 'text/csv;charset=utf-8');
+  };
+  return modal({
+    title: 'Ventilatiedebieten', wide: true, body,
     buttons: [{ label: 'CSV exporteren', value: 'csv' }, { label: 'Sluiten', value: false, primary: true }],
     onButton: (v) => { if (v === 'csv') { csv(); return false; } return true; },
   });

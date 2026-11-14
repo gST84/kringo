@@ -2,13 +2,17 @@
 import { boot } from '../shell.js';
 import { AREI } from '../building/arei.js';
 import { PlanEditor } from '../building/editor.js';
-import { buildingLeftPanel, buildingProps, cablesDialog, circuitOptions, circuitsDialog, domoticsDialog, generateDialog, heatingDialog, influencesDialog } from '../building/panels.js';
+import { buildingLeftPanel, buildingProps, cablesDialog, circuitOptions, circuitsDialog, domoticsDialog, generateDialog, heatingDialog, influencesDialog, ventDialog } from '../building/panels.js';
 import { HVAC } from '../building/hvac.js';
 import { DISCS, planTitle, plansOf } from '../building/model.js';
 import { guessPreset, newRoom, presetInfl, presetOf, syncPresets } from '../building/rooms.js';
 import { toast } from '../ui/dialogs.js';
 import { t } from '../i18n.js';
+
 import { cursorIcon, h, ROOT, uid } from '../util.js';
+
+/** Toolbar buttons that only belong on one kind of plan (shown / hidden in syncLayer). */
+const menuBtns = {};
 
 /** The example house (a project file next to the app; cached by the service worker). */
 async function houseDemo() {
@@ -32,13 +36,17 @@ boot({
   symbols: [...AREI, ...HVAC],
   demos: [{ icon: '🏠', name: 'Woning', text: 'Woning met verlichting, stopcontacten, zonnepanelen, domotica, data, ruimtes, kabeltrace en eendraadschema', make: houseDemo }],
   initialProject: houseDemo,
+  // Top bar: a button that belongs to one kind of plan goes in menuBtns and is shown only on that plan
+  // (syncLayer), with the same action in that plan's side panel (buildingProps); only general buttons
+  // are always visible.
   menu: ({ app, btn }) => [
-    btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app)),
-    btn('Domotica', 'Domotica-modules en hun kanalen', () => domoticsDialog(app)),
-    btn('Invloeden', 'Uitwendige invloeden per ruimte: tabel, CSV en blad', () => influencesDialog(app)),
-    btn('Kabels', 'Kabeltrace op het grondplan en kabellengtes per type', () => cablesDialog(app)),
-    btn('Vloerverwarming', 'Vloerverwarming genereren voor de verdieping; kringen per collector met hun lengte', () => heatingDialog(app)),
-    btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app)),
+    (menuBtns.circuits = btn('Kringen', 'Kringen, verdeelborden en differentiëlen (AREI)', () => circuitsDialog(app))),
+    (menuBtns.domotics = btn('Domotica', 'Domotica-modules en hun kanalen', () => domoticsDialog(app))),
+    (menuBtns.influences = btn('Invloeden', 'Uitwendige invloeden per ruimte: tabel, CSV en blad', () => influencesDialog(app))),
+    (menuBtns.cables = btn('Kabels', 'Kabeltrace op het grondplan en kabellengtes per type', () => cablesDialog(app))),
+    (menuBtns.vent = btn('Ventilatie', 'Nodige ventilatiedebieten per ruimte berekenen en op het plan zetten', () => ventDialog(app))),
+    (menuBtns.heating = btn('Vloerverwarming', 'Vloerverwarming genereren voor de verdieping; kringen per collector met hun lengte', () => heatingDialog(app))),
+    (menuBtns.eendraad = btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app))),
   ],
   // floor plans and single-line sheets in one list, grouped
   // (both in the sheet toolbar and in the floor plan toolbar)
@@ -117,6 +125,12 @@ boot({
       wallSel.hidden = !!disc;
       circSel.hidden = disc !== 'elec';
       traceChk.hidden = disc !== 'elec' || !app.project?.building?.traces;
+      // the electrical buttons (circuits, domotics, influences, cables, single-line diagram) only on an
+      // electricity plan, the floor heating button only on a floor heating plan
+      const onPlan = app.mode === 'building';
+      for (const k of ['circuits', 'domotics', 'influences', 'cables', 'eendraad']) if (menuBtns[k]) menuBtns[k].hidden = !onPlan || disc !== 'elec';
+      if (menuBtns.heating) menuBtns.heating.hidden = !onPlan || disc !== 'vv';
+      if (menuBtns.vent) menuBtns.vent.hidden = !onPlan || disc !== 'vent';
       if (!plan.toolAllowed(plan.tool, { type: plan.openingType, media: plan.openingMedia })) plan.setTool('select');
     };
     app.on('layer', syncLayer);

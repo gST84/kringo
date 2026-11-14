@@ -1,4 +1,4 @@
-// Underfloor heating on the CV plan: a pipe is a polyline (shape of type 'pipe'). Pipes are drawn by hand –
+// Underfloor heating on the floor heating plan: a pipe is a polyline (shape of type 'pipe'). Pipes are drawn by hand –
 // they snap to a grid per room (the room's pipe spacing, starting at the wall distance) – or generated for
 // a whole floor (generateFloorHeating; the algorithm itself is in ufh.js). This module holds the settings,
 // the room grid, the lengths and the link between the building model and the generator.
@@ -158,7 +158,7 @@ export function stairBlocks(st) {
  * Generates the loops of a floor: every room with underfloor heating is covered completely, from the
  * manifold on that floor (with several manifolds: the one chosen for the room, else the nearest). Pipes
  * pass walls through doors, wall passages for CV and room dividers. Earlier generated pipes of the floor
- * are replaced, pipes drawn by hand stay. `planId`: the CV plan the pipes belong to.
+ * are replaced, pipes drawn by hand stay. `planId`: the floor heating plan the pipes belong to.
  * Returns { loops (number), length (m), warnings: [text] }; call inside app.mutate.
  */
 export function generateFloorHeating(b, floor, lib, planId) {

@@ -492,7 +492,7 @@ function pageProps(app) {
       h('p', { class: 'hint' }, 'Y in mm (raster 5). Een lijn selecteren en verslepen kan ook op het blad.'),
       chk(app.project.settings.colorWires !== false, (v) => set((p) => { p.settings.colorWires = v; }), 'Draden krijgen de kleur van hun voedingslijn')),
     section('Sneltoetsen', h('p', { class: 'hint keys' },
-      'V selecteren · W draad · T tekst · B kader · R draaien · M spiegelen · Del verwijderen · Ctrl+C / V / D · Ctrl+Z / Y · F passend · spatie+slepen of middelste knop: pannen · Alt: zonder raster')),
+      'V selecteren · W draad · T tekst · B kader · R draaien · M spiegelen · Del verwijderen · Ctrl+C / X / V / D · rechtsklik = menu · Ctrl+Z / Y · F passend · spatie+slepen of middelste knop: pannen · Alt: zonder raster')),
   ];
 }
 

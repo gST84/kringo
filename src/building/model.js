@@ -18,11 +18,15 @@ export const DISCS = {
   elec: { label: 'Elektriciteit', icon: '⚡' },
   water: { label: 'Sanitair', icon: '🚰' },
   cv: { label: 'CV', icon: '♨' },
+  vv: { label: 'Vloerverwarming', icon: '≋' },
   vent: { label: 'Ventilatie', icon: '🌀' },
   drain: { label: 'Afvoer', icon: '⤓' },
 };
 /** Installation type of a symbol on a plan (AREI symbols and own symbols: electricity). */
 export const symDisc = (s, def) => s?.disc || def?.disc || HVAC_DISC[String(s?.sym).replace(/^hvac\//, '')] || 'elec';
+
+/** Pipes / passages of a plan type: floor heating shares the CV passages. */
+export const planMedia = (disc) => (disc === 'vv' ? 'cv' : disc);
 
 export const newPlan = (floorId, disc) => ({ id: uid('pl'), floor: floorId, disc });
 /** Name of a plan: "Elektriciteit – Gelijkvloers". */
@@ -172,6 +176,7 @@ export function normalizeBuilding(b) {
     }
   }
   b.plans = b.plans.filter((p) => DISCS[p.disc] && b.floors.some((f) => f.id === p.floor));
+  splitFloorHeating(b);
   // generated floor heating of 0.91 – 0.95 (pipes are drawn by hand now)
   delete b.heat; delete b.heatShow;
   // migrate the flat structure (board.rcds, circuit.board / circuit.rcd) to the tree
@@ -413,6 +418,28 @@ export const MEDIA = {
   drain: { label: 'Afvoer', color: '#7d5a3c' },
   vent: { label: 'Ventilatie', color: '#2f9e44' },
 };
+/**
+ * Floor heating has its own plan type since 0.98: pipes drawn on a CV plan move to the floor's floor
+ * heating plan (a CV plan with nothing else on it simply becomes that plan), and a floor with a
+ * collector gets one. Idempotent.
+ */
+function splitFloorHeating(b) {
+  for (const f of b.floors) {
+    const pipes = f.shapes.filter((sh) => sh.type === 'pipe');
+    const hasCollector = f.symbols.some((s) => String(s.sym) === 'hvac/collector' && !s.disc);
+    let vv = b.plans.find((p) => p.floor === f.id && p.disc === 'vv');
+    for (const cv of b.plans.filter((p) => p.floor === f.id && p.disc === 'cv')) {
+      const mine = pipes.filter((sh) => sh.plan === cv.id);
+      if (!mine.length) continue;
+      const other = f.symbols.some((s) => symDisc(s) === 'cv') || f.dims.some((d) => d.plan === cv.id) || f.shapes.some((sh) => sh.plan === cv.id && sh.type !== 'pipe');
+      if (!other && !vv) { cv.disc = 'vv'; vv = cv; continue; }
+      if (!vv) { vv = newPlan(f.id, 'vv'); b.plans.push(vv); }
+      for (const sh of mine) sh.plan = vv.id;
+    }
+    if (!vv && hasCollector) b.plans.push(newPlan(f.id, 'vv'));
+  }
+}
+
 /** Room divider: a dashed line drawn like a wall that only bounds rooms (no openings, cables pass). */
 export const isDivider = (w) => w?.kind === 'divider';
 

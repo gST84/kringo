@@ -6,6 +6,8 @@ import { geometry, svgTransform, worldBox, xf } from '../symbols/geom.js';
 import { autoTag, nextTerminal, needsTag } from './tags.js';
 import { clone, r2, snap, uid } from '../util.js';
 import { attachTouch } from '../touch.js';
+import { contextMenu, keyHint } from '../ui/contextMenu.js';
+import { t } from '../i18n.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const same = (a, b) => Math.abs(a[0] - b[0]) < 0.01 && Math.abs(a[1] - b[1]) < 0.01;
@@ -146,7 +148,12 @@ export class SchematicEditor {
     svg.addEventListener('pointermove', (e) => this.onMove(e));
     svg.addEventListener('pointerup', (e) => this.onUp(e));
     svg.addEventListener('dblclick', (e) => this.onDbl(e));
-    svg.addEventListener('contextmenu', (e) => e.preventDefault());
+    svg.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (!this.ctxOk) return;
+      this.ctxOk = false;
+      this.showMenu(e);
+    });
     svg.addEventListener('wheel', (e) => {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey || e.deltaMode === 1 || Math.abs(e.deltaY) >= 50 && Math.abs(e.deltaX) < 1) {
@@ -194,6 +201,8 @@ export class SchematicEditor {
       return;
     }
     if (e.button === 2) {
+      this.ctxOk = this.tool === 'select' && !app.sim;
+      if (this.ctxOk) return;
       if (this.tool === 'wire' && this.wirePts) this.finishWire();
       else if (this.tool !== 'select') this.setTool('select');
       return;
@@ -333,8 +342,8 @@ export class SchematicEditor {
     if (e.code === 'Space') { this.space = true; e.preventDefault(); return; }
     if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? app.redo() : app.undo(); return; }
     if (mod && k === 'y') { e.preventDefault(); app.redo(); return; }
-    if (mod && k === 'c') { this.copy(); return; }
-    if (mod && k === 'x') { this.copy(); this.deleteSelection(); return; }
+    if (mod && k === 'c') { if (app.sel.size) { e.preventDefault(); this.copy(); } return; }
+    if (mod && k === 'x') { if (app.sel.size) { e.preventDefault(); this.copy(); this.deleteSelection(); } return; }
     if (mod && k === 'v') { e.preventDefault(); this.paste(); return; }
     if (mod && k === 'd') { e.preventDefault(); this.copy(); this.paste(true); return; }
     if (mod && k === 'a') { e.preventDefault(); this.selectAll(); return; }
@@ -614,6 +623,27 @@ export class SchematicEditor {
       for (const p of project.pages) for (const c of p.comps) if (removed.has(c.link)) delete c.link;
     });
     app.select([]);
+  }
+
+  /** Right-click menu: a click on an element that is not selected selects it first. */
+  showMenu(e) {
+    const app = this.app;
+    const key = this.hitKey(e.target);
+    if (key && /^[cwtb]:/.test(key) && !app.sel.has(key)) app.select([key]);
+    const has = app.sel.size > 0;
+    const comps = app.page.comps.some((c) => app.sel.has('c:' + c.id));
+    contextMenu(e.clientX, e.clientY, [
+      { label: t('Knippen'), hint: keyHint('X'), run: () => { this.copy(); this.deleteSelection(); }, disabled: !has },
+      { label: t('Kopiëren'), hint: keyHint('C'), run: () => this.copy(), disabled: !has },
+      { label: t('Plakken'), hint: keyHint('V'), run: () => this.paste(), disabled: !this.clipboard },
+      { label: t('Dupliceren'), hint: keyHint('D'), run: () => { this.copy(); this.paste(true); }, disabled: !has },
+      '-',
+      comps ? { label: t('Draaien 90°'), hint: 'R', run: () => this.rotate() } : null,
+      comps ? { label: t('Spiegelen'), hint: 'M', run: () => this.mirror() } : null,
+      { label: t('Verwijderen'), hint: 'Del', run: () => this.deleteSelection(), disabled: !has, danger: true },
+      '-',
+      { label: t('Alles selecteren'), hint: keyHint('A'), run: () => this.selectAll() },
+    ].filter(Boolean));
   }
 
   copy() {

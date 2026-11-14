@@ -7,12 +7,16 @@ import { shapeSvg, textSvg } from '../schematic/render.js';
 import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
 import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js';
 import { heatCfg, nearestCollector, nextLoopName, PIPE_COLORS, roomGrid } from './heating.js';
-import { linkGroup, nearestWall, nextNumber, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
+import { linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
+import { contextMenu, keyHint } from '../ui/contextMenu.js';
+import { t } from '../i18n.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const near = (a, b, tol = 0.5) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] - b[1]) <= tol;
 const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+/** Copied plan elements, shared by all floors and plans (Ctrl+C / Ctrl+X → Ctrl+V). */
+let clipboard = null;
 
 /** Tools that draw several points before they create something. */
 const POINT_TOOLS = new Set(['arcwall', 'dim', 'area', 'line', 'strip', 'calib', 'callout', 'roomPoly', 'pipe']);
@@ -38,12 +42,12 @@ export const PLAN_PALETTE = [
   { key: 'window', on: 'base', label: 'Raam', tool: 'opening', opts: { type: 'window' }, icon: ico('<path d="M2 20h8M30 20h8" stroke-width="8"/><rect x="10" y="16" width="20" height="8" stroke-width="1.4"/><path d="M10 20h20" stroke-width="1.4"/>') },
   { key: 'slide', on: 'base', label: 'Schuifraam / -deur', tool: 'opening', opts: { type: 'slide' }, icon: ico('<path d="M2 20h6M32 20h6" stroke-width="8"/><path d="M8 17h16M16 23h16" stroke-width="2.4"/>') },
   { key: 'garage', on: 'base', label: 'Garagepoort', tool: 'opening', opts: { type: 'garage' }, icon: ico('<path d="M1 12h6M33 12h6" stroke-width="7"/><path d="M7 12h26" stroke-width="3"/><rect x="7" y="16" width="26" height="14" stroke-dasharray="3 2" stroke-width="1.4"/>') },
-  { key: 'passage-cv', on: 'cv', group: 'Muurdoorvoeren', label: 'Muurdoorvoer CV', tool: 'opening', opts: { type: 'passage', media: 'cv' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#e03131" fill-opacity=".6" stroke="#e03131" stroke-width="1.6"/><path d="M20 8v24" stroke="#e03131" stroke-width="1.2" stroke-dasharray="3 2"/>') },
+  { key: 'passage-cv', on: ['cv', 'vv'], group: 'Muurdoorvoeren', label: 'Muurdoorvoer CV', tool: 'opening', opts: { type: 'passage', media: 'cv' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#e03131" fill-opacity=".6" stroke="#e03131" stroke-width="1.6"/><path d="M20 8v24" stroke="#e03131" stroke-width="1.2" stroke-dasharray="3 2"/>') },
   { key: 'passage-water', on: 'water', group: 'Muurdoorvoeren', label: 'Muurdoorvoer sanitair', tool: 'opening', opts: { type: 'passage', media: 'water' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#1c7ed6" fill-opacity=".6" stroke="#1c7ed6" stroke-width="1.6"/><path d="M20 8v24" stroke="#1c7ed6" stroke-width="1.2" stroke-dasharray="3 2"/>') },
   { key: 'passage-drain', on: 'drain', group: 'Muurdoorvoeren', label: 'Muurdoorvoer afvoer', tool: 'opening', opts: { type: 'passage', media: 'drain' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#7d5a3c" fill-opacity=".6" stroke="#7d5a3c" stroke-width="1.6"/><path d="M20 8v24" stroke="#7d5a3c" stroke-width="1.2" stroke-dasharray="3 2"/>') },
   { key: 'passage-vent', on: 'vent', group: 'Muurdoorvoeren', label: 'Muurdoorvoer ventilatie', tool: 'opening', opts: { type: 'passage', media: 'vent' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#2f9e44" fill-opacity=".6" stroke="#2f9e44" stroke-width="1.6"/><path d="M20 8v24" stroke="#2f9e44" stroke-width="1.2" stroke-dasharray="3 2"/>') },
   { key: 'passage-elec', on: 'elec', group: 'Muurdoorvoeren', label: 'Muurdoorvoer kabels', tool: 'opening', opts: { type: 'passage', media: 'elec' }, icon: ico('<path d="M2 20h36" stroke-width="12" stroke="#9b9b9b"/><rect x="15" y="13" width="10" height="14" fill="#f08c00" fill-opacity=".6" stroke="#f08c00" stroke-width="1.6"/><path d="M20 8v24" stroke="#f08c00" stroke-width="1.2" stroke-dasharray="3 2"/>') },
-  { key: 'pipe', on: 'cv', group: 'Vloerverwarming', label: 'Buis tekenen', tool: 'pipe', icon: ico('<path d="M6 34V8h28v24H12V14h16v12H18v-6" stroke="#e03131" stroke-width="2.2"/>') },
+  { key: 'pipe', on: 'vv', group: 'Vloerverwarming', label: 'Buis tekenen', tool: 'pipe', icon: ico('<path d="M6 34V8h28v24H12V14h16v12H18v-6" stroke="#e03131" stroke-width="2.2"/>') },
   { key: 'stair', on: 'base', label: 'Trap', tool: 'stair', opts: { stair: 'straight' }, icon: ico('<rect x="12" y="3" width="16" height="34" stroke-width="1.6"/><path d="M12 10h16M12 16h16M12 22h16M12 28h16" stroke-width="1"/><path d="M20 34V6M16 10l4-4 4 4" stroke-width="1.4"/>') },
   { key: 'quarter', on: 'base', label: 'Kwartdraaitrap', tool: 'stair', opts: { stair: 'quarter' }, icon: ico('<path d="M4 4h32v12H16v20H4z" stroke-width="1.6"/><path d="M4 28h12M4 22h12M16 16L4 4M22 4v12M29 4v12" stroke-width="1"/><path d="M10 34V10h24M30 7l4 3-4 3" stroke-width="1.4"/>') },
   { key: 'spiral', on: 'base', label: 'Wenteltrap', tool: 'spiral', icon: ico('<circle cx="20" cy="20" r="16" stroke-width="1.6"/><circle cx="20" cy="20" r="3" stroke-width="1.2"/><path d="M20 17V4M23 20h13M20 23v13M17 20H4M22 18l9-9M22 22l9 9M18 22l-9 9M18 18 9 9" stroke-width="1"/>') },
@@ -256,10 +260,10 @@ export class PlanEditor {
   toolAllowed(tool, opts = {}) {
     const disc = this.app.disc;
     if (tool === 'select' || tool === 'pan') return true;
-    if (tool === 'opening' && opts.type === 'passage') return disc === (opts.media || 'cv');
+    if (tool === 'opening' && opts.type === 'passage') return planMedia(disc) === (opts.media || 'cv');
     if (['place', 'strip'].includes(tool)) return !!disc;
     if (tool === 'link') return disc === 'elec';
-    if (tool === 'pipe') return disc === 'cv';
+    if (tool === 'pipe') return disc === 'vv';
     if (['dim', 'area', 'line', 'callout'].includes(tool)) return true;
     return !disc; // walls, doors, stairs, rooms, room names, calibration
   }
@@ -492,7 +496,15 @@ export class PlanEditor {
     svg.addEventListener('pointermove', (e) => this.onMove(e));
     svg.addEventListener('pointerup', (e) => this.onUp(e));
     svg.addEventListener('dblclick', (e) => this.onDbl(e));
-    svg.addEventListener('contextmenu', (e) => e.preventDefault());
+    svg.addEventListener('pointerenter', () => { this.mouseIn = true; });
+    svg.addEventListener('pointerleave', () => { this.mouseIn = false; });
+    svg.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      // a right click while drawing ends / cancels the drawing (onDown); otherwise: the menu
+      if (!this.ctxOk) return;
+      this.ctxOk = false;
+      this.showMenu(e);
+    });
     svg.addEventListener('wheel', (e) => {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey || e.deltaMode === 1 || (Math.abs(e.deltaY) >= 50 && Math.abs(e.deltaX) < 1)) {
@@ -537,7 +549,7 @@ export class PlanEditor {
 
   /**
    * Can this element be selected on the open plan? On an installation plan the building (walls,
-   * openings, stairs, room names, notes of the floor plan) is locked; rooms can be picked on the CV plan
+   * openings, stairs, room names, notes of the floor plan) is locked; rooms can be picked on the floor heating plan
    * (floor heating), but not moved.
    */
   editable(key) {
@@ -547,8 +559,8 @@ export class PlanEditor {
     if (type.length > 1) return true; // handles of a selected element
     if (!disc) return !['A', 'L'].includes(type);
     if (type === 'A' || type === 'L') return true;
-    if (type === 'R') return disc === 'cv';
-    if (type === 'O') { const o = f.openings.find((x) => x.id === id); return o?.type === 'passage' && (o.media || 'elec') === disc; }
+    if (type === 'R') return disc === 'vv';
+    if (type === 'O') { const o = f.openings.find((x) => x.id === id); return o?.type === 'passage' && (o.media || 'elec') === planMedia(disc); }
     if (type === 'D') return f.dims.find((x) => x.id === id)?.plan === this.app.layerId;
     if (type === 'P') return f.shapes.find((x) => x.id === id)?.plan === this.app.layerId;
     return false;
@@ -565,6 +577,8 @@ export class PlanEditor {
       return;
     }
     if (e.button === 2) {
+      this.ctxOk = this.tool === 'select' && !this.pts.length;
+      if (this.ctxOk) { this.mouse = this.cursorPoint(raw, e); return; }
       if (this.tool === 'wall' && this.chain) { this.chain = null; this.typed = ''; this.renderOverlay(); }
       else if ((POLY.has(this.tool) && this.pts.length >= 3) || (OPEN.has(this.tool) && this.pts.length >= 2)) this.finishShape();
       else if (this.pts.length) { this.pts = []; this.renderOverlay(); }
@@ -734,6 +748,10 @@ export class PlanEditor {
     if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? app.redo() : app.undo(); return; }
     if (mod && k === 'y') { e.preventDefault(); app.redo(); return; }
     if (mod && k === 'd') { e.preventDefault(); this.duplicate(); return; }
+    if (mod && k === 'c') { if (app.sel.size) { e.preventDefault(); this.copy(); } return; }
+    if (mod && k === 'x') { if (app.sel.size) { e.preventDefault(); this.cut(); } return; }
+    if (mod && k === 'v') { if (clipboard) { e.preventDefault(); this.paste(); } return; }
+    if (mod && k === 'a') { e.preventDefault(); this.selectAll(); return; }
     if (mod) return;
     if (this.tool === 'wall' && this.chain && /^[0-9.,]$/.test(e.key)) { this.typed += e.key; this.renderOverlay(); return; }
     if (this.tool === 'wall' && this.chain && k === 'backspace') { e.preventDefault(); this.typed = this.typed.slice(0, -1); this.renderOverlay(); return; }
@@ -1035,7 +1053,7 @@ export class PlanEditor {
     this.renderOverlay();
   }
 
-  /** Heating pipe (CV plan): belongs to the manifold nearest its start, gets the next loop name and colour. */
+  /** Heating pipe (floor heating plan): belongs to the manifold nearest its start, gets the next loop name and colour. */
   addPipe(list) {
     if (list.length < 2) return;
     const b = this.b, lib = this.app.lib;
@@ -1267,6 +1285,140 @@ export class PlanEditor {
       for (const s of f.shapes.filter((x) => sel.has('P:' + x.id))) { const c = { ...clone(s), id: uid('sh'), pts: s.pts.map(([x, y]) => [x + d, y + d]) }; f.shapes.push(c); keys.push('P:' + c.id); }
     });
     this.app.select(keys);
+  }
+
+  // ---------- clipboard and context menu ----------
+  /** Right-click menu: a click on an element that is not selected selects it first. */
+  showMenu(e) {
+    const app = this.app;
+    const key = this.hitKey(e.target);
+    if (key && !/^[A-Z]+H:/.test(key) && !app.sel.has(key)) app.select([key]);
+    const has = app.sel.size > 0;
+    const f = this.floor;
+    const at = [...this.mouse]; // paste where the menu was opened
+    const turns = f.symbols.some((x) => app.sel.has('A:' + x.id) && !x.pts) || f.stairs.some((x) => app.sel.has('S:' + x.id));
+    contextMenu(e.clientX, e.clientY, [
+      { label: t('Knippen'), hint: keyHint('X'), run: () => this.cut(), disabled: !has },
+      { label: t('Kopiëren'), hint: keyHint('C'), run: () => this.copy(), disabled: !has },
+      { label: t('Plakken'), hint: keyHint('V'), run: () => this.paste(at), disabled: !clipboard },
+      { label: t('Dupliceren'), hint: keyHint('D'), run: () => this.duplicate(), disabled: !has },
+      '-',
+      turns ? { label: t('Draaien 90°'), hint: 'R', run: () => this.rotate() } : null,
+      { label: t('Verwijderen'), hint: 'Del', run: () => this.deleteSelection(), disabled: !has, danger: true },
+      '-',
+      { label: t('Alles selecteren'), hint: keyHint('A'), run: () => this.selectAll() },
+    ].filter(Boolean));
+  }
+
+  /** Everything that can be selected on the open plan. */
+  selectAll() {
+    const f = this.floor, disc = this.app.disc, lib = this.app.lib;
+    this.app.select([
+      ...f.walls.map((w) => 'W:' + w.id), ...f.openings.map((o) => 'O:' + o.id),
+      ...f.symbols.filter((x) => symDisc(x, lib.get(x.sym)) === disc).map((x) => 'A:' + x.id),
+      ...f.links.map((l) => 'L:' + l.id), ...f.texts.map((x) => 'T:' + x.id), ...f.stairs.map((x) => 'S:' + x.id),
+      ...f.dims.map((x) => 'D:' + x.id), ...f.shapes.map((x) => 'P:' + x.id), ...(disc ? [] : f.rooms.map((r) => 'R:' + r.id)),
+    ].filter((key) => this.editable(key)));
+  }
+
+  /** Copies the selection: walls with their openings, symbols with the links between them, notes, stairs … */
+  copy() {
+    const f = this.floor, sel = this.app.sel;
+    if (!sel.size) return false;
+    const walls = f.walls.filter((w) => sel.has('W:' + w.id));
+    const wallIds = new Set(walls.map((w) => w.id));
+    const symbols = f.symbols.filter((x) => sel.has('A:' + x.id));
+    const symIds = new Set(symbols.map((x) => x.id));
+    const cb = clone({
+      walls, symbols,
+      openings: f.openings.filter((o) => wallIds.has(o.wall)),
+      links: f.links.filter((l) => symIds.has(l.a) && symIds.has(l.b)),
+      texts: f.texts.filter((x) => sel.has('T:' + x.id)),
+      stairs: f.stairs.filter((x) => sel.has('S:' + x.id)),
+      dims: f.dims.filter((x) => sel.has('D:' + x.id)),
+      shapes: f.shapes.filter((x) => sel.has('P:' + x.id)),
+    });
+    const n = cb.walls.length + cb.symbols.length + cb.texts.length + cb.stairs.length + cb.dims.length + cb.shapes.length;
+    if (!n) { this.app.emit('planToast', t('Dit kan niet gekopieerd worden (enkel muren met hun openingen, symbolen, trappen, kasten, teksten, maatlijnen en vlakken / lijnen).')); return false; }
+    clipboard = cb;
+    return true;
+  }
+
+  cut() {
+    if (this.copy()) this.deleteSelection();
+  }
+
+  /**
+   * Pastes the clipboard with its centre at `at`, else at the pointer (or a bit off the original when the pointer
+   * is not on the plan). Only what belongs on the open plan: the building on the floor plan,
+   * symbols of this type on an installation plan.
+   */
+  paste(at = null) {
+    if (!clipboard) return;
+    const app = this.app, f = this.floor, disc = app.disc, lib = app.lib, layer = app.layerId || undefined;
+    const cb = clone(clipboard);
+    const keep = {
+      walls: disc ? [] : cb.walls,
+      symbols: disc ? cb.symbols.filter((x) => symDisc(x, lib.get(x.sym)) === disc) : [],
+      texts: disc ? [] : cb.texts,
+      stairs: disc ? [] : cb.stairs,
+      dims: cb.dims,
+      shapes: cb.shapes.filter((x) => x.type !== 'pipe' || disc === 'vv'),
+    };
+    const wallIds = new Set(keep.walls.map((w) => w.id)), symIds = new Set(keep.symbols.map((x) => x.id));
+    keep.openings = cb.openings.filter((o) => wallIds.has(o.wall));
+    keep.links = cb.links.filter((l) => symIds.has(l.a) && symIds.has(l.b));
+    const pts = [
+      ...keep.walls.flatMap((w) => [[w.x1, w.y1], [w.x2, w.y2]]), ...keep.symbols.flatMap((x) => x.pts || [[x.x, x.y]]),
+      ...keep.texts.map((x) => [x.x, x.y]), ...keep.stairs.map((x) => [x.x, x.y]),
+      ...keep.dims.flatMap((d) => [[d.x1, d.y1], [d.x2, d.y2]]), ...keep.shapes.flatMap((x) => x.pts),
+    ];
+    if (!pts.length) {
+      app.emit('planToast', disc ? t('Niets om hier te plakken: op een installatieplan plak je symbolen van dat plan, maatlijnen en vlakken / lijnen; muren, trappen en teksten op de plattegrond.')
+        : t('Niets om hier te plakken: symbolen plak je op een installatieplan (Bladen).'));
+      return;
+    }
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const g = this.b.grid || 5;
+    const [mx, my] = at || (this.mouseIn ? this.mouse : [cx + 50, cy + 50]);
+    const dx = snap(mx - cx, g), dy = snap(my - cy, g);
+    const mv = (x, y) => [r2(x + dx), r2(y + dy)];
+    const keys = [], wallMap = new Map(), symMap = new Map();
+    app.mutate(() => {
+      for (const w of keep.walls) {
+        const id = uid('w');
+        wallMap.set(w.id, id);
+        [w.x1, w.y1] = mv(w.x1, w.y1); [w.x2, w.y2] = mv(w.x2, w.y2);
+        if (w.cx != null) [w.cx, w.cy] = mv(w.cx, w.cy);
+        w.id = id; f.walls.push(w); keys.push('W:' + id);
+      }
+      for (const o of keep.openings) { o.id = uid('o'); o.wall = wallMap.get(o.wall); f.openings.push(o); keys.push('O:' + o.id); }
+      for (const x of keep.symbols) {
+        const id = uid('a');
+        symMap.set(x.id, id);
+        [x.x, x.y] = mv(x.x, x.y);
+        if (x.pts) x.pts = x.pts.map(([px, py]) => mv(px, py));
+        x.id = id;
+        if (x.circuit && this.b.circuits.some((c) => c.id === x.circuit)) x.n = nextNumber(this.b, x.circuit);
+        else delete x.circuit;
+        f.symbols.push(x); keys.push('A:' + id);
+      }
+      for (const l of keep.links) { l.id = uid('l'); l.a = symMap.get(l.a); l.b = symMap.get(l.b); f.links.push(l); }
+      for (const x of keep.texts) { x.id = uid('t'); [x.x, x.y] = mv(x.x, x.y); f.texts.push(x); keys.push('T:' + x.id); }
+      for (const x of keep.stairs) { x.id = uid('st'); [x.x, x.y] = mv(x.x, x.y); f.stairs.push(x); keys.push('S:' + x.id); }
+      for (const d of keep.dims) {
+        d.id = uid('dm'); [d.x1, d.y1] = mv(d.x1, d.y1); [d.x2, d.y2] = mv(d.x2, d.y2);
+        if (layer) d.plan = layer; else delete d.plan;
+        f.dims.push(d); keys.push('D:' + d.id);
+      }
+      for (const x of keep.shapes) {
+        x.id = uid('sh'); x.pts = x.pts.map(([px, py]) => mv(px, py)); delete x.gen;
+        if (layer) x.plan = layer; else delete x.plan;
+        f.shapes.push(x); keys.push('P:' + x.id);
+      }
+    });
+    app.select(keys.filter((key) => this.editable(key)));
   }
 
   addText(p, text) {

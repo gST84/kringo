@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, isDivider, MEDIA, planTitle, symDisc, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isDivider, MEDIA, planMedia, planTitle, symDisc, wallGeom, wallPath } from './model.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
 /** Sheet millimetres per plan centimetre. */
@@ -464,10 +464,10 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   const wallsById = new Map(floor.walls.map((w) => [w.id, w]));
   for (const o of floor.openings) {
     const w = wallsById.get(o.wall);
-    if (o.type === 'passage' && (o.media || 'elec') !== disc) continue; // a wall passage only on the plan of its type
+    if (o.type === 'passage' && (o.media || 'elec') !== planMedia(disc)) continue; // a wall passage only on the plan of its type
     if (w) s += openingSvg(o, w, sw, sel.has('O:' + o.id));
   }
-  // underfloor heating pipes (CV plan): above the door gaps, under the stairs and symbols
+  // underfloor heating pipes (floor heating plan): above the door gaps, under the stairs and symbols
   for (const sh of floor.shapes || []) if (sh.type === 'pipe' && note(sh)) s += pipeSvg(sh, k, sw, sel.has('P:' + sh.id), opts);
   for (const st of floor.stairs) s += stairSvg(st, sw, sel.has('S:' + st.id));
   for (const sh of floor.shapes || []) if (sh.type === 'line' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);

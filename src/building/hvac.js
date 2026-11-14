@@ -12,8 +12,8 @@ const WHITE = { fill: 'white' };
 const INK = { fill: 'ink' };
 
 export const HVAC_ROOT = 'Technieken';
-const CV = HVAC_ROOT + '/CV', WATER = HVAC_ROOT + '/Sanitair', DRAIN = HVAC_ROOT + '/Afvoer', VENT = HVAC_ROOT + '/Ventilatie';
-const DISC_OF = { [CV]: 'cv', [WATER]: 'water', [DRAIN]: 'drain', [VENT]: 'vent' };
+const CV = HVAC_ROOT + '/CV', UFH = HVAC_ROOT + '/Vloerverwarming', WATER = HVAC_ROOT + '/Sanitair', DRAIN = HVAC_ROOT + '/Afvoer', VENT = HVAC_ROOT + '/Ventilatie';
+const DISC_OF = { [CV]: 'cv', [UFH]: 'vv', [WATER]: 'water', [DRAIN]: 'drain', [VENT]: 'vent' };
 
 const def = (id, name, folder, kind, hvac, graphics, o = {}) => ({
   id: 'hvac/' + id, name, folder, kind, hvac, disc: DISC_OF[folder], role: 'device', prefix: o.prefix || 'W', arei: true,
@@ -28,7 +28,7 @@ export const HVAC = [
   // CV en sanitair
   def('boiler', 'CV-ketel', CV, 'appliance', 'boiler', [R(-4, -4, 8, 8, WHITE), P('M -1.6 2.2 C -2.6 0.4 -0.6 -0.4 -0.6 -2.4 C 0.4 -1.2 2.2 0 1.4 2.2 Z', { w: 0.25 }), T(0, -1.3, 'CV', 1.5)],
     { wall: true, pinY: 4, prefix: 'W', extra: { box: true, half: 4 } }),
-  def('collector', 'Collector vloerverwarming', CV, 'hvac', 'collector',
+  def('collector', 'Collector vloerverwarming', UFH, 'hvac', 'collector',
     [R(-6, -0.6, 12, 2.1, WHITE), L(-6, 0.45, 6, 0.45, { w: 0.15 }), ...[-4.5, -2.5, -0.5, 1.5, 3.5].map((x) => L(x + 0.5, -0.6, x + 0.5, -2.8)), T(0, -3.6, 'VV', 1.4)],
     { wall: true, pinY: 1.5, prefix: 'W' }),
   def('radiator', 'Radiator', CV, 'hvac', 'emitter',

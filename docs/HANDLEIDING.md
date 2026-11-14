@@ -21,6 +21,7 @@ Kringo tekent elektrische installaties in de browser, met twee apps: **🏠 Krin
    - [G. Ruimtes en uitwendige invloeden](#g-ruimtes-en-uitwendige-invloeden)
    - [H. Kabeltrace en kabellengtes](#h-kabeltrace-en-kabellengtes)
    - [I. Vloerverwarming](#i-vloerverwarming)
+   - [J. Ventilatiedebieten](#j-ventilatiedebieten)
 7. [Besturing: stuurkast](#7-besturing-stuurkast)
 8. [Besturing: hydraulica en pneumatica](#8-besturing-hydraulica-en-pneumatica)
 9. [Besturing: koelcircuits van machines](#9-besturing-koelcircuits-van-machines)
@@ -60,7 +61,7 @@ Algemeen: klik = selecteren, Shift + klik = erbij selecteren, slepen = verplaats
 Een gebouw bestaat uit **plattegronden** (één per verdieping) en **installatieplannen** daarbovenop. Ze staan in het paneel links onder **Bladen**, gegroepeerd per type:
 
 - **Plattegronden**: hier teken je het gebouw zelf – muren, deuren, ramen, trappen, ruimtes, ruimtenamen en de achtergrond. Er staan geen installatiesymbolen op.
-- **⚡ Elektriciteit**, **🚰 Sanitair**, **♨ CV**, **🌀 Ventilatie** en **⤓ Afvoer**: met **＋ plan** maak je een plan van dat type op een plattegrond. Het grondplan staat er lichter en **vergrendeld** onder; je plaatst er enkel de symbolen, muurdoorvoeren, maatlijnen en aantekeningen van dat type. Wijzig je een muur op de plattegrond, dan volgen alle plannen.
+- **⚡ Elektriciteit**, **🚰 Sanitair**, **♨ CV**, **≋ Vloerverwarming**, **🌀 Ventilatie** en **⤓ Afvoer**: met **＋ plan** maak je een plan van dat type op een plattegrond. Het grondplan staat er lichter en **vergrendeld** onder; je plaatst er enkel de symbolen, muurdoorvoeren, maatlijnen en aantekeningen van dat type. Wijzig je een muur op de plattegrond, dan volgen alle plannen.
 - Het paneel **Symbolen** toont op elk plan enkel wat er past: op de plattegrond de tekentools, op een installatieplan de symbolen van dat type (op Elektriciteit de AREI-symbolen, op CV de ketel, collector, radiatoren …). De keuzelijst bovenaan en ◀ ▶ wisselen tussen de plannen van hetzelfde type.
 - Op de plattegrond (niets geselecteerd) open of maak je de plannen van die verdieping met één klik. Op een installatieplan kun je het plan verwijderen (met zijn symbolen).
 - Afdrukken: elk plan op een eigen blad, met het type in de titel (bv. *CV – Gelijkvloers*).
@@ -115,7 +116,7 @@ Zie [voorbeeld F](#f-een-bestaand-plan-overtekenen-pdf-als-achtergrond).
 
 ### Kringen en verdeelborden
 
-Open **Kringen** bovenaan. Je bouwt er de boom: *verdeelbord → differentieel → kringen*, met differentiëlen achter differentiëlen en onderverdeelborden. Per kring stel je in: automaat of smeltzekering, curve, In, polen, Icn, kabel, brandklasse, aders, doorsnede, plaatsing en of de geleiders getekend worden. Opmerkingen van de AREI-controle staan meteen bij de kring.
+Open een plan **Elektriciteit** en klik bovenaan op **Kringen** (ook **Kringen & borden…** in het paneel van dat plan). De knoppen **Kringen**, **Domotica**, **Invloeden**, **Kabels** en **Eendraadschema** staan bovenaan enkel als een plan Elektriciteit open is, **Vloerverwarming** enkel op een vloerverwarmingsplan; zo blijft de balk rustig op de andere plannen. Je bouwt er de boom: *verdeelbord → differentieel → kringen*, met differentiëlen achter differentiëlen en onderverdeelborden. Per kring stel je in: automaat of smeltzekering, curve, In, polen, Icn, kabel, brandklasse, aders, doorsnede, plaatsing en of de geleiders getekend worden. Opmerkingen van de AREI-controle staan meteen bij de kring.
 
 ![Het venster Kringen & verdeelborden](img/circuits.png)
 
@@ -140,7 +141,7 @@ Zonder selectie toont het eigenschappenpaneel de opmerkingen van de AREI-control
 
 ## 5. Het eendraadschema
 
-Klik bovenaan op **Eendraadschema** en daarna op *Genereren* (of Enter). Per verdeelbord komt een blad in de Belgische opbouw: hoofdrail met voeding en aarding, differentiëlen met hun rail, per kring de automaat, kabel en genummerde aftakkingen.
+Open een plan **Elektriciteit** en klik bovenaan op **Eendraadschema** (die knop staat er enkel op dat plan; ook in het paneel van het plan) en daarna op *Genereren* (of Enter). Per verdeelbord komt een blad in de Belgische opbouw: hoofdrail met voeding en aarding, differentiëlen met hun rail, per kring de automaat, kabel en genummerde aftakkingen.
 
 - Het schema wordt **niet automatisch bijgewerkt**: genereer opnieuw na wijzigingen (eerder gegenereerde bladen worden vervangen).
 - De bladen staan in de paginakeuze onder *Eendraadschema* en kunnen achteraf nog aangepast worden.
@@ -234,7 +235,7 @@ In een domotica-installatie zitten de **modules (relais, dimmers, rolluikmodules
 
 Doel (zoals in de voorbeeldwoning): drie inbouwspots in de keuken op een schakelmodule, een gedimde ledstrip, een rolluik in de living, een domotica-drukknop en een aanwezigheidsmelder.
 
-1. **Modules aanmaken**: klik bovenaan op **Domotica**.
+1. **Modules aanmaken**: klik op een plan Elektriciteit bovenaan op **Domotica** (of **Domotica…** in het paneel).
    - *＋ Schakelmodule* → **M1**, zet *Kanalen* op 8 (instelbaar van 1 tot 32), kies het *Bord* en de *Voeding* (de kring die de modules voedt, bv. kring D).
    - *＋ Dimmermodule* → **M2**, 4 kanalen.
    - *＋ Rolluikmodule* → **M3**, 3 kanalen.
@@ -285,7 +286,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
    ![Ruimtes met kleur, oppervlakte en afwijkende codes; rechts de uitwendige invloeden](img/rooms.png)
 
-4. **Invloeden** bovenaan toont de tabel van alle ruimtes met referentie, datum en adres. **CSV exporteren** geeft de lijst voor Excel; **Blad genereren** maakt het A3-blad zoals het Normec-overzicht, met vakken voor de handtekeningen van de exploitant en het erkend organisme.
+4. **Invloeden** bovenaan (die knop staat er enkel op een plan **Elektriciteit**; ook **Invloeden…** in het paneel van dat plan, of **▦ Tabel…** bij een ruimte) toont de tabel van alle ruimtes met referentie, datum en adres. **CSV exporteren** geeft de lijst voor Excel; **Blad genereren** maakt het A3-blad zoals het Normec-overzicht, met vakken voor de handtekeningen van de exploitant en het erkend organisme.
 
    ![De tabel met uitwendige invloeden](img/influences.png)
 
@@ -296,7 +297,7 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 ### H. Kabeltrace en kabellengtes
 
 1. Zet een **Verdeelbord** (Energie) op het grondplan. Met meerdere borden kies je in de eigenschappen van het symbool welk bord het is.
-2. Klik bovenaan op **Kabels** en dan op **Kabeltrace genereren**. Per kring loopt een route van het verdeelbord naar het eerste punt en daarna van punt naar punt, in de volgorde van de nummers (bij hetzelfde nummer eerst de schakelaar, dan de lampen). Elk domotica-uitgangskanaal krijgt een eigen kabel vanaf het bord. De DC-kant van zonnepanelen telt niet mee.
+2. Klik bovenaan op **Kabels** (die knop staat er enkel als een plan **Elektriciteit** open is; ook via **Kabels…** in het paneel) en dan op **Kabeltrace genereren**. Per kring loopt een route van het verdeelbord naar het eerste punt en daarna van punt naar punt, in de volgorde van de nummers (bij hetzelfde nummer eerst de schakelaar, dan de lampen). Elk domotica-uitgangskanaal krijgt een eigen kabel vanaf het bord. De DC-kant van zonnepanelen telt niet mee.
 3. De kabels gaan enkel door **deuren, deuropeningen, schuifdeuren en garagepoorten** – niet door muren of ramen, en niet buiten het gebouw om. De kabels lopen met rechte hoeken, liefst op 20–30 cm van de muren, en waar ze dezelfde weg nemen liggen ze mooi gebundeld naast elkaar. Elke kring krijgt een kleur; de kabel vanaf het bord is dikker en draagt de naam van de kring. Met het vinkje **kabels** in de werkbalk zet je de overlay aan of uit.
 
    ![Kabeltrace op het grondplan](img/cables-plan.png)
@@ -311,19 +312,19 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 ### I. Vloerverwarming
 
-Vloerverwarming laat je **genereren** voor een hele verdieping, of je tekent de kringen zelf op het **CV**-plan (Bladen › CV › ＋ plan). De ruimtes duid je eerst aan op de plattegrond (zie G).
+Vloerverwarming laat je **genereren** voor een hele verdieping, of je tekent ze zelf. Vloerverwarming heeft een eigen installatieplan, **Vloerverwarming** (Bladen, of ≋ Vloerverwarming ＋ in het paneel van de plattegrond), los van het CV-plan met ketel en radiatoren; zo blijft elk plan overzichtelijk. De knop **Vloerverwarming** bovenaan staat er enkel als dat plan open is (net zoals **Kabels** enkel op het plan Elektriciteit). Projecten van vóór 0.98: de buizen en collectoren van het CV-plan worden bij het openen naar het vloerverwarmingsplan verplaatst. De ruimtes duid je eerst aan op de plattegrond (zie G).
 
 **Genereren**
 
 1. Zet een **Collector vloerverwarming** op de verdieping (tegen een muur van een verwarmde ruimte).
-2. Open het venster **Vloerverwarming** (bovenaan, of **♨ Genereren…** in het paneel van het CV-plan). Vink de ruimtes aan die vloerverwarming krijgen (standaard allemaal; ook in de eigenschappen van een ruimte) en klik **Kringen genereren**.
+2. Open het venster **Vloerverwarming** (bovenaan, of **♨ Genereren…** in het paneel van het vloerverwarmingsplan; bestaat dat plan nog niet, dan wordt het gemaakt). Vink de ruimtes aan die vloerverwarming krijgen (standaard allemaal; ook in de eigenschappen van een ruimte) en klik **Kringen genereren**.
 3. Kringo verdeelt de vloer in kringen die elk binnen de **maximale lengte** blijven en legt ze als tegenstroomspiraal op de **legafstand** van de ruimte. De hele vloer wordt bedekt: de aanvoerleidingen naar verder gelegen ruimtes maken deel uit van hun kring en verwarmen de vloer waar ze passeren. Leidingen gaan door **deuren**, **muurdoorvoeren CV** en **ruimteverdelers**; in een deur en bij de collector liggen ze dichter bij elkaar.
 4. Het venster meldt wat niet lukt: een ruimte zonder doorgang naar de collector, een kring die te lang blijft, meer kringen dan uitgangen. Met meerdere collectoren op een verdieping krijgt elke ruimte de dichtstbijzijnde.
 5. De kringen zijn gewone buizen: klik er een aan om naam, kleur of punten aan te passen. **Opnieuw genereren** vervangt de gegenereerde kringen van die verdieping; zelf getekende buizen blijven staan. **Ctrl+Z** maakt het genereren ongedaan.
 
 **Zelf tekenen**
 
-Symbolen per type: op **CV** de CV-ketel, collector, radiator, convector en ventiloconvector; op **Sanitair** tappunten koud / warm water, watermeter en warmwaterboiler; op **Afvoer** afvoerpunt en vloerputje; op **Ventilatie** de ventilatie-unit en de toevoer- en afvoerventielen.
+Symbolen per type: op **Vloerverwarming** de collector; op **CV** de CV-ketel, radiator, convector en ventiloconvector; op **Sanitair** tappunten koud / warm water, watermeter en warmwaterboiler; op **Afvoer** afvoerpunt en vloerputje; op **Ventilatie** de ventilatie-unit en de toevoer- en afvoerventielen.
 
 1. Zet een **Collector vloerverwarming** op het plan en vul in zijn eigenschappen het **aantal uitgangen** in. Zijn naam op het plan is de omschrijving of anders VV1, VV2 …
 2. Kies links **Buis tekenen** (groep *Vloerverwarming*) en klik de punten van de buis: van de collector, door de ruimte (bv. als dubbele spiraal of meander) en terug naar de collector. **Dubbelklik**, **Enter** of de **rechtermuisknop** = klaar, **Backspace** = laatste punt terug, **Esc** = stoppen.
@@ -332,8 +333,24 @@ Symbolen per type: op **CV** de CV-ketel, collector, radiator, convector en vent
    - Tijdens het tekenen staat de **lengte** tot nu toe (en de legafstand) bij de cursor.
 3. De buis krijgt de naam van de volgende kring van de dichtstbijzijnde collector (VV1.1, VV1.2 …) en een eigen kleur. Bochten worden afgerond getekend (standaard de halve legafstand). Op het plan staan naam en lengte bij elke kring.
 4. Klik een buis aan voor haar eigenschappen: **lengte** (rood als ze langer is dan het maximum van de ruimte), naam, collector, kleur en bochtstraal. Sleep de punten om het verloop aan te passen; ze springen opnieuw op het raster. **Ctrl+D** dupliceert een kring.
-5. **Legafstand** en **maximale lengte** stel je per ruimte in (klik de ruimte aan op het CV-plan) of als standaard in het venster **Vloerverwarming** bovenaan, samen met de afstand tot de muur.
+5. **Legafstand** en **maximale lengte** stel je per ruimte in (klik de ruimte aan op het vloerverwarmingsplan) of als standaard in het venster **Vloerverwarming** bovenaan, samen met de afstand tot de muur.
 6. Het venster **Vloerverwarming** toont per collector alle kringen met verdieping, ruimte (waar het grootste deel van de buis ligt), legafstand en lengte, het totaal aan buis en een waarschuwing bij te lange kringen of te weinig uitgangen; ook als CSV.
+
+### J. Ventilatiedebieten
+
+Kringo berekent de nodige ventilatiedebieten van een woning volgens **NBN D 50-001** en zet ze op het ventilatieplan.
+
+1. Duid de ruimtes aan op de plattegrond (zie G); hun oppervlakte komt uit de omtrek.
+2. Open een plan **Ventilatie** en klik bovenaan op **Ventilatie** (of **≈ Debieten…** in het paneel; die knop staat er enkel op een ventilatieplan).
+3. Per ruimte gokt Kringo de soort uit het sjabloon en de naam; pas ze aan waar nodig:
+   - **droge ruimtes, toevoer (T)**: woonkamer 3,6 m³/h per m², minstens 75 m³/h (mag begrensd tot 150); slaap-, studeer- en speelkamer 3,6 m³/h per m², minstens 25 (mag begrensd tot 72);
+   - **natte ruimtes, afvoer (A)**: gesloten keuken, badkamer en wasplaats 3,6 m³/h per m², minstens 50 (mag begrensd tot 75); open keuken 75 m³/h; WC 25 m³/h;
+   - **gang / hal / trap**: doorstroomzone, geen eigen debiet; **geen ventilatie** voor berging, garage, technische ruimte …
+4. Met het vinkje **Begrenzen** gebruikt Kringo het maximum dat de norm toelaat. In **Ontwerp** vul je een eigen debiet in (rood als het lager is dan nodig).
+5. Onderaan: de totale toe- en afvoer en het debiet van de **ventilatie-unit** (systeem D: het grootste van beide; breng de andere kant in balans), en de **doorstroomopeningen** (minstens 70 cm² voor een WC, 140 cm² voor de andere ruimtes).
+6. **Op het plan zetten** plaatst onder de naam van elke ruimte een label *T 132 m³/h* (blauw) of *A 75 m³/h* (oranje) op het ventilatieplan van de verdieping (gemaakt als het nog niet bestaat). Je kunt de labels verslepen; **opnieuw plaatsen** werkt de debieten bij en houdt hun plaats. **CSV exporteren** geeft de tabel voor Excel.
+
+De berekening is een hulp bij het ontwerp: controleer de waarden en de EPB-eisen van het project.
 
 ## 7. Besturing: stuurkast
 
@@ -493,8 +510,10 @@ Met **Bewaren in Mijn symbolen** (eigenschappen van het blad) komt het blok in d
 
 ## 12. Sneltoetsen
 
-**Grondplan:** `W` muur · `A` gebogen muur · `D` deur · `N` raam · `M` maatlijn · `T` ruimtenaam · `L` koppelen · `R` draaien · `V` selecteren · `H` pannen · `Del` verwijderen · `Ctrl+D` dupliceren · `Ctrl+Z / Y` ongedaan / opnieuw · `F` passend · `Alt` zonder raster / niet tegen de muur · `Backspace` laatste punt terug (vlak, lijn, ledstrip).
+**Grondplan:** `W` muur · `A` gebogen muur · `D` deur · `N` raam · `M` maatlijn · `T` ruimtenaam · `L` koppelen · `R` draaien · `V` selecteren · `H` pannen · `Del` verwijderen · `Ctrl+C / X / V` kopiëren / knippen / plakken (bij de muis) · `Ctrl+D` dupliceren · `Ctrl+A` alles selecteren · `Ctrl+Z / Y` ongedaan / opnieuw · `F` passend · `Alt` zonder raster / niet tegen de muur · `Backspace` laatste punt terug (vlak, lijn, ledstrip).
 
 **Stuurkast:** `V` selecteren · `W` draad · `T` tekst · `B` kader · `R` draaien · `M` spiegelen · `Ctrl+C / X / V / D` · `Ctrl+Z / Y` · `F` passend · `PgUp / PgDn` pagina.
+
+**Rechtermuisknop** (grondplan en schema's, met het selectiegereedschap): menu met knippen, kopiëren, plakken (op de plaats van de klik), dupliceren, draaien, verwijderen en alles selecteren. Op een Mac met `⌘` in plaats van `Ctrl`. Muren worden met hun deuren en ramen gekopieerd, symbolen met de koppelingen ertussen; symbolen plak je op een installatieplan, muren, trappen en teksten op de plattegrond.
 
 **Tablet:** knijpen = zoomen, twee vingers = verschuiven, lang drukken = rechtermuisknop.
