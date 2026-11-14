@@ -445,9 +445,12 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .plan .parea:hover { stroke: #4b8af0 !important; }
 .plan .pdim:hover line { stroke: #4b8af0; }
 .plan .dimtx { font-weight: normal; }
-.plan .walllen { pointer-events: none; }
-.plan .walllentx { font-weight: normal; fill: #1d4ed8; }
-.plan .walllenbox { fill: #fff; stroke: #2563eb; stroke-width: 0.2; }
+.plan .walllens { pointer-events: none; }
+.plan .walllentx { font-weight: normal; fill: #333; }
+.plan .walllenbox { fill: #f4f4f4; stroke: #6b6b6b; stroke-width: 0.3; }
+.plan .walllen.inner .walllenbox { stroke: #8a8a8a; }
+.plan .walllen.open .walllenbox { fill: #fff; stroke: #2563eb; }
+.plan .walllen.open .walllentx { fill: #1d4ed8; }
 .plan .stair:hover line, .plan .stair:hover polyline { stroke: #4b8af0; }
 .ink .handle.round { fill: #e8f0fe; }
 .overlay .ghostarea { fill: rgba(31, 111, 235, .2); stroke: var(--sel); stroke-dasharray: 2 1; }

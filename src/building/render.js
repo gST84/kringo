@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, isCabinet, isDivider, MEDIA, planMedia, planTitle, symDisc, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isCabinet, isDivider, MEDIA, planMedia, planTitle, projectOnWall, symDisc, wallGeom, wallPath } from './model.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
 /** Sheet millimetres per plan centimetre. */
@@ -432,24 +432,49 @@ function symbolSvg(sym, def, k, building, sel, opts) {
   return s + '</g>';
 }
 
-/** Wall lengths (centre line, cm) in a small box on the middle of every wall. */
+/**
+ * Wall measurements on the floor plan, per wall section: from corner to corner, to the walls that end
+ * against it (T-junction) and to the doors / windows, which get their own width (centre line, cm).
+ */
 function wallLensSvg(floor, k) {
   const mm = 1 / k;
-  let s = '<g class="walllen">';
-  for (const w of floor.walls) {
-    if (isDivider(w)) continue;
-    const len = wallGeom(w).len;
-    if (len < 20) continue;
-    const path = wallPath(w, len / 2 - 0.5, len / 2 + 0.5, 0);
+  let s = '<g class="walllens">';
+  const box = (w, t, len, cls) => {
+    const path = wallPath(w, t - 0.5, t + 0.5, 0);
     const a = path[0], c = path[path.length - 1];
     const mid = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
     let ang = (Math.atan2(c[1] - a[1], c[0] - a[0]) * 180) / Math.PI;
     if (ang > 90.01 || ang <= -89.99) ang += 180;
     const label = String(Math.round(len));
-    const bw = label.length * 1.15 + 1.2, bh = 2.6;
-    s += `<g transform="translate(${r2(mid[0])} ${r2(mid[1])}) scale(${mm}) rotate(${r2(ang)})">`
-      + `<rect class="walllenbox" x="${r2(-bw / 2)}" y="${-bh / 2}" width="${r2(bw)}" height="${bh}" rx="0.4"/>`
-      + textSvg(0, 0.7, label, 2, 'middle', 'tx walllentx') + '</g>';
+    const fs = 2, bh = 3, bw = label.length * fs * 0.6 + 1.6;
+    return `<g class="walllen${cls}" transform="translate(${r2(mid[0])} ${r2(mid[1])}) scale(${mm}) rotate(${r2(ang)})">`
+      + `<rect class="walllenbox" x="${r2(-bw / 2)}" y="${-bh / 2}" width="${r2(bw)}" height="${bh}" rx="${bh * 0.35}"/>`
+      + `<text class="tx walllentx" x="0" y="0" font-size="${fs}" text-anchor="middle" dominant-baseline="central">${label}</text></g>`;
+  };
+  for (const w of floor.walls) {
+    if (isDivider(w)) continue;
+    const len = wallGeom(w).len;
+    if (len < 5) continue;
+    const cls = w.kind === 'inner' ? ' inner' : '';
+    // break points: the wall ends, walls ending against it, door / window edges
+    const cuts = [0, len];
+    for (const o of floor.walls) {
+      if (o === w) continue;
+      for (const q of [[o.x1, o.y1], [o.x2, o.y2]]) {
+        const pr = projectOnWall(w, q[0], q[1]);
+        if (Math.abs(pr.d) < 1 && pr.t > 0.5 && pr.t < len - 0.5) cuts.push(pr.t);
+      }
+    }
+    const opens = floor.openings.filter((o) => o.wall === w.id && o.type !== 'passage')
+      .map((o) => [Math.max(0, o.pos - o.width / 2), Math.min(len, o.pos + o.width / 2)]);
+    for (const [a, c] of opens) cuts.push(a, c);
+    const ts = [...new Set(cuts.map((x) => Math.round(x * 10) / 10))].sort((x, y) => x - y);
+    for (let i = 0; i < ts.length - 1; i++) {
+      const a = ts[i], c = ts[i + 1];
+      if (c - a < 5) continue;
+      const isOpen = opens.some(([oa, oc]) => a >= oa - 0.1 && c <= oc + 0.1);
+      s += box(w, (a + c) / 2, c - a, isOpen ? ' open' : cls);
+    }
   }
   return s + '</g>';
 }
