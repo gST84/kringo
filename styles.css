@@ -455,6 +455,11 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .plan .conbadge { cursor: pointer; }
 .plan .roofbox { fill: rgba(255, 255, 255, .55); }
 .plan .roofarrow { fill: #222; stroke: none; }
+.plan .furn line, .plan .furn rect, .plan .furn ellipse, .plan .furn polygon, .plan .furn polyline { stroke: #4b5563; }
+.plan .furnbox { fill: #fff; }
+.plan .furnin { fill: none; }
+.plan .furntx { font-family: sans-serif; fill: #4b5563; stroke: none; }
+.plan .stair:hover .furn line, .plan .stair:hover .furn rect, .plan .stair:hover .furn ellipse, .plan .stair:hover .furn polygon { stroke: #4b8af0; }
 .plan .rooftx { font-family: sans-serif; fill: #333; stroke: #fff; paint-order: stroke; }
 .plan .conbadge rect { fill: #f3e8ff; stroke: #7c3aed; stroke-width: 0.25; }
 .plan .conbadge text { fill: #5b21b6; font-weight: normal; }

@@ -4,7 +4,7 @@ import { clone, download, h, natCmp, safeName, toCsv } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, isCabinet, isRoof, ROOFS, ROOF_SHAPES, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
+import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, FURNITURE, isCabinet, isFurniture, isRoof, ROOFS, ROOF_SHAPES, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { consLabel, floorHasCons, lockStraightWalls, restoreWalls, setWallDir, snapWalls, solveWalls, wallAngle, wallTopology } from './constraints.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
@@ -69,7 +69,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
   const paletteNodes = () => {
     const q = filter.trim().toLowerCase();
     const out = [];
-    for (const group of ['Vloerverwarming', 'Grondplan', 'Muurdoorvoeren', 'Aantekeningen']) {
+    for (const group of ['Vloerverwarming', 'Grondplan', 'Meubels en sanitair', 'Muurdoorvoeren', 'Aantekeningen']) {
       const disc = app.disc;
       const fits = (p) => (p.on === 'base' ? !disc : !p.on || p.on === 'any' ? true : [p.on].flat().includes(disc));
       const items = PLAN_PALETTE.filter((p) => (p.group || 'Grondplan') === group && fits(p) && (!q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q)));
@@ -390,6 +390,18 @@ export function buildingProps(app, plan) {
     if (!st) return [];
     const num = (label, k, key, round) => field(label, inp(st[k], (v) => set(() => { if (v > 0 || v === 0) st[k] = round ? Math.round(v) : v; }), { type: 'number', key }));
     const del = h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen');
+    if (isFurniture(st)) {
+      return [section(FURNITURE[st.kind].label,
+        field('Soort', sel(st.kind, Object.entries(FURNITURE).map(([k, v]) => [k, v.label]), (v) => set(() => { st.kind = v; }), 'fkind')),
+        h('div', { class: 'grid2' }, num('Breedte (cm)', 'w', 'fw'), num('Diepte / lengte (cm)', 'h', 'fh')),
+        field('Opschrift', inp(st.label, (v) => set(() => { if (v.trim()) st.label = v.trim(); else delete st.label; }), { key: 'flabel' })),
+        st.kind === 'bath' ? chk(st.heat, (v) => set(() => { if (v) st.heat = true; else delete st.heat; }), 'Vloerverwarming eronder', 'fheat') : null,
+        rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
+        h('div', { class: 'btnrow' },
+          h('button', { onclick: () => set(() => rotateStair(st, (st.rot || 0) + 180)) }, '⇅ Omdraaien'),
+          h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
+        h('p', { class: 'hint' }, 'Sleep de blokjes om de maat aan te passen. De onderkant is de voorkant (bij een bed het voeteneinde, bij een zetel de zitkant). Enkel een bad houdt vloerverwarming tegen.'))];
+    }
     if (isRoof(st)) {
       const pitched = st.kind === 'pitched';
       return [section(ROOFS[st.kind],

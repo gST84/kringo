@@ -6,7 +6,7 @@ import { t } from '../i18n.js';
 import { uid } from '../util.js';
 import { pathLength, stairsFromBelow } from './render.js';
 import { roomPolygon } from './rooms.js';
-import { isDivider, isRoof, wallGeom } from './model.js';
+import { isDivider, isFurniture, isRoof, wallGeom } from './model.js';
 import { passable } from './traces.js';
 import { generate } from './ufh.js';
 
@@ -195,7 +195,7 @@ export function generateFloorHeating(b, floor, lib, planId) {
 
   // stairs, fitted cabinets and counters: no pipes underneath (unless ticked)
   // and the stairwell of a stair coming up from the floor below
-  const blocked = [...(floor.stairs || []), ...stairsFromBelow(b, b.floors.indexOf(floor))].filter((st) => !st.heat && !isRoof(st)).flatMap(stairBlocks);
+  const blocked = [...(floor.stairs || []), ...stairsFromBelow(b, b.floors.indexOf(floor))].filter((st) => !st.heat && !isRoof(st) && !(isFurniture(st) && st.kind !== 'bath')).flatMap(stairBlocks);
 
   // out with the pipes generated before
   floor.shapes = (floor.shapes || []).filter((sh) => !(sh.type === 'pipe' && sh.gen));

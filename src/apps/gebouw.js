@@ -4,7 +4,7 @@ import { AREI } from '../building/arei.js';
 import { PlanEditor } from '../building/editor.js';
 import { buildingLeftPanel, buildingProps, cablesDialog, circuitOptions, circuitsDialog, domoticsDialog, generateDialog, heatingDialog, influencesDialog, ventDialog } from '../building/panels.js';
 import { HVAC } from '../building/hvac.js';
-import { DISCS, planTitle, plansOf } from '../building/model.js';
+import { DISCS, planTitle, plansOf, FURNITURE } from '../building/model.js';
 import { guessPreset, newRoom, presetInfl, presetOf, syncPresets } from '../building/rooms.js';
 import { toast } from '../ui/dialogs.js';
 import { t } from '../i18n.js';
@@ -143,6 +143,7 @@ boot({
       opening: 'Klik op een muur om de opening te plaatsen · kant van de muis = draairichting',
       stair: 'Sleep een rechthoek voor de trap · klik = standaardmaat',
       cabinet: 'Sleep een rechthoek voor de kast of het aanrecht · klik = standaardmaat (hoge kast 60 × 60, aanrecht 240 × 60 cm) · R = draaien',
+      furniture: 'Klik = plaatsen op de gewone maat · of sleep een rechthoek · R = draaien (de onderkant is de voorkant)',
       roof: 'Sleep een rechthoek voor het dak · klik = standaardmaat 400 × 300 cm · R = draaien (de pijlen wijzen naar de dakgoot)',
       spiral: 'Sleep van het midden naar buiten voor de wenteltrap · klik = straal 100 cm',
       arcwall: 'Klik het beginpunt, dan het eindpunt, dan een punt op de boog · Esc = stoppen',
@@ -162,7 +163,7 @@ boot({
       pan: 'Sleep om te verschuiven',
     };
 
-    const hintKey = (tool) => plan.toolKey?.startsWith('passage') ? 'passage' : plan.toolKey === 'tall' || plan.toolKey === 'counter' ? 'cabinet' : plan.toolKey === 'flat' || plan.toolKey === 'pitched' ? 'roof' : tool;
+    const hintKey = (tool) => plan.toolKey?.startsWith('passage') ? 'passage' : plan.toolKey === 'tall' || plan.toolKey === 'counter' ? 'cabinet' : plan.toolKey === 'flat' || plan.toolKey === 'pitched' ? 'roof' : FURNITURE[plan.toolKey] ? 'furniture' : tool;
 
     // left panel: drawing tools, floors, symbols
     const left = h('div', { id: 'building-left', class: 'kind-building' });

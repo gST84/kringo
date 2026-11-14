@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, isDivider, isFixture, isRoof, MEDIA, planMedia, planTitle, projectOnWall, symDisc, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isDivider, isFixture, isFurniture, isRoof, MEDIA, planMedia, planTitle, projectOnWall, symDisc, wallGeom, wallPath } from './model.js';
 import { consError, consLabel, hasCons } from './constraints.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
@@ -197,6 +197,7 @@ function stairSvg(st, sw, sel, ghost = false) {
   }
   let s = `${head} transform="translate(${st.x} ${st.y}) rotate(${st.rot || 0})">`;
   if (isRoof(st)) return s + roofSvg(st, sw) + `<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/></g>`;
+  if (isFurniture(st)) return s + furnSvg(st, sw) + `<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/></g>`;
   if (st.kind === 'tall' || st.kind === 'counter') {
     // tall cabinet: box with a cross; counter: box with one diagonal and the worktop's front edge
     const W = st.w, H = st.h;
@@ -237,6 +238,96 @@ function stairSvg(st, sw, sel, ghost = false) {
     ? `<path d="M ${cx} ${st.h * 0.1} L ${cx} ${st.h * 0.9} M ${cx - st.w * 0.12} ${st.h * 0.9 - st.w * 0.15} L ${cx} ${st.h * 0.9} L ${cx + st.w * 0.12} ${st.h * 0.9 - st.w * 0.15}" style="stroke-width:${sw}"/>`
     : `<path d="M ${cx} ${st.h * 0.9} L ${cx} ${st.h * 0.1} M ${cx - st.w * 0.12} ${st.h * 0.1 + st.w * 0.15} L ${cx} ${st.h * 0.1} L ${cx + st.w * 0.12} ${st.h * 0.1 + st.w * 0.15}" style="stroke-width:${sw}"/>`;
   return s + hit(`<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/>`) + '</g>';
+}
+
+/** Furniture / sanitary fitting in the box (0, 0) – (w, h); the front is the bottom edge. Thin grey lines. */
+function furnSvg(st, sw) {
+  const W = st.w, H = st.h, m = Math.min(W, H);
+  const t1 = sw * 0.75, t2 = sw * 0.5;
+  const R = (x, y, w, h, rx = 0, lw = t1, cls = 'furnbox') => `<rect class="${cls}" x="${r2(x)}" y="${r2(y)}" width="${r2(Math.max(0, w))}" height="${r2(Math.max(0, h))}" rx="${r2(rx)}" style="stroke-width:${lw}"/>`;
+  const E = (cx, cy, rx, ry, lw = t2, cls = 'furnin') => `<ellipse class="${cls}" cx="${r2(cx)}" cy="${r2(cy)}" rx="${r2(rx)}" ry="${r2(ry)}" style="stroke-width:${lw}"/>`;
+  const C = (cx, cy, r, lw = t2) => E(cx, cy, r, r, lw);
+  const L = (a, b, lw = t2) => line(a, b, lw);
+  const tx = (x, y, text, fs) => `<text class="furntx" x="${r2(x)}" y="${r2(y)}" font-size="${r2(fs)}" text-anchor="middle" dominant-baseline="central">${esc(text)}</text>`;
+  let s = '<g class="furn">';
+  switch (st.kind) {
+    case 'bed1': case 'bed2': {
+      s += R(0, 0, W, H) + L([0, H * 0.05], [W, H * 0.05], t1);
+      const n = st.kind === 'bed2' ? 2 : 1, gap = Math.min(8, W * 0.06), pw = (W - gap * (n + 1)) / n;
+      for (let i = 0; i < n; i++) s += R(gap + i * (pw + gap), H * 0.08, pw, H * 0.13, 5, t2, 'furnin');
+      s += L([0, H * 0.3], [W, H * 0.3]) + L([0, H * 0.3], [W * 0.25, H * 0.36]);
+      break;
+    }
+    case 'nightstand': s += R(0, 0, W, H) + C(W / 2, H / 2, m * 0.22); break;
+    case 'sofa': case 'armchair': {
+      const back = H * 0.27, arm = Math.min(W * 0.14, 18);
+      s += R(0, 0, W, H, 4) + L([0, back], [W, back], t1) + L([arm, back], [arm, H], t1) + L([W - arm, back], [W - arm, H], t1);
+      const k = Math.max(1, Math.round((W - 2 * arm) / 70));
+      for (let i = 1; i < k; i++) { const x = arm + ((W - 2 * arm) * i) / k; s += L([x, back], [x, H]); }
+      break;
+    }
+    case 'corner': {
+      const D = Math.min(95, W * 0.45, H * 0.45), b = D * 0.28, arm = Math.min(18, D * 0.2);
+      s += `<polygon class="furnbox" points="${pts([[0, 0], [W, 0], [W, D], [D, D], [D, H], [0, H]])}" style="stroke-width:${t1}"/>`;
+      s += pline([[W, b], [b, b], [b, H]], t1) + L([W - arm, b], [W - arm, D], t1) + L([b, H - arm], [D, H - arm], t1);
+      s += L([D, b], [D, D]) + L([b, D], [D, D]);
+      break;
+    }
+    case 'table': {
+      const c = Math.min(35, H * 0.22), ty = c + 5;
+      const n = Math.max(1, Math.floor(W / 62)), cw = Math.min(45, W / n - 12);
+      for (let i = 0; i < n; i++) {
+        const x = (W / n) * (i + 0.5) - cw / 2;
+        s += R(x, 0, cw, c, 4, t2) + R(x, H - c, cw, c, 4, t2);
+      }
+      s += R(0, ty, W, H - 2 * ty, 0, t1);
+      break;
+    }
+    case 'roundtable': {
+      const cx = W / 2, cy = H / 2, rt = Math.max(20, m / 2 - 34);
+      const n = Math.max(3, Math.min(10, Math.round((2 * Math.PI * rt) / 55)));
+      for (let i = 0; i < n; i++) s += `<g transform="translate(${r2(cx)} ${r2(cy)}) rotate(${r2((360 * i) / n)})">${R(-20, -(rt + 33), 40, 30, 4, t2)}</g>`;
+      s += E(cx, cy, rt, rt, t1, 'furnbox');
+      break;
+    }
+    case 'desk': {
+      const dd = Math.min(H * 0.6, 75);
+      s += R(0, 0, W, dd, 0, t1) + R(W / 2 - 23, dd + 6, 46, Math.max(10, H - dd - 6), 8, t2);
+      break;
+    }
+    case 'tv': s += R(0, 0, W, H) + R(W * 0.15, H * 0.15, W * 0.7, Math.min(8, H * 0.25), 0, t2, 'furnin'); break;
+    case 'shower':
+      s += R(0, 0, W, H) + R(4, 4, W - 8, H - 8, 0, t2, 'furnin') + L([4, 4], [W - 4, H - 4]) + L([W - 4, 4], [4, H - 4]) + C(W / 2, H / 2, Math.max(2.5, m * 0.05));
+      break;
+    case 'bath': {
+      s += R(0, 0, W, H) + R(6, 6, W - 12, H - 12, (m - 12) * 0.4, t2, 'furnin');
+      s += W >= H ? C(6 + m * 0.25, H / 2, 2.5) : C(W / 2, 6 + m * 0.25, 2.5);
+      break;
+    }
+    case 'wc': s += R(W * 0.04, 0, W * 0.92, H * 0.27, 2) + E(W / 2, H * 0.63, W * 0.42, H * 0.34, t1, 'furnbox'); break;
+    case 'sink': s += R(0, 0, W, H) + E(W / 2, H * 0.57, W * 0.36, H * 0.3) + C(W / 2, H * 0.14, 2); break;
+    case 'sink2': s += R(0, 0, W, H) + E(W * 0.25, H * 0.57, W * 0.18, H * 0.3) + E(W * 0.75, H * 0.57, W * 0.18, H * 0.3) + C(W * 0.25, H * 0.14, 2) + C(W * 0.75, H * 0.14, 2); break;
+    case 'washer': case 'dryer':
+      s += R(0, 0, W, H, 2) + C(W / 2, H * 0.56, m * 0.3, t1) + tx(W / 2, H * 0.12, st.kind === 'washer' ? 'WM' : 'DK', m * 0.15);
+      if (st.kind === 'dryer') s += L([W / 2 - m * 0.18, H * 0.56], [W / 2 + m * 0.18, H * 0.56]);
+      break;
+    case 'hob': {
+      s += R(0, 0, W, H, 2);
+      for (const [x, y, r] of [[0.28, 0.3, 0.17], [0.72, 0.3, 0.13], [0.28, 0.72, 0.13], [0.72, 0.72, 0.17]]) s += C(W * x, H * y, m * r);
+      break;
+    }
+    case 'car': {
+      s += R(0, 0, W, H, W * 0.22) + R(W * 0.1, H * 0.27, W * 0.8, H * 0.5, W * 0.12, t2, 'furnin');
+      s += L([W * 0.1, H * 0.37], [W * 0.9, H * 0.37]) + L([W * 0.1, H * 0.7], [W * 0.9, H * 0.7]);
+      break;
+    }
+    default: s += R(0, 0, W, H);
+  }
+  if (st.label) {
+    const fs = r2(Math.max(4, Math.min(14, m * 0.25, (W * 1.6) / Math.max(1, st.label.length))));
+    s += `<text x="${W / 2}" y="${H / 2}" font-size="${fs}" text-anchor="middle" dominant-baseline="central" style="font-family:sans-serif;fill:#333;stroke:#fff;stroke-width:${r2(fs / 5)};paint-order:stroke">${esc(st.label)}</text>`;
+  }
+  return s + '</g>';
 }
 
 /**
@@ -749,7 +840,7 @@ function pipeSvg(sh, k, sw, sel, opts) {
 
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
-.plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}.plan .roofarrow{fill:#222;stroke:none}.plan .rooftx{font-family:sans-serif;fill:#333;stroke:#fff;paint-order:stroke}
+.plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}.plan .roofarrow{fill:#222;stroke:none}.plan .furn line,.plan .furn rect,.plan .furn ellipse,.plan .furn polygon,.plan .furn polyline{stroke:#4b5563}.plan .furnbox{fill:#fff}.plan .furnin{fill:none}.plan .furntx{font-family:sans-serif;fill:#4b5563;stroke:none}.plan .rooftx{font-family:sans-serif;fill:#333;stroke:#fff;paint-order:stroke}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
 .plan.under .walloutline polygon{fill:#9aa1aa;stroke:#9aa1aa}.plan.under .wall{fill:#d5d8dc}.plan.under .wall.inner{fill:#e2e4e7}.plan.under .proom{opacity:.45}.plan.under .stair,.plan.under .opening:not(:has(.passage)),.plan.under .divider{opacity:.55}
 .plan .ppipel{fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .ppipe.sel .ppipel{filter:drop-shadow(0 0 1.5px #1f6feb)}.plan .pheatbox{fill:#fff;stroke:#c92a2a;stroke-width:.3}.plan .pheattx{fill:#c92a2a;font-weight:bold;dominant-baseline:central}

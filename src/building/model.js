@@ -403,8 +403,34 @@ export const isCabinet = (st) => !!CABINETS[st?.kind];
 export const ROOFS = { flat: 'Plat dak', pitched: 'Schuin dak' };
 export const ROOF_SHAPES = { gable: 'Zadeldak', hip: 'Schilddak', mono: 'Lessenaarsdak' };
 export const isRoof = (st) => !!ROOFS[st?.kind];
+/**
+ * Furniture and sanitary fittings, also boxes in floor.stairs: label and default size (w across, h deep;
+ * the front is the bottom edge – the foot end of a bed, the seat of a sofa).
+ */
+export const FURNITURE = {
+  bed1: { label: 'Eenpersoonsbed', w: 90, h: 200 },
+  bed2: { label: 'Tweepersoonsbed', w: 160, h: 200 },
+  nightstand: { label: 'Nachtkastje', w: 45, h: 40 },
+  sofa: { label: 'Zetel', w: 200, h: 90 },
+  corner: { label: 'Hoekzetel', w: 260, h: 200 },
+  armchair: { label: 'Fauteuil', w: 85, h: 85 },
+  table: { label: 'Tafel met stoelen', w: 180, h: 170 },
+  roundtable: { label: 'Ronde tafel', w: 180, h: 180 },
+  desk: { label: 'Bureau', w: 140, h: 115 },
+  tv: { label: 'Tv-meubel', w: 180, h: 45 },
+  shower: { label: 'Douche', w: 90, h: 90 },
+  bath: { label: 'Bad', w: 170, h: 75 },
+  wc: { label: 'WC', w: 40, h: 65 },
+  sink: { label: 'Lavabo', w: 60, h: 45 },
+  sink2: { label: 'Dubbele lavabo', w: 120, h: 50 },
+  washer: { label: 'Wasmachine', w: 60, h: 60 },
+  dryer: { label: 'Droogkast', w: 60, h: 60 },
+  hob: { label: 'Kookplaat', w: 60, h: 52 },
+  car: { label: 'Auto', w: 180, h: 450 },
+};
+export const isFurniture = (st) => !!FURNITURE[st?.kind];
 /** Boxes in floor.stairs that are not stairs (no stairwell, no link between floors). */
-export const isFixture = (st) => isCabinet(st) || isRoof(st);
+export const isFixture = (st) => isCabinet(st) || isRoof(st) || isFurniture(st);
 
 /** Sets a stair's rotation (degrees, clockwise); rectangular stairs turn around their centre. */
 export function rotateStair(st, deg) {

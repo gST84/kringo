@@ -8,7 +8,7 @@ import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygo
 import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js';
 import { heatCfg, nearestCollector, nextLoopName, PIPE_COLORS, roomGrid } from './heating.js';
 import { floorHasCons, consLabel, restoreWalls, snapWalls, solveWalls, wallTopology } from './constraints.js';
-import { dropZeroWalls, linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
+import { dropZeroWalls, FURNITURE, linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 import { contextMenu, keyHint } from '../ui/contextMenu.js';
 import { t } from '../i18n.js';
@@ -56,6 +56,25 @@ export const PLAN_PALETTE = [
   { key: 'counter', on: 'base', label: 'Aanrecht', tool: 'stair', opts: { stair: 'counter' }, icon: ico('<rect x="3" y="13" width="34" height="14" stroke-width="1.8"/><path d="M3 24.5h34M3 13l34 11.5" stroke-width="1.1"/>') },
   { key: 'flat', on: 'base', label: 'Plat dak', tool: 'stair', opts: { stair: 'flat' }, icon: ico('<rect x="3" y="8" width="34" height="24" stroke-width="1.8"/><path d="M3 18 13 8M3 28 23 8M9 32 33 8M19 32 37 14M29 32 37 24" stroke-width=".7"/><path d="M20 13v14M16.5 23.5 20 27l3.5-3.5" stroke-width="1.6"/>') },
   { key: 'pitched', on: 'base', label: 'Schuin dak', tool: 'stair', opts: { stair: 'pitched' }, icon: ico('<rect x="3" y="8" width="34" height="24" stroke-width="1.8"/><path d="M15 20h10" stroke-width="2.4"/><path d="M3 8l12 12M3 32l12-12M37 8 25 20M37 32 25 20" stroke-width="1"/><path d="M20 18v-7M18 13l2-2 2 2M20 22v7M18 27l2 2 2-2" stroke-width="1.1"/>') },
+  { key: 'bed1', on: 'base', group: 'Meubels en sanitair', label: 'Eenpersoonsbed', tool: 'stair', opts: { stair: 'bed1' }, icon: ico('<rect x="12" y="4" width="16" height="32"/><rect x="14" y="7" width="12" height="5" rx="2" stroke-width="1.1"/><path d="M12 15h16" stroke-width="1.1"/>') },
+  { key: 'bed2', on: 'base', group: 'Meubels en sanitair', label: 'Tweepersoonsbed', tool: 'stair', opts: { stair: 'bed2' }, icon: ico('<rect x="5" y="4" width="30" height="32"/><rect x="7" y="7" width="12" height="5" rx="2" stroke-width="1.1"/><rect x="21" y="7" width="12" height="5" rx="2" stroke-width="1.1"/><path d="M5 15h30" stroke-width="1.1"/>') },
+  { key: 'nightstand', on: 'base', group: 'Meubels en sanitair', label: 'Nachtkastje', tool: 'stair', opts: { stair: 'nightstand' }, icon: ico('<rect x="11" y="12" width="18" height="16"/><circle cx="20" cy="20" r="3.5" stroke-width="1.1"/>') },
+  { key: 'sofa', on: 'base', group: 'Meubels en sanitair', label: 'Zetel', tool: 'stair', opts: { stair: 'sofa' }, icon: ico('<rect x="3" y="12" width="34" height="18" rx="2"/><path d="M3 17h34M8 17v13M32 17v13M20 17v13" stroke-width="1.1"/>') },
+  { key: 'corner', on: 'base', group: 'Meubels en sanitair', label: 'Hoekzetel', tool: 'stair', opts: { stair: 'corner' }, icon: ico('<path d="M4 6h32v10H14v20H4z"/><path d="M36 9H7v27" stroke-width="1.1"/>') },
+  { key: 'armchair', on: 'base', group: 'Meubels en sanitair', label: 'Fauteuil', tool: 'stair', opts: { stair: 'armchair' }, icon: ico('<rect x="9" y="9" width="22" height="22" rx="2"/><path d="M9 15h22M14 15v16M26 15v16" stroke-width="1.1"/>') },
+  { key: 'table', on: 'base', group: 'Meubels en sanitair', label: 'Tafel met stoelen', tool: 'stair', opts: { stair: 'table' }, icon: ico('<rect x="7" y="13" width="26" height="14"/><rect x="10" y="5" width="7" height="6" stroke-width="1"/><rect x="23" y="5" width="7" height="6" stroke-width="1"/><rect x="10" y="29" width="7" height="6" stroke-width="1"/><rect x="23" y="29" width="7" height="6" stroke-width="1"/>') },
+  { key: 'roundtable', on: 'base', group: 'Meubels en sanitair', label: 'Ronde tafel', tool: 'stair', opts: { stair: 'roundtable' }, icon: ico('<circle cx="20" cy="20" r="9"/><rect x="17" y="3" width="6" height="5" stroke-width="1"/><rect x="17" y="32" width="6" height="5" stroke-width="1"/><rect x="3" y="17" width="5" height="6" stroke-width="1"/><rect x="32" y="17" width="5" height="6" stroke-width="1"/>') },
+  { key: 'desk', on: 'base', group: 'Meubels en sanitair', label: 'Bureau', tool: 'stair', opts: { stair: 'desk' }, icon: ico('<rect x="4" y="7" width="32" height="15"/><rect x="14" y="25" width="12" height="10" rx="3" stroke-width="1.1"/>') },
+  { key: 'tv', on: 'base', group: 'Meubels en sanitair', label: 'Tv-meubel', tool: 'stair', opts: { stair: 'tv' }, icon: ico('<rect x="3" y="15" width="34" height="10"/><path d="M9 18h22" stroke-width="2"/>') },
+  { key: 'shower', on: 'base', group: 'Meubels en sanitair', label: 'Douche', tool: 'stair', opts: { stair: 'shower' }, icon: ico('<rect x="6" y="6" width="28" height="28"/><path d="M8 8l24 24M32 8 8 32" stroke-width="1"/><circle cx="20" cy="20" r="2.5" stroke-width="1.1"/>') },
+  { key: 'bath', on: 'base', group: 'Meubels en sanitair', label: 'Bad', tool: 'stair', opts: { stair: 'bath' }, icon: ico('<rect x="3" y="11" width="34" height="18"/><rect x="6" y="14" width="28" height="12" rx="5" stroke-width="1.1"/><circle cx="11" cy="20" r="1.5" stroke-width="1"/>') },
+  { key: 'wc', on: 'base', group: 'Meubels en sanitair', label: 'WC', tool: 'stair', opts: { stair: 'wc' }, icon: ico('<rect x="12" y="4" width="16" height="9"/><ellipse cx="20" cy="24" rx="8" ry="11"/>') },
+  { key: 'sink', on: 'base', group: 'Meubels en sanitair', label: 'Lavabo', tool: 'stair', opts: { stair: 'sink' }, icon: ico('<rect x="6" y="10" width="28" height="20"/><ellipse cx="20" cy="21" rx="10" ry="6" stroke-width="1.1"/><circle cx="20" cy="13" r="1.2"/>') },
+  { key: 'sink2', on: 'base', group: 'Meubels en sanitair', label: 'Dubbele lavabo', tool: 'stair', opts: { stair: 'sink2' }, icon: ico('<rect x="2" y="12" width="36" height="16"/><ellipse cx="11" cy="21" rx="7" ry="4.5" stroke-width="1.1"/><ellipse cx="29" cy="21" rx="7" ry="4.5" stroke-width="1.1"/>') },
+  { key: 'washer', on: 'base', group: 'Meubels en sanitair', label: 'Wasmachine', tool: 'stair', opts: { stair: 'washer' }, icon: ico('<rect x="7" y="7" width="26" height="26" rx="1"/><circle cx="20" cy="21" r="8" stroke-width="1.2"/>') },
+  { key: 'dryer', on: 'base', group: 'Meubels en sanitair', label: 'Droogkast', tool: 'stair', opts: { stair: 'dryer' }, icon: ico('<rect x="7" y="7" width="26" height="26" rx="1"/><circle cx="20" cy="21" r="8" stroke-width="1.2"/><path d="M15 21h10" stroke-width="1"/>') },
+  { key: 'hob', on: 'base', group: 'Meubels en sanitair', label: 'Kookplaat', tool: 'stair', opts: { stair: 'hob' }, icon: ico('<rect x="6" y="6" width="28" height="28"/><circle cx="14" cy="14" r="4" stroke-width="1.1"/><circle cx="26" cy="14" r="3" stroke-width="1.1"/><circle cx="14" cy="26" r="3" stroke-width="1.1"/><circle cx="26" cy="26" r="4" stroke-width="1.1"/>') },
+  { key: 'car', on: 'base', group: 'Meubels en sanitair', label: 'Auto', tool: 'stair', opts: { stair: 'car' }, icon: ico('<rect x="12" y="2" width="16" height="36" rx="5"/><rect x="13.5" y="12" width="13" height="16" rx="3" stroke-width="1"/>') },
   { key: 'room', on: 'base', label: 'Ruimte', tool: 'room', icon: ico('<path d="M6 8h28v24H6z" fill="#dbeafe" stroke-width="2.5"/><circle cx="20" cy="20" r="3" fill="currentColor"/><path d="M23 23l6 6" stroke-width="1.5"/>') },
   { key: 'roomPoly', on: 'base', label: 'Ruimte (hoeken)', tool: 'roomPoly', icon: ico('<path d="M6 8h18l10 10v14H6z" fill="#dbeafe" stroke-width="2"/><circle cx="6" cy="8" r="3" fill="currentColor"/><circle cx="24" cy="8" r="3" fill="currentColor"/><circle cx="34" cy="18" r="3" fill="currentColor"/><circle cx="34" cy="32" r="3" fill="currentColor"/><circle cx="6" cy="32" r="3" fill="currentColor"/>') },
   { key: 'text', on: 'base', label: 'Ruimtenaam', tool: 'text', icon: ico('<path d="M10 10h20M20 10v22" stroke-width="3"/>') },
@@ -714,6 +733,16 @@ export class PlanEditor {
       let x0 = Math.min(d.start[0], d.cur[0]), y0 = Math.min(d.start[1], d.cur[1]);
       let w = Math.abs(d.cur[0] - d.start[0]), h = Math.abs(d.cur[1] - d.start[1]);
       const quarter = this.stairKind === 'quarter';
+      if (FURNITURE[this.stairKind]) {
+        // furniture: the box as drawn, or a click = its usual size centred on the click
+        const def = FURNITURE[this.stairKind];
+        if (w < 20 || h < 20) { [w, h] = [def.w, def.h]; [x0, y0] = [r2(d.start[0] - w / 2), r2(d.start[1] - h / 2)]; }
+        const st = { id: uid('st'), kind: this.stairKind, x: x0, y: y0, w, h, rot: 0 };
+        this.app.mutate(() => this.floor.stairs.push(st));
+        this.app.select(['S:' + st.id]);
+        this.setTool('select');
+        return;
+      }
       if (this.stairKind === 'flat' || this.stairKind === 'pitched') {
         // roof: the box as drawn (a click: 4 × 3 m); a pitched roof starts as a gable roof of 35°
         if (w < 20 || h < 20) { [w, h] = [400, 300]; [x0, y0] = d.start; }
