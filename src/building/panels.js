@@ -15,7 +15,7 @@ import { HVAC_ROOT, isHydronic } from './hvac.js';
 import { SOCKET_DEFAULTS, SOCKET_MARKS } from './arei.js';
 import { clearVentLabels, flowText, placeVentLabels, VENT_GEN, VENT_SYSTEMS, VENT_TYPES, ventAirflow, ventRows } from './vent.js';
 import { geometry } from '../symbols/geom.js';
-import { allPipes, clearGenerated, collectorNames, generateFloorHeating, heatCfg, HEAT_DEFAULTS, PIPE_COLORS, pipeLength, pipeRoom, roomHeat } from './heating.js';
+import { allPipes, clearGenerated, collectorNames, floorCollectors, generateFloorHeating, heatCfg, HEAT_DEFAULTS, PIPE_COLORS, pipeLength, pipeRoom, roomHeat } from './heating.js';
 import { DISCS, MEDIA, newPlan, planTitle, plansOf, symDisc } from './model.js';
 import { alignItems, alignSelection, ALIGN_MODES } from './align.js';
 
@@ -859,6 +859,16 @@ function roomProps(app, plan, r) {
   ];
 }
 
+/** Choice of the manifold that feeds a room: automatic (the nearest) or one of the floor's collectors. */
+function collectorSelect(app, floor, r, key) {
+  const names = collectorNames(app.project.building, app.lib);
+  const cols = floorCollectors(floor, app.lib);
+  const cur = r.ufh?.collector || '';
+  const opts = [['', t('Automatisch (dichtstbij)')], ...cols.map((c) => [c.id, names.get(c.id) || '?'])];
+  if (cur && !cols.some((c) => c.id === cur)) opts.push([cur, t('(collector niet meer op deze verdieping)')]);
+  return sel(cur, opts, (v) => app.mutate(() => { r.ufh ||= {}; if (v) r.ufh.collector = v; else delete r.ufh.collector; }), key);
+}
+
 /** Underfloor heating of a room: its pipe spacing (the drawing grid) and maximum loop length. */
 function heatSection(app, r) {
   const b = app.project.building;
@@ -866,6 +876,7 @@ function heatSection(app, r) {
   const set = (fn) => app.mutate(() => { r.ufh ||= {}; fn(r.ufh); });
   return section('Vloerverwarming',
     chk(r.ufh?.on !== false, (v) => set((u) => { u.on = v; }), 'Vloerverwarming in deze ruimte (voor het genereren)', 'ufhon'),
+    field('Collector', collectorSelect(app, app.floor, r, 'ufhcol'), 'Automatisch = de collector die het dichtst bij de ruimte staat.'),
     h('div', { class: 'grid2' },
       field('Legafstand (cm)', inp(r.ufh?.spacing ?? '', (v) => set((u) => { u.spacing = v > 0 ? v : undefined; }), { type: 'number', key: 'ufhs', placeholder: String(cfg.spacing) })),
       field('Max. lengte kring (m)', inp(r.ufh?.maxLen ?? '', (v) => set((u) => { u.maxLen = v > 0 ? v : undefined; }), { type: 'number', key: 'ufhl', placeholder: String(cfg.maxLen) }))),
@@ -1526,11 +1537,22 @@ export function heatingDialog(app) {
     const parts = [
       h('h4', null, `${t('Genereren')} – ${floor.name}`),
       h('p', { class: 'hint' }, t('Legt de kringen van deze verdieping vanaf de collector: de hele vloer van de aangevinkte ruimtes wordt bedekt op de legafstand, de aanvoerleidingen lopen door deuren, muurdoorvoeren CV en ruimteverdelers en verwarmen de vloer waar ze passeren. Eerder gegenereerde kringen van deze verdieping worden vervangen; zelf getekende buizen blijven staan. Ctrl+Z maakt het ongedaan.')),
-      (floor.rooms || []).length ? h('div', { class: 'chips heatrooms' }, floor.rooms.map((r) => {
-        const box = h('input', { type: 'checkbox', checked: r.ufh?.on !== false });
-        box.addEventListener('change', () => { app.mutate(() => { (r.ufh ||= {}).on = box.checked; }); });
-        return h('label', { class: 'check small' }, box, r.name || '?');
-      })) : h('p', { class: 'warn' }, t('Geen ruimtes met vloerverwarming op deze verdieping (duid eerst de ruimtes aan op de plattegrond).')),
+      (floor.rooms || []).length ? (floorCollectors(floor, app.lib).length > 1
+        // several manifolds on this floor: per room the one it is fed from
+        ? h('table', { class: 'list heatcols' },
+          h('thead', null, h('tr', null, h('th', null, t('Ruimte')), h('th', null, t('Collector')))),
+          h('tbody', null, floor.rooms.map((r) => {
+            const box = h('input', { type: 'checkbox', checked: r.ufh?.on !== false });
+            box.addEventListener('change', () => { app.mutate(() => { (r.ufh ||= {}).on = box.checked; }); });
+            const cs = collectorSelect(app, floor, r);
+            cs.addEventListener('change', () => render());
+            return h('tr', null, h('td', null, h('label', { class: 'check small' }, box, r.name || '?')), h('td', null, cs));
+          })))
+        : h('div', { class: 'chips heatrooms' }, floor.rooms.map((r) => {
+          const box = h('input', { type: 'checkbox', checked: r.ufh?.on !== false });
+          box.addEventListener('change', () => { app.mutate(() => { (r.ufh ||= {}).on = box.checked; }); });
+          return h('label', { class: 'check small' }, box, r.name || '?');
+        }))) : h('p', { class: 'warn' }, t('Geen ruimtes met vloerverwarming op deze verdieping (duid eerst de ruimtes aan op de plattegrond).')),
       h('div', { class: 'btnrow' },
         h('button', { class: 'primary', onclick: run }, gen ? t('♨ Opnieuw genereren') : t('♨ Kringen genereren')),
         gen ? h('button', { onclick: wipe }, t('Gegenereerde kringen wissen ({n})', { n: gen })) : null),
