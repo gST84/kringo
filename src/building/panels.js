@@ -12,7 +12,7 @@ import { dimGeom, hasLeaf, OPENING_TYPES, pathLength, traceColor } from './rende
 import { loadBackground } from './background.js';
 import { HVAC_ROOT, isHydronic } from './hvac.js';
 import { SOCKET_DEFAULTS, SOCKET_MARKS } from './arei.js';
-import { clearVentLabels, flowText, placeVentLabels, VENT_TYPES, ventRows } from './vent.js';
+import { clearVentLabels, flowText, placeVentLabels, VENT_GEN, VENT_SYSTEMS, VENT_TYPES, ventAirflow, ventRows } from './vent.js';
 import { geometry } from '../symbols/geom.js';
 import { allPipes, clearGenerated, collectorNames, generateFloorHeating, heatCfg, HEAT_DEFAULTS, PIPE_COLORS, pipeLength, pipeRoom, roomHeat } from './heating.js';
 import { DISCS, MEDIA, newPlan, planTitle, plansOf, symDisc } from './model.js';
@@ -1462,71 +1462,118 @@ export function heatingDialog(app) {
  * Ventilation flows (NBN D 50-001): per room its type, floor area, required and design flow, supply (T)
  * or extract (A) and the transfer opening; the totals for the unit; labels on the ventilation plans.
  */
+const DOOR_KIND = { door: 'Deur', door2: 'Dubbele deur', slide: 'Schuifdeur', open: 'Deuropening', divider: 'Open (ruimtescheiding)', stair: 'Trap' };
+
 export function ventDialog(app) {
   const b = app.project.building;
-  b.ventCfg ||= {};
   const body = h('div', { class: 'cables vent' });
   let note = '';
-  const limit = () => b.ventCfg.limit !== false;
-  const labels = () => b.floors.reduce((n, f) => n + (f.shapes || []).filter((sh) => sh.gen === 'vent').length, 0);
+  const setCfg = (k, v) => { app.mutate(() => { (b.ventCfg ||= {})[k] = v; }); render(); };
+  const labels = () => b.floors.reduce((n, f) => n + (f.shapes || []).filter((sh) => VENT_GEN.includes(sh.gen)).length, 0);
   const place = () => {
     let n = 0;
-    app.mutate(() => { n = placeVentLabels(b, limit()); });
+    app.mutate(() => { n = placeVentLabels(b); });
     const pl = b.plans.find((p) => p.floor === app.floor.id && p.disc === 'vent');
     if (pl && app.layerId !== pl.id) app.setLayer(pl.id);
     app.emit('change');
-    note = t('{n} debiet(en) op de ventilatieplannen gezet.', { n });
+    note = t('{n} label(s) op de ventilatieplannen gezet.', { n });
     render();
   };
   const wipe = () => { let n = 0; app.mutate(() => { n = clearVentLabels(b); }); app.emit('change'); note = t('{n} label(s) gewist.', { n }); render(); };
   const typeOpts = Object.entries(VENT_TYPES).map(([k, v]) => [k, t(v.label)]);
+  const color = (side) => ({ color: side === 'T' ? '#1c7ed6' : '#c2410c' });
   const render = () => {
-    const { rows, supply, extract, unit } = ventRows(b, limit());
-    const lim = h('input', { type: 'checkbox', checked: limit() });
-    lim.addEventListener('change', () => { app.mutate(() => { b.ventCfg.limit = lim.checked; }); render(); });
+    const res = ventRows(b);
+    const { rows, supply, extract, supplyBal, extractBal, unit, raised, cfg } = res;
+    const chk2 = (on, k, label) => {
+      const box = h('input', { type: 'checkbox', checked: on });
+      box.addEventListener('change', () => setCfg(k, box.checked));
+      return h('label', { class: 'check' }, box, label);
+    };
+    const sys = h('select', { style: { maxWidth: '420px' } }, Object.entries(VENT_SYSTEMS).map(([k, v]) => h('option', { value: k, selected: k === cfg.system }, t(v.label))));
+    sys.addEventListener('change', () => setCfg('system', sys.value));
     const n = labels();
+    const mech = VENT_SYSTEMS[cfg.system].mech;
+    const air = ventAirflow(b, res);
+    const multi = b.floors.length > 1;
     const parts = [
       h('p', { class: 'hint' }, t('Volgens NBN D 50-001 (woningen): droge ruimtes krijgen toevoer (T), natte ruimtes afvoer (A), 3,6 m³/h per m² vloer met een minimum per soort; gangen en hallen zijn doorstroomzones. Pas de soort aan waar de gok niet klopt en vul eventueel een eigen ontwerpdebiet in.')),
-      h('label', { class: 'check' }, lim, t('Begrenzen tot het maximum dat de norm toelaat (woonkamer 150, slaapkamer 72, natte ruimte 75 m³/h)')),
+      h('label', { class: 'field' }, h('span', null, t('Ventilatiesysteem')), sys),
+      chk2(cfg.limit, 'limit', t('Begrenzen tot het maximum dat de norm toelaat (woonkamer 150, slaapkamer 72, natte ruimte 75 m³/h)')),
+      cfg.system === 'D' ? chk2(cfg.balance, 'balance', t('In balans brengen: de kleinste kant (toe- of afvoer) proportioneel verhogen tot beide gelijk zijn')) : null,
       rows.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable venttable' },
         h('thead', null, h('tr', null, h('th', null, 'Verdieping'), h('th', null, 'Ruimte'), h('th', null, 'Opp.'), h('th', null, 'Soort'),
-          h('th', null, 'Nodig'), h('th', null, 'Ontwerp'), h('th', null, 'T / A'), h('th', null, 'Doorstroom'))),
+          h('th', null, 'Nodig'), h('th', null, 'Ontwerp'), h('th', null, raised ? 'In balans' : 'T / A'), h('th', null, 'Ventielen'), h('th', null, 'Doorstroom'))),
         h('tbody', null, rows.map((x) => {
           const typeSel = h('select', null, typeOpts.map(([k, l]) => h('option', { value: k, selected: k === x.type }, l)));
           typeSel.addEventListener('change', () => { app.mutate(() => { (x.room.vent ||= {}).type = typeSel.value; }); render(); });
           const own = h('input', { type: 'text', inputmode: 'decimal', value: x.room.vent?.flow ?? '', placeholder: x.side ? String(x.required) : '', disabled: !x.side, style: { width: '64px' } });
           own.addEventListener('change', () => {
             const v = parseFloat(String(own.value).replace(',', '.'));
-            app.mutate(() => { (x.room.vent ||= {}).flow = v > 0 ? v : undefined; if (!(v > 0)) delete x.room.vent.flow; });
+            app.mutate(() => { x.room.vent ||= {}; if (v > 0) x.room.vent.flow = v; else delete x.room.vent.flow; });
             render();
           });
           own.addEventListener('keydown', (e) => { if (e.key === 'Enter') own.blur(); });
+          const valves = !x.side ? '—' : x.valves.length ? x.valves.map((v) => v.flow).join(' + ') + ' m³/h' : (mech.includes(x.side) ? t('geen') : '—');
           return h('tr', { class: x.side && x.flow < x.required ? 'over' : '' },
             h('td', null, x.floor.name), h('td', null, h('b', null, x.name)), h('td', { class: 'num' }, `${String(x.area).replace('.', ',')} m²`),
             h('td', null, typeSel), h('td', { class: 'num' }, x.side ? `${x.required} m³/h` : '—'), h('td', null, own),
-            h('td', { class: 'num' }, x.side ? h('b', { style: { color: x.side === 'T' ? '#1c7ed6' : '#c2410c' } }, flowText(x.side, x.flow)) : '—'),
+            h('td', { class: 'num' }, x.side ? h('b', { style: color(x.side) }, flowText(x.side, x.bal), x.bal !== x.flow ? ` (+${x.bal - x.flow})` : '') : '—'),
+            h('td', { class: 'num' }, valves),
             h('td', { class: 'num' }, x.transfer ? `≥ ${x.transfer} cm²` : '—'));
         })))) : h('p', { class: 'warn' }, t('Nog geen ruimtes: duid eerst de ruimtes aan op de plattegrond (Ruimte).')),
-      h('h4', null, t('Totaal')),
-      h('p', null, t('Toevoer {s} m³/h · afvoer {e} m³/h', { s: supply, e: extract })),
-      h('p', null, h('b', null, t('Ventilatie-unit (systeem D): minstens {u} m³/h', { u: unit })),
-        supply !== extract ? ' ' + t('(stel toe- en afvoer in balans: verhoog de kleinste kant tot {u} m³/h)', { u: unit }) : ''),
+      cfg.system === 'D' ? h('h4', null, t('Balans')) : null,
+      cfg.system !== 'D' ? null : h('table', { class: 'list ventbal' },
+        h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Nodig / ontwerp'), h('th', null, raised ? 'In balans' : 'Debiet'))),
+        h('tbody', null,
+          h('tr', null, h('td', null, h('b', { style: color('T') }, t('Toevoer'))), h('td', { class: 'num' }, `${supply} m³/h`), h('td', { class: 'num' }, h('b', null, `${supplyBal} m³/h`))),
+          h('tr', null, h('td', null, h('b', { style: color('A') }, t('Luchtafvoer'))), h('td', { class: 'num' }, `${extract} m³/h`), h('td', { class: 'num' }, h('b', null, `${extractBal} m³/h`))),
+          h('tr', null, h('td', null, t('Verschil')), h('td', { class: 'num' }, `${supply - extract} m³/h`), h('td', { class: 'num' }, `${supplyBal - extractBal} m³/h`)))),
+      cfg.system === 'D' ? h('p', null, supplyBal === extractBal
+        ? h('b', null, '✓ ' + t('In balans: toevoer = afvoer = {u} m³/h.', { u: supplyBal }))
+        : h('span', { class: 'warn' }, '⚠ ' + t('Niet in balans: {d} m³/h verschil.', { d: Math.abs(supplyBal - extractBal) })),
+      raised ? ' ' + t('De {s} werd met {p} % verhoogd.', { s: raised === 'T' ? t('toevoer') : t('afvoer'), p: Math.round((res.factor - 1) * 100) }) : '') : null,
+      mech ? h('p', null, h('b', null, t('Ventilatie-unit / ventilator: minstens {u} m³/h', { u: unit }))) : h('p', { class: 'hint' }, t('Systeem A: geen ventilator; de debieten gelden voor de roosters.')),
+      cfg.system === 'C' ? h('p', { class: 'hint' }, t('Systeem C: de toevoer komt via regelbare roosters in de droge ruimtes (de debieten T hierboven).')) : null,
+      ...res.warnings.map((w) => h('p', { class: 'warn' }, '⚠ ' + w)),
+      h('p', { class: 'hint' }, t('Ventielen: plaats Toevoerventielen en Afvoerventielen op het ventilatieplan; het debiet van de ruimte wordt over haar ventielen verdeeld (inregelwaarde per ventiel).')),
       h('p', { class: 'hint' }, t('Doorstroomopeningen (spleet onder de deur of rooster): minstens 70 cm² voor een WC en 140 cm² voor de andere ruimtes, behalve een open keuken.')),
+      ...(cfg.system === 'C' || cfg.system === 'D' ? [
+        h('h4', null, t('Lucht door deuren en doorgangen')),
+        air.doors.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable' },
+          h('thead', null, h('tr', null, multi ? h('th', null, 'Verdieping') : null, h('th', null, 'Van'), h('th', null, 'Naar'), h('th', null, 'Via'), h('th', null, 'Debiet'), h('th', null, 'Doorstroomopening'))),
+          h('tbody', null, air.doors.filter((d) => d.flow).sort((p, q) => q.flow - p.flow).map((d) => h('tr', null,
+            multi ? h('td', null, d.floor.name) : null, h('td', null, d.fromName), h('td', null, '→ ', h('b', null, d.toName)),
+            h('td', null, t(DOOR_KIND[d.kind] || 'Deur')), h('td', { class: 'num' }, h('b', { style: { color: '#2f9e44' } }, `${d.flow} m³/h`)),
+            h('td', { class: 'num' }, d.need ? `≥ ${d.need} cm²` : d.kind === 'door' || d.kind === 'door2' ? '—' : t('open'))))))) : h('p', { class: 'hint' }, t('Geen deuren tussen ruimtes gevonden.')),
+        cfg.system === 'C' ? h('h4', null, t('Toevoerroosters in de ramen')) : null,
+        cfg.system === 'C' ? (air.windows.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'list cabletable' },
+          h('thead', null, h('tr', null, multi ? h('th', null, 'Verdieping') : null, h('th', null, 'Ruimte'), h('th', null, 'Raam'), h('th', null, 'Rooster'))),
+          h('tbody', null, air.windows.map((w) => h('tr', null,
+            multi ? h('td', null, w.floor.name) : null, h('td', null, h('b', null, w.room.name || '?')),
+            h('td', null, `${t(OPENING_TYPES[w.o.type]?.label || 'Raam')} ${w.o.width || ''} cm`),
+            h('td', { class: 'num' }, h('b', { style: { color: '#1c7ed6' } }, t('{f} m³/h bij 2 Pa', { f: w.flow })))))))) : h('p', { class: 'hint' }, t('Geen ramen in de droge ruimtes gevonden.'))) : null,
+        h('p', { class: 'hint' }, cfg.system === 'C'
+          ? t('Systeem C: de droge ruimtes krijgen hun lucht via regelbare roosters in de ramen (verdeeld naar raambreedte, debiet bij 2 Pa drukverschil); de lucht stroomt door de deuren naar de natte ruimtes.')
+          : t('Systeem D: de lucht stroomt van de droge ruimtes door de deuren en hallen naar de natte ruimtes; een trap verbindt de verdiepingen.')),
+        ...air.warnings.map((w) => h('p', { class: 'warn' }, '⚠ ' + w)),
+      ] : []),
       h('div', { class: 'btnrow' },
         h('button', { class: 'primary', onclick: place, disabled: !rows.some((x) => x.side) }, n ? t('Opnieuw op het plan zetten') : t('Op het plan zetten')),
         n ? h('button', { onclick: wipe }, t('Labels wissen ({n})', { n })) : null),
       note ? h('p', { class: 'hint' }, h('b', null, note)) : null,
-      h('p', { class: 'hint' }, t('De labels komen onder de naam van elke ruimte op het ventilatieplan van de verdieping (gemaakt als het nog niet bestaat). Verplaatste labels houden hun plaats bij opnieuw plaatsen.')),
+      h('p', { class: 'hint' }, t('Op het plan: het debiet onder de naam van elke ruimte en de inregelwaarde naast elk ventiel, op het ventilatieplan van de verdieping (gemaakt als het nog niet bestaat). Verplaatste labels houden hun plaats bij opnieuw plaatsen.')),
     ];
     body.replaceChildren(...parts.filter(Boolean));
   };
   render();
   const csv = () => {
-    const { rows, supply, extract } = ventRows(b, limit());
-    const out = [[t('Verdieping'), t('Ruimte'), t('Oppervlakte (m²)'), t('Soort'), t('Nodig (m³/h)'), t('Ontwerp (m³/h)'), t('Toevoer / afvoer'), t('Doorstroom (cm²)')],
-      ...rows.map((x) => [x.floor.name, x.name, String(x.area).replace('.', ','), t(VENT_TYPES[x.type].label), x.side ? x.required : '', x.side ? x.flow : '', x.side === 'T' ? t('Toevoer') : x.side === 'A' ? t('Luchtafvoer') : '', x.transfer || '']),
-      [], ['', t('Totaal'), '', '', '', '', `${t('Toevoer')} ${supply} / ${t('Luchtafvoer')} ${extract}`, '']];
-    download(`${safeName(app.project.name)} - ${t('Ventilatiedebieten')}.csv`, '﻿' + toCsv(out), 'text/csv;charset=utf-8');
+    const { rows, supplyBal, extractBal, unit } = ventRows(b);
+    const out = [[t('Verdieping'), t('Ruimte'), t('Oppervlakte (m²)'), t('Soort'), t('Nodig (m³/h)'), t('Ontwerp (m³/h)'), t('In balans (m³/h)'), t('Toevoer / afvoer'), t('Ventielen (m³/h)'), t('Doorstroom (cm²)')],
+      ...rows.map((x) => [x.floor.name, x.name, String(x.area).replace('.', ','), t(VENT_TYPES[x.type].label), x.side ? x.required : '', x.side ? x.flow : '', x.side ? x.bal : '',
+        x.side === 'T' ? t('Toevoer') : x.side === 'A' ? t('Luchtafvoer') : '', x.valves.map((v) => v.flow).join(' + '), x.transfer || '']),
+      [], ['', t('Totaal'), '', '', '', '', '', `${t('Toevoer')} ${supplyBal} / ${t('Luchtafvoer')} ${extractBal}`, `${t('Unit')} ${unit}`, '']];
+    download(`${safeName(app.project.name)} - ${t('Ventilatiedebieten')}.csv`, '\ufeff' + toCsv(out), 'text/csv;charset=utf-8');
   };
   return modal({
     title: 'Ventilatiedebieten', wide: true, body,
