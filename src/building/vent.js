@@ -213,7 +213,8 @@ const near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 80;
 /**
  * Stairs that join two floors for the air: st.link 'up' / 'down' / 'none', or automatically: up when the
  * floor above has a room at the stair (the stairwell / landing), down when the stair is only drawn on the
- * upper floor. A stair drawn on both floors counts once. Returns [{ floor, st, at, dir, a, b, other, warn }]
+ * upper floor. Two stairs above each other: the upper one is the next flight up when there is a room
+ * above it, otherwise the same stair drawn twice (counted once). Returns [{ floor, st, at, dir, a, b, other, warn }]
  * (a: room with the stair, b: room on the other floor, other: that floor).
  */
 export function stairLinks(b) {
@@ -225,8 +226,11 @@ export function stairLinks(b) {
       const up = b.floors[i + 1], down = b.floors[i - 1];
       let dir = st.link || 'auto';
       if (dir === 'auto') {
-        // the same stair drawn on the floor below already makes this link
-        if (down && (down.stairs || []).some((x) => !isFixture(x) && near(stairCentre(x), at) && (x.link || 'auto') !== 'none')) continue;
+        // a stair on the floor below at the same place: with a room above, this is the next flight up
+        // (stairs stacked in one stairwell, as the plan draws it too); without, it is the same stair
+        // drawn twice and the stair below already makes the link
+        const stacked = down && (down.stairs || []).some((x) => !isFixture(x) && near(stairCentre(x), at) && (x.link || 'auto') !== 'none');
+        if (stacked && !(up && roomAt(up, ...at))) continue;
         dir = up && roomAt(up, ...at) ? 'up' : down && roomAt(down, ...at) ? 'down' : 'up';
       }
       if (dir === 'none') continue;
