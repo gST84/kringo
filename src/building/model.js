@@ -461,8 +461,11 @@ export function nearestWall(floor, x, y, maxDist) {
   for (const w of floor.walls) {
     if (isDivider(w) || (w.cx == null && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < 1)) continue;
     const p = projectOnWall(w, x, y);
-    const dist = Math.abs(p.d) - (w.t || 20) / 2;
-    if (dist <= maxDist && (!best || dist < best.dist)) best = { wall: w, ...p, dist };
+    // real distance to the wall (past its ends: to the end point, not to the line it lies on),
+    // minus half its thickness; inside a wall the one whose centre line is closest wins
+    const real = Math.hypot(x - p.x, y - p.y);
+    const dist = Math.max(0, real - (w.t || 20) / 2);
+    if (dist <= maxDist && (!best || dist < best.dist || (dist === best.dist && real < best.real))) best = { wall: w, ...p, dist, real };
   }
   return best;
 }
