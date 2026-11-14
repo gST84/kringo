@@ -4,7 +4,7 @@ import { clone, download, h, natCmp, safeName, toCsv } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, FURNITURE, isCabinet, isFurniture, isRoof, ROOFS, ROOF_SHAPES, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
+import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, blocksHeating, CABINETS, FURNITURE, isCabinet, isFurniture, isRoof, ROOFS, ROOF_SHAPES, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { consLabel, floorHasCons, lockStraightWalls, restoreWalls, setWallDir, snapWalls, solveWalls, wallAngle, wallTopology } from './constraints.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
@@ -395,12 +395,12 @@ export function buildingProps(app, plan) {
         field('Soort', sel(st.kind, Object.entries(FURNITURE).map(([k, v]) => [k, v.label]), (v) => set(() => { st.kind = v; }), 'fkind')),
         h('div', { class: 'grid2' }, num('Breedte (cm)', 'w', 'fw'), num('Diepte / lengte (cm)', 'h', 'fh')),
         field('Opschrift', inp(st.label, (v) => set(() => { if (v.trim()) st.label = v.trim(); else delete st.label; }), { key: 'flabel' })),
-        st.kind === 'bath' ? chk(st.heat, (v) => set(() => { if (v) st.heat = true; else delete st.heat; }), 'Vloerverwarming eronder', 'fheat') : null,
+        blocksHeating(st) ? chk(st.heat, (v) => set(() => { if (v) st.heat = true; else delete st.heat; }), 'Vloerverwarming eronder', 'fheat') : null,
         rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
         h('div', { class: 'btnrow' },
           h('button', { onclick: () => set(() => rotateStair(st, (st.rot || 0) + 180)) }, '⇅ Omdraaien'),
           h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
-        h('p', { class: 'hint' }, 'Sleep de blokjes om de maat aan te passen. De onderkant is de voorkant (bij een bed het voeteneinde, bij een zetel de zitkant). Enkel een bad houdt vloerverwarming tegen.'))];
+        h('p', { class: 'hint' }, 'Sleep de blokjes om de maat aan te passen. De onderkant is de voorkant (bij een bed het voeteneinde, bij een zetel de zitkant). Enkel een bad en een douche houden vloerverwarming tegen.'))];
     }
     if (isRoof(st)) {
       const pitched = st.kind === 'pitched';
@@ -716,6 +716,7 @@ function floorProps(app, plan) {
       section(planTitle(b, layer),
         h('p', { class: 'hint' }, t('Installatieplan op de plattegrond "{f}": het grondplan staat vergrendeld eronder. Muren, deuren en ruimtes wijzig je op de plattegrond; alle plannen volgen.', { f: f.name })),
         h('p', null, t('{n} symbool/symbolen op dit plan.', { n: mine.length })),
+        furnToggle(app),
         h('div', { class: 'btnrow' },
           h('button', { onclick: () => app.setFloor(app.floorIdx) }, t('▦ Naar de plattegrond')),
           h('button', {
@@ -763,6 +764,7 @@ function floorProps(app, plan) {
         field('Schaal 1:', sel(b.scale, [[20, '20'], [50, '50'], [75, '75'], [100, '100']], (v) => set(() => { b.scale = +v; }), 'scale')),
         field('Raster (cm)', sel(b.grid, [[1, '1'], [5, '5'], [10, '10'], [25, '25']], (v) => set(() => { b.grid = +v; }), 'grid'))),
       chk(b.wallLens !== false, (v) => set(() => { if (v) delete b.wallLens; else b.wallLens = false; }), 'Muurlengtes tonen (cm, enkel op het scherm)', 'wlens'),
+      furnToggle(app),
       chk(b.showCons !== false, (v) => set(() => { if (v) delete b.showCons; else b.showCons = false; }), 'Vergrendelingen tonen (H, V, ∠, ↔)', 'wcons'),
       chk(b.autoCons !== false, (v) => set(() => { if (v) delete b.autoCons; else b.autoCons = false; }), 'Nieuwe rechte muren automatisch H / V vergrendelen', 'wauto'),
       h('div', { class: 'btnrow' }, h('button', {
@@ -869,6 +871,16 @@ function roomProps(app, plan, r) {
         h('button', { onclick: () => influencesDialog(app) }, '▦ Tabel…'),
         h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Ruimte verwijderen'))),
   ];
+}
+
+/** Show / hide the furniture and sanitary fittings (on every plan, on screen and on paper). */
+function furnToggle(app) {
+  const b = app.project.building;
+  return chk(!b.hideFurn, (v) => app.mutate(() => {
+    if (v) delete b.hideFurn; else b.hideFurn = true;
+    // hidden furniture cannot stay selected
+    if (!v) app.select([...app.sel].filter((k) => !(k.startsWith('S:') && isFurniture(app.floor.stairs.find((x) => 'S:' + x.id === k)))));
+  }), 'Meubels en sanitair tonen', 'furnshow');
 }
 
 /** Choice of the manifold that feeds a room: automatic (the nearest) or one of the floor's collectors. */

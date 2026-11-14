@@ -721,7 +721,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   // underfloor heating pipes (floor heating plan): above the door gaps, under the stairs and symbols
   for (const sh of floor.shapes || []) if (sh.type === 'pipe' && note(sh)) s += pipeSvg(sh, k, sw, sel.has('P:' + sh.id), opts);
   for (const st of stairsFromBelow(b, floorIdx)) s += stairSvg(st, sw, false, true);
-  for (const st of floor.stairs) s += stairSvg(st, sw, sel.has('S:' + st.id));
+  for (const st of floor.stairs) if (!(b.hideFurn && isFurniture(st))) s += stairSvg(st, sw, sel.has('S:' + st.id));
   for (const sh of floor.shapes || []) if (sh.type === 'line' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   for (const d of floor.dims || []) if (note(d)) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
   // floor plan (not the installation plans, not on paper): the length of every wall beside it

@@ -8,7 +8,7 @@ import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygo
 import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js';
 import { heatCfg, nearestCollector, nextLoopName, PIPE_COLORS, roomGrid } from './heating.js';
 import { floorHasCons, consLabel, restoreWalls, snapWalls, solveWalls, wallTopology } from './constraints.js';
-import { dropZeroWalls, FURNITURE, linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
+import { dropZeroWalls, FURNITURE, isFurniture, linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 import { contextMenu, keyHint } from '../ui/contextMenu.js';
 import { t } from '../i18n.js';
@@ -722,7 +722,7 @@ export class PlanEditor {
           ...f.walls.filter((w) => inR(w.x1, w.y1) && inR(w.x2, w.y2)).map((w) => 'W:' + w.id),
           ...f.symbols.filter((s) => inR(s.x, s.y)).map((s) => 'A:' + s.id),
           ...f.texts.filter((t) => inR(t.x, t.y)).map((t) => 'T:' + t.id),
-          ...f.stairs.filter((s) => inR(s.x, s.y)).map((s) => 'S:' + s.id),
+          ...f.stairs.filter((s) => inR(s.x, s.y) && !(this.b.hideFurn && isFurniture(s))).map((s) => 'S:' + s.id),
           ...f.dims.filter((m) => inR(m.x1, m.y1) && inR(m.x2, m.y2)).map((m) => 'D:' + m.id),
           ...f.shapes.filter((sh) => sh.pts.every(([x, y]) => inR(x, y))).map((sh) => 'P:' + sh.id),
           ...f.rooms.filter((r) => inR(...roomLabelPos(r, roomPolygon(f, r)))).map((r) => 'R:' + r.id),
@@ -1397,7 +1397,7 @@ export class PlanEditor {
     this.app.select([
       ...f.walls.map((w) => 'W:' + w.id), ...f.openings.map((o) => 'O:' + o.id),
       ...f.symbols.filter((x) => symDisc(x, lib.get(x.sym)) === disc).map((x) => 'A:' + x.id),
-      ...f.links.map((l) => 'L:' + l.id), ...f.texts.map((x) => 'T:' + x.id), ...f.stairs.map((x) => 'S:' + x.id),
+      ...f.links.map((l) => 'L:' + l.id), ...f.texts.map((x) => 'T:' + x.id), ...f.stairs.filter((x) => !(this.b.hideFurn && isFurniture(x))).map((x) => 'S:' + x.id),
       ...f.dims.map((x) => 'D:' + x.id), ...f.shapes.map((x) => 'P:' + x.id), ...(disc ? [] : f.rooms.map((r) => 'R:' + r.id)),
     ].filter((key) => this.editable(key)));
   }

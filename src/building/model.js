@@ -429,6 +429,8 @@ export const FURNITURE = {
   car: { label: 'Auto', w: 180, h: 450 },
 };
 export const isFurniture = (st) => !!FURNITURE[st?.kind];
+/** Furniture that keeps generated floor heating out (unless 'floor heating underneath' is ticked). */
+export const blocksHeating = (st) => st?.kind === 'bath' || st?.kind === 'shower';
 /** Boxes in floor.stairs that are not stairs (no stairwell, no link between floors). */
 export const isFixture = (st) => isCabinet(st) || isRoof(st) || isFurniture(st);
 
