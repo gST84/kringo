@@ -340,11 +340,11 @@ function furnSvg(st, sw) {
 /** Floor passage: box with both diagonals and the media it carries; dashed on the floor above. */
 function floorPassSvg(st, sw, ghost) {
   const W = st.w, H = st.h;
+  const col = MEDIA[floorPassMedia(st)]?.color || '#555';
   const dash = ghost ? ` stroke-dasharray="${r2(sw * 6)} ${r2(sw * 4)}"` : '';
-  let s = `<rect class="floorpass${ghost ? ' ghost' : ''}" x="0" y="0" width="${W}" height="${H}" style="stroke-width:${sw * 1.4}"${dash}/>`;
-  s += line([0, 0], [W, H], sw * 0.8, dash) + line([W, 0], [0, H], sw * 0.8, dash);
-  const tag = { elec: 'E', cv: 'CV', water: 'W', drain: 'A', vent: 'V' };
-  const text = st.label || floorPassMedia(st).map((m) => tag[m] || m).join(' ');
+  let s = `<rect class="floorpass${ghost ? ' ghost' : ''}" x="0" y="0" width="${W}" height="${H}" style="stroke:${col};fill:${ghost ? 'none' : col};fill-opacity:.25;stroke-width:${sw * 1.6}"${dash}/>`;
+  s += `<path d="M0 0L${W} ${H}M${W} 0L0 ${H}" style="fill:none;stroke:${col};stroke-width:${r2(sw * 0.9)}"${dash}/>`;
+  const text = st.label || '';
   if (text) {
     const fs = r2(Math.max(4, Math.min(10, Math.min(W, H) * 0.3, (W * 1.6) / Math.max(1, text.length))));
     s += `<text x="${r2(W / 2)}" y="${r2(-fs * 0.7)}" font-size="${fs}" text-anchor="middle" style="font-family:sans-serif;fill:#333;stroke:#fff;stroke-width:${r2(fs / 5)};paint-order:stroke">${esc(text)}${ghost ? ' ↓' : ''}</text>`;
@@ -584,6 +584,16 @@ function labelBlock(parts, x, y) {
   return s;
 }
 
+/** Symbol kinds drawn smaller on the floor plans, and how much. */
+const PLAN_SMALL = new Set(['socket', 'light']);
+const PLAN_SMALL_SCALE = 0.8;
+/** Extra transform for those kinds: a wall symbol keeps touching the wall (its wall side is 3 mm below the centre). */
+export function planShrink(def) {
+  if (!PLAN_SMALL.has(def?.kind)) return '';
+  const f = PLAN_SMALL_SCALE;
+  return def.wall ? ` translate(0 ${r2(3 * (1 - f))}) scale(${f})` : ` scale(${f})`;
+}
+
 /** One installation symbol at plan position, drawn at paper size. */
 function symbolSvg(sym, def, k, building, sel, opts) {
   if (def.strip && sym.pts?.length >= 2) return stripSvg(sym, k, building, sel, opts);
@@ -600,7 +610,9 @@ function symbolSvg(sym, def, k, building, sel, opts) {
   if (dom) parts.push([dom, '#7c3aed']);
   s += labelBlock(parts, 3.4, -3.4);
   // the symbol on top of its label box
-  s += `<g transform="rotate(${sym.rot || 0})">${shapes}</g>`;
+  // sockets and lights a bit smaller on the floor plans (80 %); a wall symbol keeps touching the wall
+  // (its wall side is 3 mm below the centre), a ceiling light shrinks around its centre
+  s += `<g transform="rotate(${sym.rot || 0})${planShrink(def)}">${shapes}</g>`;
   if (!opts.print) s += `<circle class="hit" cx="0" cy="0" r="4.5"/>`;
   return s + '</g>';
 }
@@ -743,8 +755,9 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   // underfloor heating pipes (floor heating plan): above the door gaps, under the stairs and symbols
   for (const sh of floor.shapes || []) if (sh.type === 'pipe' && note(sh)) s += pipeSvg(sh, k, sw, sel.has('P:' + sh.id), opts);
   for (const st of stairsFromBelow(b, floorIdx)) s += stairSvg(st, sw, false, true);
-  for (const st of floorPassesFromBelow(b, floorIdx)) s += stairSvg(st, sw, false, true);
-  for (const st of floor.stairs) if (!(b.hideFurn && isFurniture(st))) s += stairSvg(st, sw, sel.has('S:' + st.id));
+  // floor passages: like wall passages only on the plan of their type (from the floor below: dashed)
+  for (const st of floorPassesFromBelow(b, floorIdx)) if (floorPassMedia(st) === planMedia(disc)) s += stairSvg(st, sw, false, true);
+  for (const st of floor.stairs) if (!(b.hideFurn && isFurniture(st)) && !(isFloorPass(st) && floorPassMedia(st) !== planMedia(disc))) s += stairSvg(st, sw, sel.has('S:' + st.id));
   for (const sh of floor.shapes || []) if (sh.type === 'line' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   for (const d of floor.dims || []) if (note(d)) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
   // floor plan (not the installation plans, not on paper): the length of every wall beside it
@@ -863,7 +876,7 @@ function pipeSvg(sh, k, sw, sel, opts) {
 
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
-.plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}.plan .roofarrow{fill:#222;stroke:none}.plan .floorpass{fill:#fff}.plan .floorpass.ghost{fill:none}.plan .furn line,.plan .furn rect,.plan .furn ellipse,.plan .furn polygon,.plan .furn polyline{stroke:#4b5563}.plan .furnbox{fill:#fff}.plan .furnin{fill:none}.plan .furntx{font-family:sans-serif;fill:#4b5563;stroke:none}.plan .rooftx{font-family:sans-serif;fill:#333;stroke:#fff;paint-order:stroke}
+.plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}.plan .roofarrow{fill:#222;stroke:none}.plan .furn line,.plan .furn rect,.plan .furn ellipse,.plan .furn polygon,.plan .furn polyline{stroke:#4b5563}.plan .furnbox{fill:#fff}.plan .furnin{fill:none}.plan .furntx{font-family:sans-serif;fill:#4b5563;stroke:none}.plan .rooftx{font-family:sans-serif;fill:#333;stroke:#fff;paint-order:stroke}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
 .plan.under .walloutline polygon{fill:#9aa1aa;stroke:#9aa1aa}.plan.under .wall{fill:#d5d8dc}.plan.under .wall.inner{fill:#e2e4e7}.plan.under .proom{opacity:.45}.plan.under .stair,.plan.under .opening:not(:has(.passage)),.plan.under .divider{opacity:.55}
 .plan .ppipel{fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .ppipe.sel .ppipel{filter:drop-shadow(0 0 1.5px #1f6feb)}.plan .pheatbox{fill:#fff;stroke:#c92a2a;stroke-width:.3}.plan .pheattx{fill:#c92a2a;font-weight:bold;dominant-baseline:central}

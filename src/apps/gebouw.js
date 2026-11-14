@@ -164,7 +164,7 @@ boot({
       pan: 'Sleep om te verschuiven',
     };
 
-    const hintKey = (tool) => plan.toolKey?.startsWith('passage') ? 'passage' : plan.toolKey === 'tall' || plan.toolKey === 'counter' ? 'cabinet' : plan.toolKey === 'flat' || plan.toolKey === 'pitched' ? 'roof' : FURNITURE[plan.toolKey] ? 'furniture' : plan.toolKey === 'floorpass' ? 'floorpass' : tool;
+    const hintKey = (tool) => plan.toolKey?.startsWith('passage') ? 'passage' : plan.toolKey === 'tall' || plan.toolKey === 'counter' ? 'cabinet' : plan.toolKey === 'flat' || plan.toolKey === 'pitched' ? 'roof' : FURNITURE[plan.toolKey] ? 'furniture' : plan.toolKey?.startsWith('floorpass') ? 'floorpass' : tool;
 
     // left panel: drawing tools, floors, symbols
     const left = h('div', { id: 'building-left', class: 'kind-building' });

@@ -52,7 +52,7 @@ export const circuitOptions = (b, withNone = true) => [
 export function buildingLeftPanel(app, el, { plan, editor }) {
   let tab = 'symbols';
   let filter = '';
-  const open = new Set(['Vloerverwarming', 'Grondplan', 'Muurdoorvoeren', 'Aantekeningen', 'AREI', 'AREI/Verlichting', 'Technieken/CV', 'Technieken/Sanitair', 'Technieken/Afvoer', 'Technieken/Ventilatie']);
+  const open = new Set(['Vloerverwarming', 'Grondplan', 'Doorvoeren', 'Aantekeningen', 'AREI', 'AREI/Verlichting', 'Technieken/CV', 'Technieken/Sanitair', 'Technieken/Afvoer', 'Technieken/Ventilatie']);
   const render = () => {
     const tabs = h('div', { class: 'tabs inner' },
       h('button', { class: tab === 'symbols' ? 'active' : '', onclick: () => { tab = 'symbols'; render(); } }, 'Symbolen'),
@@ -69,7 +69,7 @@ export function buildingLeftPanel(app, el, { plan, editor }) {
   const paletteNodes = () => {
     const q = filter.trim().toLowerCase();
     const out = [];
-    for (const group of ['Vloerverwarming', 'Grondplan', 'Meubels en sanitair', 'Muurdoorvoeren', 'Aantekeningen']) {
+    for (const group of ['Vloerverwarming', 'Grondplan', 'Meubels en sanitair', 'Doorvoeren', 'Aantekeningen']) {
       const disc = app.disc;
       const fits = (p) => (p.on === 'base' ? !disc : !p.on || p.on === 'any' ? true : [p.on].flat().includes(disc));
       const items = PLAN_PALETTE.filter((p) => (p.group || 'Grondplan') === group && fits(p) && (!q || t(p.label).toLowerCase().includes(q) || p.label.toLowerCase().includes(q)));
@@ -395,16 +395,13 @@ export function buildingProps(app, plan) {
       const above = app.project.building.floors[app.project.building.floors.indexOf(f) + 1];
       return [section('Vloerdoorvoer',
         h('p', { class: 'hint' }, above ? t('Verbindt {f} met {o} (daar in stippellijn).', { f: f.name, o: above.name }) : t('Er is geen verdieping boven {f}: maak er een om de doorvoer te gebruiken.', { f: f.name })),
-        h('p', null, h('b', null, t('Wat mag erdoor'))),
-        ...Object.entries(MEDIA).map(([k, v]) => chk(media.includes(k), (on) => set(() => {
-          const next = Object.keys(MEDIA).filter((m) => (m === k ? on : media.includes(m)));
-          st.media = next;
-        }), v.label, 'fp' + k)),
+        field('Leidingen door deze doorvoer', sel(media, Object.entries(MEDIA).map(([k, v]) => [k, v.label]), (v) => set(() => { st.media = v; }), 'fpmedia'),
+          'De doorvoer staat op het plan van dat type; de kleur toont het type.'),
         h('div', { class: 'grid2' }, num('Breedte (cm)', 'w', 'fpw'), num('Lengte (cm)', 'h', 'fph')),
         field('Opschrift', inp(st.label, (v) => set(() => { if (v.trim()) st.label = v.trim(); else delete st.label; }), { key: 'fplabel', placeholder: t('bv. koker, schacht') })),
         rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
         h('div', { class: 'btnrow' }, h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
-        h('p', { class: 'hint' }, 'Kabels die naar een andere verdieping gaan, lopen in de kabeltrace via de dichtstbijzijnde vloerdoorvoer voor kabels (zonder doorvoer: op de plaats van het verdeelbord). Teken hem op de onderste van de twee verdiepingen; voor meer verdiepingen een doorvoer per verdieping. Er komt geen vloerverwarming over.'))];
+        h('p', { class: 'hint' }, media === 'elec' ? 'Kabels die naar een andere verdieping gaan, lopen in de kabeltrace via de dichtstbijzijnde vloerdoorvoer kabels (zonder doorvoer: op de plaats van het verdeelbord). Teken hem op de onderste van de twee verdiepingen; voor meer verdiepingen een doorvoer per verdieping. Er komt geen vloerverwarming over.' : 'Teken hem op de onderste van de twee verdiepingen; op de verdieping erboven staat hij in stippellijn. Er komt geen vloerverwarming over.'))];
     }
     if (isFurniture(st)) {
       return [section(FURNITURE[st.kind].label,

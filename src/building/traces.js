@@ -340,7 +340,7 @@ export function traceKey(b) {
     parts.push(f.id, f.walls.map((w) => `${w.x1},${w.y1},${w.x2},${w.y2},${w.t},${w.cx ?? ''},${w.cy ?? ''}`).join(';'));
     parts.push((f.openings || []).map((o) => `${o.wall},${o.type},${o.pos},${o.width},${o.media || ''}`).join(';'));
     parts.push(f.symbols.map((s) => `${s.id},${s.x},${s.y},${s.circuit || ''},${s.n || ''},${s.dom || ''},${s.props?.h ?? ''},${s.props?.board ?? ''}`).join(';'));
-    parts.push((f.stairs || []).filter(isFloorPass).map((st) => `${st.x},${st.y},${st.w},${st.h},${st.rot || 0},${floorPassMedia(st).join('+')}`).join(';'));
+    parts.push((f.stairs || []).filter(isFloorPass).map((st) => `${st.x},${st.y},${st.w},${st.h},${st.rot || 0},${floorPassMedia(st)}`).join(';'));
   }
   parts.push(b.circuits.map((c) => `${c.id},${c.parent},${cableText(c)}`).join(';'));
   let hsh = 0;
@@ -357,7 +357,7 @@ export function generateTraces(b, lib) {
   const cfg = traceCfg(b);
   const floorIdx = new Map(b.floors.map((f, i) => [f.id, i]));
   // floor passages for cables, per floor (each joins its floor and the one above)
-  const passes = b.floors.map((f) => (f.stairs || []).filter((st) => isFloorPass(st) && floorPassMedia(st).includes('elec')).map(boxCentre));
+  const passes = b.floors.map((f) => (f.stairs || []).filter((st) => isFloorPass(st) && floorPassMedia(st) === 'elec').map(boxCentre));
   const boards = [];
   for (const f of b.floors) for (const s of f.symbols) if (lib.get(s.sym)?.kind === 'board' && !s.circuit) boards.push({ s, floor: f });
   // rasters per floor (including the board position, which is also the riser on every floor)

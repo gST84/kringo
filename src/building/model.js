@@ -435,11 +435,11 @@ export const isFurniture = (st) => !!FURNITURE[st?.kind];
 export const blocksHeating = (st) => st?.kind === 'bath' || st?.kind === 'shower';
 /**
  * Floor passage (sleeve / shaft through the floor): a box in floor.stairs (kind 'floorpass') that joins this
- * floor and the one above for cables and pipes; `media`: what may go through (keys of MEDIA).
+ * floor and the one above. Like a wall passage it belongs to one installation type (`media`: a key of
+ * MEDIA) and only shows on the plans of that type.
  */
-export const FLOORPASS_MEDIA = ['elec', 'cv', 'water'];
 export const isFloorPass = (st) => st?.kind === 'floorpass';
-export const floorPassMedia = (st) => st.media || FLOORPASS_MEDIA;
+export const floorPassMedia = (st) => (Array.isArray(st.media) ? st.media[0] : st.media) || 'elec';
 /** Centre of a box in floor.stairs (rotated about its corner x, y). */
 export function boxCentre(st) {
   if (st.kind === 'spiral') return [st.x, st.y];
