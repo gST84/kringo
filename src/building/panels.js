@@ -4,7 +4,7 @@ import { clone, download, h, natCmp, safeName, toCsv } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, isCabinet, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, wallGeom } from './model.js';
+import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, isCabinet, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
@@ -278,6 +278,7 @@ function setWallLength(f, w, len) {
     if (s.cx != null) { s.cx = r2(s.cx + d[0]); s.cy = r2(s.cy + d[1]); }
   }
   for (const [o, i, q] of follow) put(o, i, [r2(q[0] + d[0]), r2(q[1] + d[1])]);
+  dropZeroWalls(f);
 }
 
 export function buildingProps(app, plan) {

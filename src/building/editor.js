@@ -7,7 +7,7 @@ import { shapeSvg, textSvg } from '../schematic/render.js';
 import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
 import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js';
 import { heatCfg, nearestCollector, nextLoopName, PIPE_COLORS, roomGrid } from './heating.js';
-import { linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
+import { dropZeroWalls, linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 import { contextMenu, keyHint } from '../ui/contextMenu.js';
 import { t } from '../i18n.js';
@@ -673,6 +673,8 @@ export class PlanEditor {
     const d = this.drag;
     this.drag = null;
     if (!d) return;
+    // a wall corner dragged onto its other end: drop that wall (it has no length any more)
+    if ((d.type === 'handle' || d.type === 'move') && d.moved && dropZeroWalls(this.floor)) this.app.touched();
     if (d.type === 'band') {
       const x0 = Math.min(d.start[0], d.cur[0]), x1 = Math.max(d.start[0], d.cur[0]);
       const y0 = Math.min(d.start[1], d.cur[1]), y1 = Math.max(d.start[1], d.cur[1]);

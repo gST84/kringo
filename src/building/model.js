@@ -148,6 +148,18 @@ export function clearModule(b, moduleId) {
   }
 }
 
+/**
+ * Removes walls without length (both ends on the same point, e.g. a corner dragged onto the other end)
+ * and the doors / windows on them. Such a wall has no direction and would catch every door placed nearby.
+ */
+export function dropZeroWalls(floor) {
+  const zero = new Set(floor.walls.filter((w) => w.cx == null && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < 0.5).map((w) => w.id));
+  if (!zero.size) return 0;
+  floor.walls = floor.walls.filter((w) => !zero.has(w.id));
+  floor.openings = floor.openings.filter((o) => !zero.has(o.wall));
+  return zero.size;
+}
+
 export function normalizeBuilding(b) {
   const d = newBuilding();
   if (!b) return d;
@@ -156,6 +168,7 @@ export function normalizeBuilding(b) {
   b.floors ||= [];
   if (!b.floors.length) b.floors.push(newFloor());
   for (const f of b.floors) { f.walls ||= []; f.openings ||= []; f.stairs ||= []; f.texts ||= []; f.symbols ||= []; f.links ||= []; f.dims ||= []; f.shapes ||= []; f.rooms ||= []; f.bg ||= null; }
+  for (const f of b.floors) dropZeroWalls(f);
   // fixed socket variants of before 0.97 → the flexible socket with options
   for (const f of b.floors) for (const sy of f.symbols) {
     const legacy = LEGACY_SOCKETS[String(sy.sym).replace('arei/', '')];
@@ -446,7 +459,7 @@ export const isDivider = (w) => w?.kind === 'divider';
 export function nearestWall(floor, x, y, maxDist) {
   let best = null;
   for (const w of floor.walls) {
-    if (isDivider(w)) continue;
+    if (isDivider(w) || (w.cx == null && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < 0.5)) continue;
     const p = projectOnWall(w, x, y);
     const dist = Math.abs(p.d) - (w.t || 20) / 2;
     if (dist <= maxDist && (!best || dist < best.dist)) best = { wall: w, ...p, dist };
