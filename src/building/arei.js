@@ -59,7 +59,7 @@ const lever = (sx, sy, poles = 1) => {
 const switchBase = (poles = 1) => [C(0, 0, 1.1, WHITE), ...lever(1, -1, poles)];
 
 /** Options of the flexible socket: number of sockets in the box, earth, child protection, mark (IP44, 3F …). */
-export const SOCKET_DEFAULTS = { units: 1, earth: true, child: false, mark: '' };
+export const SOCKET_DEFAULTS = { units: 1, earth: true, child: true, mark: '' };
 export const SOCKET_MARKS = [['', 'Geen'], ['IP', 'IP44 (buiten / natte ruimte)'], ['3F', 'Krachtstopcontact 3F'], ['USB', 'Met USB-lader']];
 const socketProps = (p = {}) => {
   const o = { ...SOCKET_DEFAULTS, ...p };
@@ -127,7 +127,7 @@ export const AREI = [
     props: { ...SOCKET_DEFAULTS }, build: buildSocket,
   },
   ...Object.entries(LEGACY_SOCKETS).map(([id, [name, p]]) => ({
-    ...def(id, name, 'Stopcontacten', 'socket', socketGraphics({ ...SOCKET_DEFAULTS, ...p }), { wall: true, prefix: 'X', extra: { units: p.units || 1, hidden: true } }),
+    ...def(id, name, 'Stopcontacten', 'socket', socketGraphics({ ...SOCKET_DEFAULTS, child: false, ...p }), { wall: true, prefix: 'X', extra: { units: p.units || 1, hidden: true } }),
   })),
 
   // Toestellen (symbolen volgens de AREI-legende)

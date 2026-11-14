@@ -4,7 +4,7 @@ import { clone, download, h, natCmp, safeName, toCsv } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, blocksHeating, CABINETS, FURNITURE, isCabinet, isFurniture, isRoof, ROOFS, ROOF_SHAPES, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
+import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, blocksHeating, CABINETS, floorPassMedia, FURNITURE, isFloorPass, isCabinet, isFurniture, isRoof, ROOFS, ROOF_SHAPES, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { consLabel, floorHasCons, lockStraightWalls, restoreWalls, setWallDir, snapWalls, solveWalls, wallAngle, wallTopology } from './constraints.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
@@ -390,6 +390,22 @@ export function buildingProps(app, plan) {
     if (!st) return [];
     const num = (label, k, key, round) => field(label, inp(st[k], (v) => set(() => { if (v > 0 || v === 0) st[k] = round ? Math.round(v) : v; }), { type: 'number', key }));
     const del = h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen');
+    if (isFloorPass(st)) {
+      const media = floorPassMedia(st);
+      const above = app.project.building.floors[app.project.building.floors.indexOf(f) + 1];
+      return [section('Vloerdoorvoer',
+        h('p', { class: 'hint' }, above ? t('Verbindt {f} met {o} (daar in stippellijn).', { f: f.name, o: above.name }) : t('Er is geen verdieping boven {f}: maak er een om de doorvoer te gebruiken.', { f: f.name })),
+        h('p', null, h('b', null, t('Wat mag erdoor'))),
+        ...Object.entries(MEDIA).map(([k, v]) => chk(media.includes(k), (on) => set(() => {
+          const next = Object.keys(MEDIA).filter((m) => (m === k ? on : media.includes(m)));
+          st.media = next;
+        }), v.label, 'fp' + k)),
+        h('div', { class: 'grid2' }, num('Breedte (cm)', 'w', 'fpw'), num('Lengte (cm)', 'h', 'fph')),
+        field('Opschrift', inp(st.label, (v) => set(() => { if (v.trim()) st.label = v.trim(); else delete st.label; }), { key: 'fplabel', placeholder: t('bv. koker, schacht') })),
+        rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
+        h('div', { class: 'btnrow' }, h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
+        h('p', { class: 'hint' }, 'Kabels die naar een andere verdieping gaan, lopen in de kabeltrace via de dichtstbijzijnde vloerdoorvoer voor kabels (zonder doorvoer: op de plaats van het verdeelbord). Teken hem op de onderste van de twee verdiepingen; voor meer verdiepingen een doorvoer per verdieping. Er komt geen vloerverwarming over.'))];
+    }
     if (isFurniture(st)) {
       return [section(FURNITURE[st.kind].label,
         field('Soort', sel(st.kind, Object.entries(FURNITURE).map(([k, v]) => [k, v.label]), (v) => set(() => { st.kind = v; }), 'fkind')),
@@ -565,7 +581,6 @@ function symbolProps(app, plan, s) {
         chk(p.earth !== false, (v) => set(() => { s.props.earth = v; }), 'Aarding', 'searth'),
         chk(!!p.child, (v) => set(() => { s.props.child = v; }), 'Kinderbescherming', 'schild')));
   }
-  if (kind === 'socket' || kind === 'appliance') extra.push(field('Aantal dozen op dit punt', inp(s.props.qty || 1, setProp('qty'), { type: 'number', key: 'qty' }), 'In het eendraadschema herhaald op dezelfde aftakking.'));
   if (PV_KINDS.includes(kind)) extra.push(
     field('Type / model', inp(s.props.model, setProp('model'), { key: 'model', placeholder: 'bv. SMA Sunny Tripower 5.0' })),
     field('Serienummer', inp(s.props.serial, setProp('serial'), { key: 'serial' })));

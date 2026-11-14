@@ -172,7 +172,9 @@ export function normalizeBuilding(b) {
   // fixed socket variants of before 0.97 → the flexible socket with options
   for (const f of b.floors) for (const sy of f.symbols) {
     const legacy = LEGACY_SOCKETS[String(sy.sym).replace('arei/', '')];
-    if (String(sy.sym).startsWith('arei/') && legacy) { sy.sym = 'arei/socket'; sy.props = { ...SOCKET_DEFAULTS, ...legacy[1], ...(sy.props || {}) }; }
+    if (String(sy.sym).startsWith('arei/') && legacy) { sy.sym = 'arei/socket'; sy.props = { ...SOCKET_DEFAULTS, child: false, ...legacy[1], ...(sy.props || {}) }; }
+    // sockets placed before child protection became the default (0.111) keep theirs off
+    if (sy.sym === 'arei/socket' && sy.props?.child === undefined) sy.props = { ...(sy.props || {}), child: false };
   }
   b.boards ||= d.boards;
   if (!b.boards.length) b.boards.push(newBoard());
@@ -431,8 +433,21 @@ export const FURNITURE = {
 export const isFurniture = (st) => !!FURNITURE[st?.kind];
 /** Furniture that keeps generated floor heating out (unless 'floor heating underneath' is ticked). */
 export const blocksHeating = (st) => st?.kind === 'bath' || st?.kind === 'shower';
-/** Boxes in floor.stairs that are not stairs (no stairwell, no link between floors). */
-export const isFixture = (st) => isCabinet(st) || isRoof(st) || isFurniture(st);
+/**
+ * Floor passage (sleeve / shaft through the floor): a box in floor.stairs (kind 'floorpass') that joins this
+ * floor and the one above for cables and pipes; `media`: what may go through (keys of MEDIA).
+ */
+export const FLOORPASS_MEDIA = ['elec', 'cv', 'water'];
+export const isFloorPass = (st) => st?.kind === 'floorpass';
+export const floorPassMedia = (st) => st.media || FLOORPASS_MEDIA;
+/** Centre of a box in floor.stairs (rotated about its corner x, y). */
+export function boxCentre(st) {
+  if (st.kind === 'spiral') return [st.x, st.y];
+  const a = ((st.rot || 0) * Math.PI) / 180;
+  return [st.x + (st.w / 2) * Math.cos(a) - (st.h / 2) * Math.sin(a), st.y + (st.w / 2) * Math.sin(a) + (st.h / 2) * Math.cos(a)];
+}
+/** Boxes in floor.stairs that are not stairs (no stairwell, no link between floors for the air). */
+export const isFixture = (st) => isCabinet(st) || isRoof(st) || isFurniture(st) || isFloorPass(st);
 
 /** Sets a stair's rotation (degrees, clockwise); rectangular stairs turn around their centre. */
 export function rotateStair(st, deg) {

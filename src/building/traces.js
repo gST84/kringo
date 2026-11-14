@@ -2,7 +2,7 @@
 // then from point to point in circuit order. Routes may only pass walls through doors / openings.
 // The lengths (horizontal route + vertical drops to the boxes) are summed per cable type.
 import { t } from '../i18n.js';
-import { boardOf, circuitSymbols, wallGeom, wallPath } from './model.js';
+import { boardOf, boxCentre, circuitSymbols, floorPassMedia, isFloorPass, wallGeom, wallPath } from './model.js';
 export { MEDIA } from './model.js';
 import { wallPolygon } from './render.js';
 import { cableText } from './eendraad.js';
@@ -340,6 +340,7 @@ export function traceKey(b) {
     parts.push(f.id, f.walls.map((w) => `${w.x1},${w.y1},${w.x2},${w.y2},${w.t},${w.cx ?? ''},${w.cy ?? ''}`).join(';'));
     parts.push((f.openings || []).map((o) => `${o.wall},${o.type},${o.pos},${o.width},${o.media || ''}`).join(';'));
     parts.push(f.symbols.map((s) => `${s.id},${s.x},${s.y},${s.circuit || ''},${s.n || ''},${s.dom || ''},${s.props?.h ?? ''},${s.props?.board ?? ''}`).join(';'));
+    parts.push((f.stairs || []).filter(isFloorPass).map((st) => `${st.x},${st.y},${st.w},${st.h},${st.rot || 0},${floorPassMedia(st).join('+')}`).join(';'));
   }
   parts.push(b.circuits.map((c) => `${c.id},${c.parent},${cableText(c)}`).join(';'));
   let hsh = 0;
@@ -355,6 +356,8 @@ export function traceKey(b) {
 export function generateTraces(b, lib) {
   const cfg = traceCfg(b);
   const floorIdx = new Map(b.floors.map((f, i) => [f.id, i]));
+  // floor passages for cables, per floor (each joins its floor and the one above)
+  const passes = b.floors.map((f) => (f.stairs || []).filter((st) => isFloorPass(st) && floorPassMedia(st).includes('elec')).map(boxCentre));
   const boards = [];
   for (const f of b.floors) for (const s of f.symbols) if (lib.get(s.sym)?.kind === 'board' && !s.circuit) boards.push({ s, floor: f });
   // rasters per floor (including the board position, which is also the riser on every floor)
@@ -389,10 +392,21 @@ export function generateTraces(b, lib) {
         acc.vert += drop(H(A), H(B)) + 2 * cfg.box;
         return;
       }
-      const riser = bs ? [bs.s.x, bs.s.y] : pa;
-      const Ra = rasterOf(A.floor), Rb = rasterOf(B.floor);
-      const p1 = Ra && route(Ra, pa, riser), p2 = Rb && route(Rb, riser, pb);
-      if (p1) { acc.horiz += routeLen(Ra, p1); add(A.floor, id, p1, home); } else acc.failed++;
+      // floor by floor: through the nearest floor passage for cables between this floor and the next
+      // (drawn on the lower of the two); without one, straight up at the board as before
+      const fallback = bs ? [bs.s.x, bs.s.y] : pa;
+      const step = fb > fa ? 1 : -1;
+      let f = fa, p = pa;
+      while (f !== fb) {
+        const list = passes[Math.min(f, f + step)] || [];
+        const riser = list.length ? list.reduce((m, q) => (Math.abs(q[0] - p[0]) + Math.abs(q[1] - p[1]) < Math.abs(m[0] - p[0]) + Math.abs(m[1] - p[1]) ? q : m)) : fallback;
+        const R = rasterOf(b.floors[f]);
+        const rt = R && route(R, p, riser);
+        if (rt) { acc.horiz += routeLen(R, rt); add(b.floors[f], id, rt, home); } else acc.failed++;
+        p = riser; f += step;
+      }
+      const Rb = rasterOf(B.floor);
+      const p2 = Rb && route(Rb, p, pb);
       if (p2) { acc.horiz += routeLen(Rb, p2); add(B.floor, id, p2, home); } else acc.failed++;
       // riser: from A's height to B's height over the floors in between
       acc.vert += Math.abs(fb - fa) * cfg.storey + Math.abs(H(B) - H(A)) + 2 * cfg.box;

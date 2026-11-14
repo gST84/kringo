@@ -9,6 +9,7 @@ import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js'
 import { heatCfg, nearestCollector, nextLoopName, PIPE_COLORS, roomGrid } from './heating.js';
 import { floorHasCons, consLabel, restoreWalls, snapWalls, solveWalls, wallTopology } from './constraints.js';
 import { dropZeroWalls, FURNITURE, isFurniture, linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
+import { SOCKET_DEFAULTS } from './arei.js';
 import { attachTouch } from '../touch.js';
 import { contextMenu, keyHint } from '../ui/contextMenu.js';
 import { t } from '../i18n.js';
@@ -52,6 +53,7 @@ export const PLAN_PALETTE = [
   { key: 'stair', on: 'base', label: 'Trap', tool: 'stair', opts: { stair: 'straight' }, icon: ico('<rect x="12" y="3" width="16" height="34" stroke-width="1.6"/><path d="M12 10h16M12 16h16M12 22h16M12 28h16" stroke-width="1"/><path d="M20 34V6M16 10l4-4 4 4" stroke-width="1.4"/>') },
   { key: 'quarter', on: 'base', label: 'Kwartdraaitrap', tool: 'stair', opts: { stair: 'quarter' }, icon: ico('<path d="M4 4h32v12H16v20H4z" stroke-width="1.6"/><path d="M4 28h12M4 22h12M16 16L4 4M22 4v12M29 4v12" stroke-width="1"/><path d="M10 34V10h24M30 7l4 3-4 3" stroke-width="1.4"/>') },
   { key: 'spiral', on: 'base', label: 'Wenteltrap', tool: 'spiral', icon: ico('<circle cx="20" cy="20" r="16" stroke-width="1.6"/><circle cx="20" cy="20" r="3" stroke-width="1.2"/><path d="M20 17V4M23 20h13M20 23v13M17 20H4M22 18l9-9M22 22l9 9M18 22l-9 9M18 18 9 9" stroke-width="1"/>') },
+  { key: 'floorpass', on: 'base', label: 'Vloerdoorvoer', tool: 'stair', opts: { stair: 'floorpass' }, icon: ico('<rect x="10" y="10" width="20" height="20" stroke-width="1.8"/><path d="M10 10l20 20M30 10 10 30" stroke-width="1"/><path d="M20 2v6M17 5l3-3 3 3M20 32v6M17 35l3 3 3-3" stroke-width="1.3"/>') },
   { key: 'tall', on: 'base', label: 'Hoge kast', tool: 'stair', opts: { stair: 'tall' }, icon: ico('<rect x="11" y="5" width="18" height="30" stroke-width="1.8"/><path d="M11 5 29 35M29 5 11 35" stroke-width="1.1"/>') },
   { key: 'counter', on: 'base', label: 'Aanrecht', tool: 'stair', opts: { stair: 'counter' }, icon: ico('<rect x="3" y="13" width="34" height="14" stroke-width="1.8"/><path d="M3 24.5h34M3 13l34 11.5" stroke-width="1.1"/>') },
   { key: 'flat', on: 'base', label: 'Plat dak', tool: 'stair', opts: { stair: 'flat' }, icon: ico('<rect x="3" y="8" width="34" height="24" stroke-width="1.8"/><path d="M3 18 13 8M3 28 23 8M9 32 33 8M19 32 37 14M29 32 37 24" stroke-width=".7"/><path d="M20 13v14M16.5 23.5 20 27l3.5-3.5" stroke-width="1.6"/>') },
@@ -733,6 +735,15 @@ export class PlanEditor {
       let x0 = Math.min(d.start[0], d.cur[0]), y0 = Math.min(d.start[1], d.cur[1]);
       let w = Math.abs(d.cur[0] - d.start[0]), h = Math.abs(d.cur[1] - d.start[1]);
       const quarter = this.stairKind === 'quarter';
+      if (this.stairKind === 'floorpass') {
+        // floor passage: the box as drawn, or a click = 40 × 40 cm centred on the click
+        if (w < 10 || h < 10) { [w, h] = [40, 40]; [x0, y0] = [r2(d.start[0] - 20), r2(d.start[1] - 20)]; }
+        const st = { id: uid('st'), kind: 'floorpass', x: x0, y: y0, w, h, rot: 0 };
+        this.app.mutate(() => this.floor.stairs.push(st));
+        this.app.select(['S:' + st.id]);
+        this.setTool('select');
+        return;
+      }
       if (FURNITURE[this.stairKind]) {
         // furniture: the box as drawn, or a click = its usual size centred on the click
         const def = FURNITURE[this.stairKind];
@@ -1199,7 +1210,8 @@ export class PlanEditor {
     const pl = this.placement(def, raw, e);
     const disc = this.app.disc;
     if (!disc) return;
-    const s = { id: uid('a'), sym, x: pl.x, y: pl.y, rot: pl.rot, circuit: disc === 'elec' ? this.activeCircuit || '' : '', props: {} };
+    // a new socket stores its child protection (on by default), so later defaults never change it
+    const s = { id: uid('a'), sym, x: pl.x, y: pl.y, rot: pl.rot, circuit: disc === 'elec' ? this.activeCircuit || '' : '', props: sym === 'arei/socket' ? { child: SOCKET_DEFAULTS.child } : {} };
     if (symDisc({ sym }, def) !== disc) s.disc = disc; // an own symbol placed on e.g. the CV plan belongs there
     this.app.mutate(() => {
       if (s.circuit) s.n = nextNumber(this.b, s.circuit);

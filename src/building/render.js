@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, isDivider, isFixture, isFurniture, isRoof, MEDIA, planMedia, planTitle, projectOnWall, symDisc, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isDivider, isFixture, isFloorPass, floorPassMedia, isFurniture, isRoof, MEDIA, planMedia, planTitle, projectOnWall, symDisc, wallGeom, wallPath } from './model.js';
 import { consError, consLabel, hasCons } from './constraints.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
@@ -153,6 +153,12 @@ const arrowHead = (tip, dir, size, sw) => {
  * Stairs of the floor below that come up on this floor (shown dashed with the arrow reversed), unless the
  * same stair is drawn here too or its link is 'none' / 'down'. Cabinets stay on their own floor.
  */
+/** Floor passages of the floor below: they come through this floor too (drawn dashed). */
+export function floorPassesFromBelow(b, floorIdx) {
+  const below = b.floors[floorIdx - 1];
+  return below ? (below.stairs || []).filter(isFloorPass) : [];
+}
+
 export function stairsFromBelow(b, floorIdx) {
   const below = b.floors[floorIdx - 1], here = b.floors[floorIdx];
   if (!below || !here) return [];
@@ -198,6 +204,7 @@ function stairSvg(st, sw, sel, ghost = false) {
   let s = `${head} transform="translate(${st.x} ${st.y}) rotate(${st.rot || 0})">`;
   if (isRoof(st)) return s + roofSvg(st, sw) + `<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/></g>`;
   if (isFurniture(st)) return s + furnSvg(st, sw) + `<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/></g>`;
+  if (isFloorPass(st)) return s + floorPassSvg(st, sw, ghost) + hit(`<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/>`) + '</g>';
   if (st.kind === 'tall' || st.kind === 'counter') {
     // tall cabinet: box with a cross; counter: box with one diagonal and the worktop's front edge
     const W = st.w, H = st.h;
@@ -328,6 +335,21 @@ function furnSvg(st, sw) {
     s += `<text x="${W / 2}" y="${H / 2}" font-size="${fs}" text-anchor="middle" dominant-baseline="central" style="font-family:sans-serif;fill:#333;stroke:#fff;stroke-width:${r2(fs / 5)};paint-order:stroke">${esc(st.label)}</text>`;
   }
   return s + '</g>';
+}
+
+/** Floor passage: box with both diagonals and the media it carries; dashed on the floor above. */
+function floorPassSvg(st, sw, ghost) {
+  const W = st.w, H = st.h;
+  const dash = ghost ? ` stroke-dasharray="${r2(sw * 6)} ${r2(sw * 4)}"` : '';
+  let s = `<rect class="floorpass${ghost ? ' ghost' : ''}" x="0" y="0" width="${W}" height="${H}" style="stroke-width:${sw * 1.4}"${dash}/>`;
+  s += line([0, 0], [W, H], sw * 0.8, dash) + line([W, 0], [0, H], sw * 0.8, dash);
+  const tag = { elec: 'E', cv: 'CV', water: 'W', drain: 'A', vent: 'V' };
+  const text = st.label || floorPassMedia(st).map((m) => tag[m] || m).join(' ');
+  if (text) {
+    const fs = r2(Math.max(4, Math.min(10, Math.min(W, H) * 0.3, (W * 1.6) / Math.max(1, text.length))));
+    s += `<text x="${r2(W / 2)}" y="${r2(-fs * 0.7)}" font-size="${fs}" text-anchor="middle" style="font-family:sans-serif;fill:#333;stroke:#fff;stroke-width:${r2(fs / 5)};paint-order:stroke">${esc(text)}${ghost ? ' ↓' : ''}</text>`;
+  }
+  return s;
 }
 
 /**
@@ -721,6 +743,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   // underfloor heating pipes (floor heating plan): above the door gaps, under the stairs and symbols
   for (const sh of floor.shapes || []) if (sh.type === 'pipe' && note(sh)) s += pipeSvg(sh, k, sw, sel.has('P:' + sh.id), opts);
   for (const st of stairsFromBelow(b, floorIdx)) s += stairSvg(st, sw, false, true);
+  for (const st of floorPassesFromBelow(b, floorIdx)) s += stairSvg(st, sw, false, true);
   for (const st of floor.stairs) if (!(b.hideFurn && isFurniture(st))) s += stairSvg(st, sw, sel.has('S:' + st.id));
   for (const sh of floor.shapes || []) if (sh.type === 'line' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   for (const d of floor.dims || []) if (note(d)) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
@@ -840,7 +863,7 @@ function pipeSvg(sh, k, sw, sel, opts) {
 
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
-.plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}.plan .roofarrow{fill:#222;stroke:none}.plan .furn line,.plan .furn rect,.plan .furn ellipse,.plan .furn polygon,.plan .furn polyline{stroke:#4b5563}.plan .furnbox{fill:#fff}.plan .furnin{fill:none}.plan .furntx{font-family:sans-serif;fill:#4b5563;stroke:none}.plan .rooftx{font-family:sans-serif;fill:#333;stroke:#fff;paint-order:stroke}
+.plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}.plan .roofarrow{fill:#222;stroke:none}.plan .floorpass{fill:#fff}.plan .floorpass.ghost{fill:none}.plan .furn line,.plan .furn rect,.plan .furn ellipse,.plan .furn polygon,.plan .furn polyline{stroke:#4b5563}.plan .furnbox{fill:#fff}.plan .furnin{fill:none}.plan .furntx{font-family:sans-serif;fill:#4b5563;stroke:none}.plan .rooftx{font-family:sans-serif;fill:#333;stroke:#fff;paint-order:stroke}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
 .plan.under .walloutline polygon{fill:#9aa1aa;stroke:#9aa1aa}.plan.under .wall{fill:#d5d8dc}.plan.under .wall.inner{fill:#e2e4e7}.plan.under .proom{opacity:.45}.plan.under .stair,.plan.under .opening:not(:has(.passage)),.plan.under .divider{opacity:.55}
 .plan .ppipel{fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .ppipe.sel .ppipel{filter:drop-shadow(0 0 1.5px #1f6feb)}.plan .pheatbox{fill:#fff;stroke:#c92a2a;stroke-width:.3}.plan .pheattx{fill:#c92a2a;font-weight:bold;dominant-baseline:central}
