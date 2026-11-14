@@ -11,6 +11,7 @@
 import { t } from '../i18n.js';
 import { newPage } from '../model.js';
 import { uid } from '../util.js';
+import { geometry } from '../symbols/geom.js';
 import { circuitSymbols, colorChannels, domAddress, domKey, treeChildren, treeNode, rootBoards } from './model.js';
 
 const MAIN_Y = 222; // main busbar
@@ -53,7 +54,11 @@ export function buildBranches(building, lib, circuit) {
   const addr = (s) => { const a = domAddress(building, s); return a && colorChannels(s) ? `${a} ${s.props.ledType.toUpperCase()}` : a; };
   const branchOf = (s, def, relay) => {
     const kind = def?.kind;
-    if (kind === 'socket' || (kind === 'appliance' && !def.box)) return { type: 'sockets', sym: s.sym, qty: Math.max(1, parseInt(s.props?.qty, 10) || 1), units: def.units || 1, relay };
+    if (kind === 'socket' || (kind === 'appliance' && !def.box)) {
+      // a flexible symbol (the socket) carries its options in props: draw it with the same ones
+      const props = def.build ? { ...(def.props || {}), ...(s.props || {}) } : null;
+      return { type: 'sockets', sym: s.sym, props, qty: Math.max(1, parseInt(s.props?.qty, 10) || 1), units: (def.build ? geometry(def, s).units : def.units) || 1, relay };
+    }
     if (def?.box) return { type: 'box', sym: s.sym, relay };
     return { type: 'single', sym: s.sym, relay };
   };
@@ -271,9 +276,9 @@ function builder(project, lib, board, title) {
   const b = project.building;
   const pages = [];
   let page, x;
-  const comp = (sym, px, py, rot = 0) => {
+  const comp = (sym, px, py, rot = 0, props = null) => {
     const def = lib.get(sym);
-    const c = { id: uid('c'), sym, x: px, y: py, rot, mirror: false, props: { ...(def?.props || {}) }, autoTag: false, tag: '', gen: true };
+    const c = { id: uid('c'), sym, x: px, y: py, rot, mirror: false, props: { ...(def?.props || {}), ...(props || {}) }, autoTag: false, tag: '', gen: true };
     page.comps.push(c);
     return c;
   };
@@ -372,7 +377,7 @@ function builder(project, lib, board, title) {
       const starts = [];
       for (let k = 0, bx = px; k < br.qty; k++, bx += len + 1.5) starts.push(bx);
       wire([lx, y], [starts[starts.length - 1], y]);
-      for (const s of starts) comp(br.sym, s + pinY, y, 90);
+      for (const s of starts) comp(br.sym, s + pinY, y, 90, br.props);
     } else if (br.type === 'group') {
       drawSeq(seqLayout(br.items, lib, lx, true), y);
     } else if (br.type === 'dc') {

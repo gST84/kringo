@@ -4,6 +4,8 @@
 //   kind: light | socket | switch | push | dom-in | dom-out | board | pv | inverter | battery | data | patch | other
 //   wall: true when the symbol is mounted against a wall (auto-rotates when placed near one)
 
+import { t } from '../i18n.js';
+
 const L = (x1, y1, x2, y2, o) => ({ t: 'line', x1, y1, x2, y2, ...o });
 const R = (x, y, w, h, o) => ({ t: 'rect', x, y, w, h, ...o });
 const C = (cx, cy, r, o) => ({ t: 'circle', cx, cy, r, ...o });
@@ -56,6 +58,43 @@ const lever = (sx, sy, poles = 1) => {
 };
 const switchBase = (poles = 1) => [C(0, 0, 1.1, WHITE), ...lever(1, -1, poles)];
 
+/** Options of the flexible socket: number of sockets in the box, earth, child protection, mark (IP44, 3F …). */
+export const SOCKET_DEFAULTS = { units: 1, earth: true, child: false, mark: '' };
+export const SOCKET_MARKS = [['', 'Geen'], ['IP', 'IP44 (buiten / natte ruimte)'], ['3F', 'Krachtstopcontact 3F'], ['USB', 'Met USB-lader']];
+const socketProps = (p = {}) => {
+  const o = { ...SOCKET_DEFAULTS, ...p };
+  o.units = Math.max(1, Math.min(6, parseInt(o.units, 10) || 1));
+  o.earth = o.earth !== false && o.earth !== 'false';
+  o.child = o.child === true || o.child === 'true';
+  return o;
+};
+const socketGraphics = (p) => [...socketBase(p.units, p), ...(p.mark ? [T(0, socketTop(p.units), p.mark, p.mark.length > 2 ? 1.1 : 1.3)] : [])];
+const MULTI = ['Stopcontact', 'Stopcontact', 'Dubbel stopcontact', 'Drievoudig stopcontact', 'Viervoudig stopcontact', 'Vijfvoudig stopcontact', 'Zesvoudig stopcontact'];
+/** Descriptive name of a socket with these options, e.g. "Dubbel stopcontact met aarding en kinderbescherming". */
+export function socketName(props) {
+  const p = socketProps(props);
+  const opts = p.earth ? (p.child ? 'met aarding en kinderbescherming' : 'met aarding') : (p.child ? 'zonder aarding, met kinderbescherming' : 'zonder aarding');
+  const mark = SOCKET_MARKS.find(([k]) => k && k === p.mark)?.[1];
+  return `${t(MULTI[p.units])} ${t(opts)}${mark ? ` – ${t(mark)}` : ''}`;
+}
+function buildSocket(props) {
+  const p = socketProps(props);
+  return { graphics: socketGraphics(p), units: p.units, name: socketName(p) };
+}
+/** Fixed socket symbols of before 0.97 → the options of the flexible socket. */
+export const LEGACY_SOCKETS = {
+  'socket-plain': ['Stopcontact zonder aarding', { earth: false }],
+  'socket-child': ['Stopcontact met aarding en kinderbescherming', { child: true }],
+  'socket2-child': ['Dubbel stopcontact met kinderbescherming', { units: 2, child: true }],
+  'socket3-child': ['Drievoudig stopcontact met kinderbescherming', { units: 3, child: true }],
+  'socket4-child': ['Viervoudig stopcontact met kinderbescherming', { units: 4, child: true }],
+  socket2: ['Dubbel stopcontact', { units: 2 }],
+  socket3: ['Drievoudig stopcontact', { units: 3 }],
+  socket4: ['Viervoudig stopcontact', { units: 4 }],
+  'socket-ext': ['Stopcontact buiten (IP44)', { mark: 'IP' }],
+  'socket-3p': ['Krachtstopcontact 3F', { mark: '3F' }],
+};
+
 const F = (sub) => 'AREI/' + sub;
 const def = (id, name, folder, kind, graphics, o = {}) => ({
   id: 'arei/' + id, name, folder: F(folder), kind, role: 'device', prefix: o.prefix || 'E', arei: true,
@@ -81,18 +120,15 @@ export const AREI = [
   def('light-out', 'Buitenverlichting', 'Verlichting', 'light', [...lampX(), C(0, 0, 3.3)], { pinY: 3.3, wall: true }),
   def('emergency', 'Noodverlichting', 'Verlichting', 'light', [...lampX(), L(-3.4, 3.2, 3.4, 3.2, { w: 0.5 })], { pinY: 3.2 }),
 
-  // Stopcontacten
-  socketDef('socket-plain', 'Stopcontact zonder aarding', 1, '', { earth: false }),
-  socketDef('socket', 'Stopcontact met aarding', 1),
-  socketDef('socket-child', 'Stopcontact met aarding en kinderbescherming', 1, '', { child: true }),
-  socketDef('socket2-child', 'Dubbel stopcontact met kinderbescherming', 2, '', { child: true }),
-  socketDef('socket3-child', 'Drievoudig stopcontact met kinderbescherming', 3, '', { child: true }),
-  socketDef('socket4-child', 'Viervoudig stopcontact met kinderbescherming', 4, '', { child: true }),
-  socketDef('socket2', 'Dubbel stopcontact', 2),
-  socketDef('socket3', 'Drievoudig stopcontact', 3),
-  socketDef('socket4', 'Viervoudig stopcontact', 4),
-  def('socket-ext', 'Stopcontact buiten (IP44)', 'Stopcontacten', 'socket', [...socketBase(1), T(0, socketTop(1), 'IP', 1.3)], { wall: true, prefix: 'X', extra: { units: 1 } }),
-  def('socket-3p', 'Krachtstopcontact 3F', 'Stopcontacten', 'socket', [...socketBase(1), T(0, socketTop(1), '3F', 1.3)], { wall: true, prefix: 'X', extra: { units: 1 } }),
+  // Stopcontacten: one flexible symbol (number of sockets, earth, child protection, mark); the fixed
+  // variants of before 0.97 are hidden and turned into it on load (LEGACY_SOCKETS)
+  {
+    ...def('socket', 'Stopcontact', 'Stopcontacten', 'socket', socketBase(1), { wall: true, prefix: 'X', extra: { units: 1 } }),
+    props: { ...SOCKET_DEFAULTS }, build: buildSocket,
+  },
+  ...Object.entries(LEGACY_SOCKETS).map(([id, [name, p]]) => ({
+    ...def(id, name, 'Stopcontacten', 'socket', socketGraphics({ ...SOCKET_DEFAULTS, ...p }), { wall: true, prefix: 'X', extra: { units: p.units || 1, hidden: true } }),
+  })),
 
   // Toestellen (symbolen volgens de AREI-legende)
   boxDef('dryer', 'Droogkast', box(C(-0.9, -1.4, 0.9), C(0.9, -1.4, 0.9), C(0, 1.4, 0.6, INK))),

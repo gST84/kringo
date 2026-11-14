@@ -576,3 +576,4 @@ body.simulating #canvas { box-shadow: inset 0 0 0 3px #22c55e; }
 .pagelist h4.dischead .link { font-weight: normal; font-size: 12px; }
 .btnrow.wrap { flex-wrap: wrap; }
 button.ghost { opacity: .7; border-style: dashed; }
+.chips.heatrooms { gap: 4px 14px; margin: 6px 0 8px; }

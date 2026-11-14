@@ -87,6 +87,13 @@ Alle tekentools staan links onder **Grondplan** (op de plattegrond).
 
 - **Trap** en **Kwartdraaitrap**: sleep een rechthoek (of klik voor een standaardmaat). **Wenteltrap**: sleep vanuit het midden.
 - Bolletjes aan de rand maken de trap groter of kleiner; de **draaischijf** in de eigenschappen draait hem rond zijn midden (sleep de wijzer, per 15°; Shift = per graad).
+- Bij het genereren van de vloerverwarming gaan de buizen rond de trap, niet eronder (ook bij een kwartdraai- of wenteltrap). Vink **Vloerverwarming eronder** aan in de eigenschappen als er toch buizen onder moeten.
+
+### Kasten en aanrecht
+
+- **Hoge kast** (rechthoek met een kruis) en **Aanrecht** (rechthoek met een diagonaal en een dubbele lijn aan de voorkant): sleep een rechthoek, of klik voor een standaardmaat (hoge kast 60 × 60 cm, aanrecht 240 × 60 cm).
+- In de eigenschappen: soort, lengte, diepte, een **opschrift** (bv. koelkast, oven, spoelbak), de draaischijf en **Omdraaien** (voorkant naar de andere kant). De blokjes aan de rand maken de kast langer of dieper; R draait 90°.
+- Bij het genereren van de vloerverwarming komen er geen buizen onder kasten en aanrechten, tenzij je **Vloerverwarming eronder** aanvinkt.
 
 ### Maten, vlakken en aantekeningen
 
@@ -118,6 +125,7 @@ Open **Kringen** bovenaan. Je bouwt er de boom: *verdeelbord → differentieel �
 - Kies in de werkbalk de **actieve kring** (bv. *Kring A*). Nieuwe symbolen komen in die kring en krijgen een volgnummer: A1, A2 …
 - Klik een symbool in het paneel en klik op het plan (of sleep het naar het plan). Wandsymbolen draaien vanzelf tegen de dichtstbijzijnde muur; `Alt` = vrij plaatsen.
 - In de eigenschappen: kring, volgnummer, ruimte, omschrijving, montagehoogte, vermogen …
+- **Stopcontact**: één symbool voor alle soorten. In de eigenschappen kies je het **aantal stopcontacten** in de doos (enkel tot 6×), **aarding**, **kinderbescherming** en een **opschrift** (IP44 voor buiten / natte ruimtes, 3F voor een krachtstopcontact, USB). Het symbool op het plan en in het eendraadschema past zich aan. Stopcontacten uit oudere projecten worden bij het openen omgezet.
 
 ### Koppelen
 
@@ -303,7 +311,17 @@ Het AREI (Boek 1, 2.10) vraagt de **uitwendige invloeden** per ruimte: omgevings
 
 ### I. Vloerverwarming
 
-Vloerverwarming teken je zelf op het **CV**-plan van een verdieping (Bladen › CV › ＋ plan). De ruimtes duid je eerst aan op de plattegrond (zie G).
+Vloerverwarming laat je **genereren** voor een hele verdieping, of je tekent de kringen zelf op het **CV**-plan (Bladen › CV › ＋ plan). De ruimtes duid je eerst aan op de plattegrond (zie G).
+
+**Genereren**
+
+1. Zet een **Collector vloerverwarming** op de verdieping (tegen een muur van een verwarmde ruimte).
+2. Open het venster **Vloerverwarming** (bovenaan, of **♨ Genereren…** in het paneel van het CV-plan). Vink de ruimtes aan die vloerverwarming krijgen (standaard allemaal; ook in de eigenschappen van een ruimte) en klik **Kringen genereren**.
+3. Kringo verdeelt de vloer in kringen die elk binnen de **maximale lengte** blijven en legt ze als tegenstroomspiraal op de **legafstand** van de ruimte. De hele vloer wordt bedekt: de aanvoerleidingen naar verder gelegen ruimtes maken deel uit van hun kring en verwarmen de vloer waar ze passeren. Leidingen gaan door **deuren**, **muurdoorvoeren CV** en **ruimteverdelers**; in een deur en bij de collector liggen ze dichter bij elkaar.
+4. Het venster meldt wat niet lukt: een ruimte zonder doorgang naar de collector, een kring die te lang blijft, meer kringen dan uitgangen. Met meerdere collectoren op een verdieping krijgt elke ruimte de dichtstbijzijnde.
+5. De kringen zijn gewone buizen: klik er een aan om naam, kleur of punten aan te passen. **Opnieuw genereren** vervangt de gegenereerde kringen van die verdieping; zelf getekende buizen blijven staan. **Ctrl+Z** maakt het genereren ongedaan.
+
+**Zelf tekenen**
 
 Symbolen per type: op **CV** de CV-ketel, collector, radiator, convector en ventiloconvector; op **Sanitair** tappunten koud / warm water, watermeter en warmwaterboiler; op **Afvoer** afvoerpunt en vloerputje; op **Ventilatie** de ventilatie-unit en de toevoer- en afvoerventielen.
 

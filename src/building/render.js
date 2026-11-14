@@ -172,6 +172,18 @@ function stairSvg(st, sw, sel) {
     return s + `<circle class="hit" cx="0" cy="0" r="${r}"/></g>`;
   }
   let s = `<g class="stair${sel ? ' sel' : ''}" data-k="S:${st.id}" transform="translate(${st.x} ${st.y}) rotate(${st.rot || 0})">`;
+  if (st.kind === 'tall' || st.kind === 'counter') {
+    // tall cabinet: box with a cross; counter: box with one diagonal and the worktop's front edge
+    const W = st.w, H = st.h;
+    s += `<rect x="0" y="0" width="${W}" height="${H}" class="stairbox" style="stroke-width:${sw}"/>`;
+    if (st.kind === 'tall') s += line([0, 0], [W, H], sw * 0.7) + line([W, 0], [0, H], sw * 0.7);
+    else s += line([0, H - Math.min(4, H * 0.1)], [W, H - Math.min(4, H * 0.1)], sw * 0.5) + line([0, 0], [W, H - Math.min(4, H * 0.1)], sw * 0.5);
+    if (st.label) {
+      const fs = r2(Math.max(4, Math.min(12, H * 0.3, (W * 1.6) / Math.max(1, st.label.length))));
+      s += `<text x="${W / 2}" y="${H / 2}" font-size="${fs}" text-anchor="middle" dominant-baseline="central" style="font-family:sans-serif;fill:#333;stroke:#fff;stroke-width:${r2(fs / 5)};paint-order:stroke">${esc(st.label)}</text>`;
+    }
+    return s + `<rect class="hit" x="0" y="0" width="${W}" height="${H}"/></g>`;
+  }
   if (st.kind === 'quarter') {
     const W = st.w, H = st.h;
     const b = Math.min(st.b || 90, W - 10, H - 10);

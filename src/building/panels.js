@@ -4,14 +4,16 @@ import { clone, download, h, natCmp, safeName, toCsv } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, wallGeom } from './model.js';
+import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, isCabinet, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
 import { dimGeom, hasLeaf, OPENING_TYPES, pathLength, traceColor } from './render.js';
 import { loadBackground } from './background.js';
 import { HVAC_ROOT, isHydronic } from './hvac.js';
-import { allPipes, collectorNames, heatCfg, HEAT_DEFAULTS, PIPE_COLORS, pipeLength, pipeRoom, roomHeat } from './heating.js';
+import { SOCKET_DEFAULTS, SOCKET_MARKS } from './arei.js';
+import { geometry } from '../symbols/geom.js';
+import { allPipes, clearGenerated, collectorNames, generateFloorHeating, heatCfg, HEAT_DEFAULTS, PIPE_COLORS, pipeLength, pipeRoom, roomHeat } from './heating.js';
 import { DISCS, MEDIA, newPlan, planTitle, plansOf, symDisc } from './model.js';
 import { alignItems, alignSelection, ALIGN_MODES } from './align.js';
 
@@ -305,16 +307,29 @@ export function buildingProps(app, plan) {
     if (!st) return [];
     const num = (label, k, key, round) => field(label, inp(st[k], (v) => set(() => { if (v > 0 || v === 0) st[k] = round ? Math.round(v) : v; }), { type: 'number', key }));
     const del = h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen');
+    if (isCabinet(st)) {
+      return [section(CABINETS[st.kind],
+        field('Soort', sel(st.kind, Object.entries(CABINETS), (v) => set(() => { st.kind = v; }), 'ckind')),
+        h('div', { class: 'grid2' }, num('Lengte (cm)', 'w', 'cw'), num('Diepte (cm)', 'h', 'ch')),
+        field('Opschrift', inp(st.label, (v) => set(() => { if (v.trim()) st.label = v.trim(); else delete st.label; }), { key: 'clabel', placeholder: st.kind === 'tall' ? 'bv. koelkast, oven' : 'bv. spoelbak' })),
+        chk(st.heat, (v) => set(() => { if (v) st.heat = true; else delete st.heat; }), 'Vloerverwarming eronder', 'cheat'),
+        rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
+        h('div', { class: 'btnrow' },
+          h('button', { onclick: () => set(() => rotateStair(st, (st.rot || 0) + 180)) }, '⇅ Omdraaien'),
+          h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
+        h('p', { class: 'hint' }, 'Sleep de blokjes om de kast langer of dieper te maken. De voorkant is de onderste lange zijde (bij het aanrecht de zijde met de dubbele lijn). Zonder vinkje komen er geen gegenereerde vloerverwarmingsbuizen onder.'))];
+    }
     if (st.kind === 'spiral') {
       return [section('Wenteltrap',
         h('div', { class: 'grid2' },
           num('Straal (cm)', 'r', 'sr2'), num('Treden', 'steps', 'ss', true),
           num('Draaihoek (°)', 'turn', 'sturn', true)),
+        chk(st.heat, (v) => set(() => { if (v) st.heat = true; else delete st.heat; }), 'Vloerverwarming eronder', 'sheat'),
         rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
         h('div', { class: 'btnrow' },
           h('button', { onclick: () => set(() => { st.dir = st.dir === -1 ? 1 : -1; }) }, '↻ Draairichting'),
           h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
-        h('p', { class: 'hint' }, 'Sleep het ronde blokje om de straal te wijzigen.'))];
+        h('p', { class: 'hint' }, 'Sleep het ronde blokje om de straal te wijzigen. Zonder vinkje komen er geen gegenereerde vloerverwarmingsbuizen onder de trap.'))];
     }
     return [section(st.kind === 'quarter' ? 'Kwartdraaitrap' : 'Trap',
       field('Soort', sel(st.kind || 'straight', [['straight', 'Rechte trap'], ['quarter', 'Kwartdraaitrap']], (v) => set(() => {
@@ -324,11 +339,12 @@ export function buildingProps(app, plan) {
         num('Breedte (cm)', 'w', 'sw'), num('Lengte (cm)', 'h', 'sh'),
         st.kind === 'quarter' ? num('Trapbreedte (cm)', 'b', 'sb') : null,
         num('Treden', 'steps', 'ss', true)),
+      chk(st.heat, (v) => set(() => { if (v) st.heat = true; else delete st.heat; }), 'Vloerverwarming eronder', 'sheat'),
       rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
       h('div', { class: 'btnrow' },
         st.kind === 'quarter' ? h('button', { onclick: () => set(() => { st.mirror = !st.mirror; }) }, '⇋ Spiegelen') : null,
         h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
-      h('p', { class: 'hint' }, 'Sleep de blokjes om de trap groter of kleiner te maken.'))];
+      h('p', { class: 'hint' }, 'Sleep de blokjes om de trap groter of kleiner te maken. Zonder vinkje komen er geen gegenereerde vloerverwarmingsbuizen onder de trap.'))];
   }
   if (kind === 'D') {
     const d = f.dims.find((x) => x.id === id);
@@ -405,8 +421,9 @@ function symbolProps(app, plan, s) {
   const set = (fn) => app.mutate(fn);
   const setProp = (k) => (v) => set(() => { s.props[k] = v; });
   const head = h('div', { class: 'comphead' });
-  if (def) head.innerHTML = symbolPreviewSvg(def, 40);
-  head.append(h('div', null, h('b', null, def?.name || 'Symbool'), h('small', null, (def?.folder || '').replace('AREI/', 'AREI · '))));
+  const look = def?.build ? { ...geometry(def, s), props: { ...(def.props || {}), ...s.props }, build: undefined } : def;
+  if (def) head.innerHTML = symbolPreviewSvg(look, 40);
+  head.append(h('div', null, h('b', null, look?.name || 'Symbool'), h('small', null, (def?.folder || '').replace('AREI/', 'AREI · '))));
   const extra = [];
   const kind = def?.kind;
   const strip = def?.strip && s.pts;
@@ -420,6 +437,16 @@ function symbolProps(app, plan, s) {
         field('Type', sel(s.props.ledType || '', Object.entries(LED_TYPES).map(([k, v]) => [k, v]), setProp('ledType'), 'ledtype')),
         field('Spanning', sel(s.props.volt || '24', [['24', '24 V DC'], ['12', '12 V DC'], ['230', '230 V AC']], setProp('volt'), 'volt'))));
   } else if (kind === 'light' || kind === 'appliance' || kind === 'other') extra.push(field('Vermogen (W)', inp(s.props.power, setProp('power'), { type: 'number', key: 'pw' })));
+  if (def?.id === 'arei/socket') {
+    const p = { ...SOCKET_DEFAULTS, ...s.props };
+    extra.push(
+      h('div', { class: 'grid2' },
+        field('Aantal stopcontacten', sel(p.units, [1, 2, 3, 4, 5, 6].map((n) => [n, n === 1 ? t('Enkel') : String(n) + '×']), (v) => set(() => { s.props.units = +v; }), 'sunits')),
+        field('Opschrift', sel(p.mark, SOCKET_MARKS, setProp('mark'), 'smark'))),
+      h('div', { class: 'chips' },
+        chk(p.earth !== false, (v) => set(() => { s.props.earth = v; }), 'Aarding', 'searth'),
+        chk(!!p.child, (v) => set(() => { s.props.child = v; }), 'Kinderbescherming', 'schild')));
+  }
   if (kind === 'socket' || kind === 'appliance') extra.push(field('Aantal dozen op dit punt', inp(s.props.qty || 1, setProp('qty'), { type: 'number', key: 'qty' }), 'In het eendraadschema herhaald op dezelfde aftakking.'));
   if (PV_KINDS.includes(kind)) extra.push(
     field('Type / model', inp(s.props.model, setProp('model'), { key: 'model', placeholder: 'bv. SMA Sunny Tripower 5.0' })),
@@ -597,10 +624,10 @@ function floorProps(app, plan) {
           h('button', { onclick: () => cablesDialog(app) }, 'Kabels…'),
           h('button', { class: 'primary', onclick: () => generateDialog(app) }, 'Eendraadschema'))) : null,
       disc === 'cv' ? section('Vloerverwarming',
-        h('p', { class: 'hint' }, t('Teken de kringen met "Buis tekenen" (links, groep Vloerverwarming). Klik een ruimte aan voor haar legafstand en maximale lengte.')),
+        h('p', { class: 'hint' }, t('Laat de kringen genereren voor de hele verdieping, of teken ze zelf met "Buis tekenen" (links, groep Vloerverwarming). Klik een ruimte aan voor haar legafstand en maximale lengte.')),
         h('div', { class: 'btnrow' },
-          h('button', { class: 'primary', onclick: () => plan.setTool('pipe', { key: 'pipe' }) }, '✎ Buis tekenen'),
-          h('button', { onclick: () => heatingDialog(app) }, '♨ Overzicht…'))) : null,
+          h('button', { class: 'primary', onclick: () => heatingDialog(app) }, '♨ Genereren…'),
+          h('button', { onclick: () => plan.setTool('pipe', { key: 'pipe' }) }, '✎ Buis tekenen'))) : null,
       section('Sneltoetsen', h('p', { class: 'hint keys' },
         disc === 'elec' ? 'M maatlijn · L koppelen · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: niet tegen muur'
           : 'M maatlijn · R draaien · Del verwijderen · Ctrl+D dupliceren · Ctrl+Z / Y · F passend · Alt: niet tegen muur')),
@@ -717,11 +744,12 @@ function heatSection(app, r) {
   const cfg = heatCfg(b);
   const set = (fn) => app.mutate(() => { r.ufh ||= {}; fn(r.ufh); });
   return section('Vloerverwarming',
+    chk(r.ufh?.on !== false, (v) => set((u) => { u.on = v; }), 'Vloerverwarming in deze ruimte (voor het genereren)', 'ufhon'),
     h('div', { class: 'grid2' },
       field('Legafstand (cm)', inp(r.ufh?.spacing ?? '', (v) => set((u) => { u.spacing = v > 0 ? v : undefined; }), { type: 'number', key: 'ufhs', placeholder: String(cfg.spacing) })),
       field('Max. lengte kring (m)', inp(r.ufh?.maxLen ?? '', (v) => set((u) => { u.maxLen = v > 0 ? v : undefined; }), { type: 'number', key: 'ufhl', placeholder: String(cfg.maxLen) }))),
     h('p', { class: 'hint' }, t('Met "Buis tekenen" springen de punten in deze ruimte op een raster van de legafstand, vanaf {m} cm van de muur.', { m: cfg.margin })),
-    h('button', { onclick: () => heatingDialog(app) }, '♨ Overzicht kringen…'));
+    h('button', { onclick: () => heatingDialog(app) }, '♨ Genereren / overzicht…'));
 }
 
 /** Properties of a drawn heating pipe: name, manifold, colour, length (against the room's maximum). */
@@ -1322,10 +1350,32 @@ export function cablesDialog(app) {
 
 // ---------- heating ----------
 
-/** Underfloor heating: the drawn loops per manifold with their lengths, and the default settings. */
+/** Underfloor heating: generate the loops of the current floor, the loops per manifold with their lengths, the default settings. */
 export function heatingDialog(app) {
   const b = app.project.building;
   const body = h('div', { class: 'cables heating' });
+  let result = null; // of the last generation: { loops, length, warnings, ms }
+  /** Generates the loops of the current floor on its CV plan (made when there is none) and shows that plan. */
+  const run = () => {
+    const floor = app.floor;
+    let pl = app.disc === 'cv' && app.layer?.floor === floor.id ? app.layer : b.plans.find((p) => p.disc === 'cv' && p.floor === floor.id);
+    const t0 = performance.now();
+    app.mutate(() => {
+      if (!pl) { pl = newPlan(floor.id, 'cv'); b.plans.push(pl); }
+      result = generateFloorHeating(b, floor, app.lib, pl.id);
+    });
+    result.ms = Math.round(performance.now() - t0);
+    result.floor = floor.name;
+    if (app.layerId !== pl.id) app.setLayer(pl.id);
+    app.emit('change');
+    render();
+  };
+  const wipe = () => {
+    app.mutate(() => clearGenerated(app.floor));
+    result = null;
+    app.emit('change');
+    render();
+  };
   const m1 = (v) => `${(Math.round(v * 10) / 10).toFixed(1).replace('.', ',')} m`;
   const numIn = (value, commit) => {
     const el = h('input', { type: 'number', value: value ?? '', min: 0, step: 1, class: 'narrow' });
@@ -1350,8 +1400,22 @@ export function heatingDialog(app) {
     const list = rows();
     const groups = new Map();
     for (const r of list) { if (!groups.has(r.col)) groups.set(r.col, []); groups.get(r.col).push(r); }
+    const floor = app.floor;
+    const gen = (floor.shapes || []).filter((sh) => sh.type === 'pipe' && sh.gen).length;
     const parts = [
-      h('p', { class: 'hint' }, 'Teken de kringen zelf op het CV-plan met "Buis tekenen" (groep Vloerverwarming): klik de punten van de buis, van de collector door de ruimte en terug; dubbelklik, Enter of rechtermuisknop = klaar. In een ruimte springen de punten op een raster van de legafstand, vanaf de afstand tot de muur. De lengte staat bij de buis en hieronder.'),
+      h('h4', null, `${t('Genereren')} – ${floor.name}`),
+      h('p', { class: 'hint' }, t('Legt de kringen van deze verdieping vanaf de collector: de hele vloer van de aangevinkte ruimtes wordt bedekt op de legafstand, de aanvoerleidingen lopen door deuren, muurdoorvoeren CV en ruimteverdelers en verwarmen de vloer waar ze passeren. Eerder gegenereerde kringen van deze verdieping worden vervangen; zelf getekende buizen blijven staan. Ctrl+Z maakt het ongedaan.')),
+      (floor.rooms || []).length ? h('div', { class: 'chips heatrooms' }, floor.rooms.map((r) => {
+        const box = h('input', { type: 'checkbox', checked: r.ufh?.on !== false });
+        box.addEventListener('change', () => { app.mutate(() => { (r.ufh ||= {}).on = box.checked; }); });
+        return h('label', { class: 'check small' }, box, r.name || '?');
+      })) : h('p', { class: 'warn' }, t('Geen ruimtes met vloerverwarming op deze verdieping (duid eerst de ruimtes aan op de plattegrond).')),
+      h('div', { class: 'btnrow' },
+        h('button', { class: 'primary', onclick: run }, gen ? t('♨ Opnieuw genereren') : t('♨ Kringen genereren')),
+        gen ? h('button', { onclick: wipe }, t('Gegenereerde kringen wissen ({n})', { n: gen })) : null),
+      result ? h('p', { class: 'hint' }, h('b', null, t('{f}: {n} kring(en), {l} buis gegenereerd.', { f: result.floor, n: result.loops, l: m1(result.length) }))) : null,
+      ...(result?.warnings || []).map((w) => h('p', { class: 'warn' }, '⚠ ' + w)),
+      h('p', { class: 'hint' }, 'Zelf tekenen kan met "Buis tekenen" op het CV-plan (groep Vloerverwarming): klik de punten van de buis, van de collector door de ruimte en terug; dubbelklik, Enter of rechtermuisknop = klaar. Een gegenereerde kring pas je aan door zijn punten te verslepen.'),
       h('h4', null, t('Standaard')),
       h('div', { class: 'cablegrid' },
         h('label', { class: 'tf' }, h('span', null, t('Legafstand (cm)')), numIn(cfg.spacing, (v) => { (b.heatCfg ||= {}).spacing = v || HEAT_DEFAULTS.spacing; })),
@@ -1359,7 +1423,7 @@ export function heatingDialog(app) {
         h('label', { class: 'tf' }, h('span', null, t('Afstand tot de muur (cm)')), numIn(cfg.margin, (v) => { (b.heatCfg ||= {}).margin = v >= 0 ? v : HEAT_DEFAULTS.margin; }))),
       h('p', { class: 'hint' }, 'Per ruimte kun je een eigen legafstand en maximale lengte instellen in de eigenschappen van de ruimte.'),
     ];
-    if (!list.length) parts.push(h('p', { class: 'hint' }, t('Nog geen kringen getekend.')));
+    if (!list.length) parts.push(h('p', { class: 'hint' }, t('Nog geen kringen.')));
     for (const [col, items] of groups) {
       const total = items.reduce((a, r) => a + r.len, 0);
       const outlets = +[...b.floors].flatMap((fl) => fl.symbols).find((s) => s.id === items[0].sh.collector)?.props?.outlets || 0;

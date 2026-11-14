@@ -37,7 +37,7 @@ boot({
     btn('Domotica', 'Domotica-modules en hun kanalen', () => domoticsDialog(app)),
     btn('Invloeden', 'Uitwendige invloeden per ruimte: tabel, CSV en blad', () => influencesDialog(app)),
     btn('Kabels', 'Kabeltrace op het grondplan en kabellengtes per type', () => cablesDialog(app)),
-    btn('Vloerverwarming', 'Getekende vloerverwarmingskringen per collector met hun lengte', () => heatingDialog(app)),
+    btn('Vloerverwarming', 'Vloerverwarming genereren voor de verdieping; kringen per collector met hun lengte', () => heatingDialog(app)),
     btn('Eendraadschema', 'Eendraadschema genereren uit de plattegronden', () => generateDialog(app)),
   ],
   // floor plans and single-line sheets in one list, grouped
@@ -128,6 +128,7 @@ boot({
       wall: 'Klik punten om muren te tekenen · typ een lengte in cm + Enter · klik op het beginpunt of dubbelklik / Esc = einde · Alt = vrij',
       opening: 'Klik op een muur om de opening te plaatsen · kant van de muis = draairichting',
       stair: 'Sleep een rechthoek voor de trap · klik = standaardmaat',
+      cabinet: 'Sleep een rechthoek voor de kast of het aanrecht · klik = standaardmaat (hoge kast 60 × 60, aanrecht 240 × 60 cm) · R = draaien',
       spiral: 'Sleep van het midden naar buiten voor de wenteltrap · klik = straal 100 cm',
       arcwall: 'Klik het beginpunt, dan het eindpunt, dan een punt op de boog · Esc = stoppen',
       dim: 'Klik twee meetpunten (vangt muurhoeken), dan de plaats van de maatlijn · Alt = vrij',
@@ -146,6 +147,8 @@ boot({
       pan: 'Sleep om te verschuiven',
     };
 
+    const hintKey = (tool) => plan.toolKey?.startsWith('passage') ? 'passage' : plan.toolKey === 'tall' || plan.toolKey === 'counter' ? 'cabinet' : tool;
+
     // left panel: drawing tools, floors, symbols
     const left = h('div', { id: 'building-left', class: 'kind-building' });
     $('#left').append(left);
@@ -154,12 +157,12 @@ boot({
     ctx.floorLbl = floorLbl;
     app.on('change', syncTrace);
     app.on('mode', (m) => {
-      if (m === 'building') hintEl.textContent = PLAN_HINTS[plan.toolKey?.startsWith('passage') ? 'passage' : plan.tool] || '';
+      if (m === 'building') hintEl.textContent = PLAN_HINTS[hintKey(plan.tool)] || '';
       fillCircuits();
     });
     app.on('planTool', (t) => {
       for (const [k, b] of planBtns) b.classList.toggle('active', k === plan.toolKey);
-      if (app.mode === 'building') hintEl.textContent = PLAN_HINTS[plan.toolKey?.startsWith('passage') ? 'passage' : t] || '';
+      if (app.mode === 'building') hintEl.textContent = PLAN_HINTS[hintKey(t)] || '';
     });
     app.on('planToast', (msg) => toast(msg));
     app.on('planRequestRoom', async (data) => {

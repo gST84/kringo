@@ -1,4 +1,5 @@
 // Building data model: floors (plans in centimetres), boards with residual current devices and circuits.
+import { LEGACY_SOCKETS, SOCKET_DEFAULTS } from './arei.js';
 import { uid } from '../util.js';
 import { t } from '../i18n.js';
 import { HVAC_DISC } from './hvac.js';
@@ -151,6 +152,11 @@ export function normalizeBuilding(b) {
   b.floors ||= [];
   if (!b.floors.length) b.floors.push(newFloor());
   for (const f of b.floors) { f.walls ||= []; f.openings ||= []; f.stairs ||= []; f.texts ||= []; f.symbols ||= []; f.links ||= []; f.dims ||= []; f.shapes ||= []; f.rooms ||= []; f.bg ||= null; }
+  // fixed socket variants of before 0.97 → the flexible socket with options
+  for (const f of b.floors) for (const sy of f.symbols) {
+    const legacy = LEGACY_SOCKETS[String(sy.sym).replace('arei/', '')];
+    if (String(sy.sym).startsWith('arei/') && legacy) { sy.sym = 'arei/socket'; sy.props = { ...SOCKET_DEFAULTS, ...legacy[1], ...(sy.props || {}) }; }
+  }
   b.boards ||= d.boards;
   if (!b.boards.length) b.boards.push(newBoard());
   b.rcds ||= [];
@@ -371,6 +377,10 @@ export function wallPath(w, t0, t1, off, g = wallGeom(w)) {
   }
   return out;
 }
+
+/** Fitted furniture kept in floor.stairs (same box, handles, rotation): tall cabinet, kitchen counter. */
+export const CABINETS = { tall: 'Hoge kast', counter: 'Aanrecht' };
+export const isCabinet = (st) => !!CABINETS[st?.kind];
 
 /** Sets a stair's rotation (degrees, clockwise); rectangular stairs turn around their centre. */
 export function rotateStair(st, deg) {
