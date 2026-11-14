@@ -399,6 +399,12 @@ export function wallPath(w, t0, t1, off, g = wallGeom(w)) {
 /** Fitted furniture kept in floor.stairs (same box, handles, rotation): tall cabinet, kitchen counter. */
 export const CABINETS = { tall: 'Hoge kast', counter: 'Aanrecht' };
 export const isCabinet = (st) => !!CABINETS[st?.kind];
+/** Roofs, drawn as a box in floor.stairs too: flat roof, pitched roof (gable / hip / single slope). */
+export const ROOFS = { flat: 'Plat dak', pitched: 'Schuin dak' };
+export const ROOF_SHAPES = { gable: 'Zadeldak', hip: 'Schilddak', mono: 'Lessenaarsdak' };
+export const isRoof = (st) => !!ROOFS[st?.kind];
+/** Boxes in floor.stairs that are not stairs (no stairwell, no link between floors). */
+export const isFixture = (st) => isCabinet(st) || isRoof(st);
 
 /** Sets a stair's rotation (degrees, clockwise); rectangular stairs turn around their centre. */
 export function rotateStair(st, deg) {

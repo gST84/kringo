@@ -453,6 +453,9 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .plan .walllen.open .walllenbox { fill: #fff; stroke: #2563eb; }
 .plan .walllen.open .walllentx { fill: #1d4ed8; }
 .plan .conbadge { cursor: pointer; }
+.plan .roofbox { fill: rgba(255, 255, 255, .55); }
+.plan .roofarrow { fill: #222; stroke: none; }
+.plan .rooftx { font-family: sans-serif; fill: #333; stroke: #fff; paint-order: stroke; }
 .plan .conbadge rect { fill: #f3e8ff; stroke: #7c3aed; stroke-width: 0.25; }
 .plan .conbadge text { fill: #5b21b6; font-weight: normal; }
 .plan .conbadge.bad rect { fill: #fee2e2; stroke: #dc2626; }

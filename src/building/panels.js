@@ -4,7 +4,7 @@ import { clone, download, h, natCmp, safeName, toCsv } from '../util.js';
 import { field, confirmDlg, modal, prompt, toast } from '../ui/dialogs.js';
 import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
-import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, isCabinet, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
+import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, isCabinet, isRoof, ROOFS, ROOF_SHAPES, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
 import { consLabel, floorHasCons, lockStraightWalls, restoreWalls, setWallDir, snapWalls, solveWalls, wallAngle, wallTopology } from './constraints.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
@@ -390,6 +390,27 @@ export function buildingProps(app, plan) {
     if (!st) return [];
     const num = (label, k, key, round) => field(label, inp(st[k], (v) => set(() => { if (v > 0 || v === 0) st[k] = round ? Math.round(v) : v; }), { type: 'number', key }));
     const del = h('button', { class: 'danger', onclick: () => plan.deleteSelection() }, 'Verwijderen');
+    if (isRoof(st)) {
+      const pitched = st.kind === 'pitched';
+      return [section(ROOFS[st.kind],
+        field('Soort', sel(st.kind, Object.entries(ROOFS), (v) => set(() => {
+          st.kind = v;
+          if (v === 'pitched') { st.roof ||= 'gable'; st.pitch ??= 35; } else st.slope ??= 2;
+        }), 'rkind')),
+        pitched ? h('div', { class: 'grid2' },
+          field('Vorm', sel(st.roof || 'gable', Object.entries(ROOF_SHAPES), (v) => set(() => { st.roof = v; }), 'rshape')),
+          num('Helling (°)', 'pitch', 'rpitch'))
+          : num('Afschot (%)', 'slope', 'rslope'),
+        h('div', { class: 'grid2' }, num('Lengte (cm)', 'w', 'rw'), num('Breedte (cm)', 'h', 'rh')),
+        field('Opschrift', inp(st.label, (v) => set(() => { if (v.trim()) st.label = v.trim(); else delete st.label; }), { key: 'rlabel', placeholder: pitched ? 'bv. pannen, leien' : 'bv. EPDM, groendak' })),
+        rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
+        h('div', { class: 'btnrow' },
+          h('button', { onclick: () => set(() => rotateStair(st, (st.rot || 0) + 180)) }, '⇅ Omdraaien'),
+          h('button', { onclick: () => plan.rotate() }, '⟳ 90° (R)'), del),
+        h('p', { class: 'hint' }, pitched
+          ? 'De nok loopt langs de lange zijde; de pijlen wijzen van de nok naar de dakgoot. Bij een lessenaarsdak loopt het dak af naar de onderste zijde (draai met R of Omdraaien).'
+          : 'De pijl wijst in de richting van het afschot, naar de afvoer (draai met R of Omdraaien).'))];
+    }
     if (isCabinet(st)) {
       return [section(CABINETS[st.kind],
         field('Soort', sel(st.kind, Object.entries(CABINETS), (v) => set(() => { st.kind = v; }), 'ckind')),

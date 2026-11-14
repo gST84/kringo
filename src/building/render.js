@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, isCabinet, isDivider, MEDIA, planMedia, planTitle, projectOnWall, symDisc, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isDivider, isFixture, isRoof, MEDIA, planMedia, planTitle, projectOnWall, symDisc, wallGeom, wallPath } from './model.js';
 import { consError, consLabel, hasCons } from './constraints.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
@@ -160,8 +160,8 @@ export function stairsFromBelow(b, floorIdx) {
     const a = ((st.rot || 0) * Math.PI) / 180;
     return [st.x + (st.w / 2) * Math.cos(a) - (st.h / 2) * Math.sin(a), st.y + (st.w / 2) * Math.sin(a) + (st.h / 2) * Math.cos(a)];
   })());
-  return (below.stairs || []).filter((st) => !isCabinet(st) && st.link !== 'none' && st.link !== 'down'
-    && !(here.stairs || []).some((x) => !isCabinet(x) && Math.hypot(centre(x)[0] - centre(st)[0], centre(x)[1] - centre(st)[1]) < 80));
+  return (below.stairs || []).filter((st) => !isFixture(st) && st.link !== 'none' && st.link !== 'down'
+    && !(here.stairs || []).some((x) => !isFixture(x) && Math.hypot(centre(x)[0] - centre(st)[0], centre(x)[1] - centre(st)[1]) < 80));
 }
 
 /**
@@ -196,6 +196,7 @@ function stairSvg(st, sw, sel, ghost = false) {
     return s + hit(`<circle class="hit" cx="0" cy="0" r="${r}"/>`) + '</g>';
   }
   let s = `${head} transform="translate(${st.x} ${st.y}) rotate(${st.rot || 0})">`;
+  if (isRoof(st)) return s + roofSvg(st, sw) + `<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/></g>`;
   if (st.kind === 'tall' || st.kind === 'counter') {
     // tall cabinet: box with a cross; counter: box with one diagonal and the worktop's front edge
     const W = st.w, H = st.h;
@@ -236,6 +237,64 @@ function stairSvg(st, sw, sel, ghost = false) {
     ? `<path d="M ${cx} ${st.h * 0.1} L ${cx} ${st.h * 0.9} M ${cx - st.w * 0.12} ${st.h * 0.9 - st.w * 0.15} L ${cx} ${st.h * 0.9} L ${cx + st.w * 0.12} ${st.h * 0.9 - st.w * 0.15}" style="stroke-width:${sw}"/>`
     : `<path d="M ${cx} ${st.h * 0.9} L ${cx} ${st.h * 0.1} M ${cx - st.w * 0.12} ${st.h * 0.1 + st.w * 0.15} L ${cx} ${st.h * 0.1} L ${cx + st.w * 0.12} ${st.h * 0.1 + st.w * 0.15}" style="stroke-width:${sw}"/>`;
   return s + hit(`<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/>`) + '</g>';
+}
+
+/**
+ * Roof symbol in the box (0, 0) – (w, h); the front (eaves, where the water runs to) is the bottom edge.
+ * Flat roof: thin hatching and an arrow for the fall. Pitched roof: ridge, hips, arrows down the slopes.
+ */
+function roofSvg(st, sw) {
+  const W = st.w, H = st.h;
+  let s = `<rect x="0" y="0" width="${W}" height="${H}" class="stairbox roofbox" style="stroke-width:${sw * 1.4}"/>`;
+  const arrow = (a, b) => {
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+    const k = Math.min(14, L * 0.35);
+    return line(a, b, sw * 0.8) + `<polygon class="roofarrow" points="${pts([b, [b[0] - u[0] * k - u[1] * k * 0.4, b[1] - u[1] * k + u[0] * k * 0.4], [b[0] - u[0] * k + u[1] * k * 0.4, b[1] - u[1] * k - u[0] * k * 0.4]])}"/>`;
+  };
+  const text = (x, y, t, fs) => `<text x="${r2(x)}" y="${r2(y)}" font-size="${r2(fs)}" text-anchor="middle" dominant-baseline="central" class="rooftx" style="stroke-width:${r2(fs / 5)}">${esc(t)}</text>`;
+  const fs = Math.max(8, Math.min(24, H * 0.12, W * 0.08));
+  if (st.kind === 'flat') {
+    // hatching at 45°, every 30 cm
+    const step = 30;
+    for (let c = step; c < W + H; c += step) {
+      const a = [Math.min(c, W), c - Math.min(c, W)], b = [c - Math.min(c, H), Math.min(c, H)];
+      s += line(a, b, sw * 0.35);
+    }
+    const cx = W / 2;
+    s += arrow([cx, H * 0.3], [cx, H * 0.85]);
+    s += text(cx, H * 0.18, st.label || t('Plat dak'), fs);
+    if (st.slope) s += text(cx + Math.min(W * 0.25, 60), H * 0.58, `${String(st.slope).replace('.', ',')} %`, fs * 0.8);
+    return s;
+  }
+  const shape = st.roof || 'gable';
+  const pitch = st.pitch != null ? `${String(st.pitch).replace('.', ',')}°` : '';
+  if (shape === 'mono') {
+    // single slope: from the back (top) down to the front
+    s += arrow([W / 2, H * 0.15], [W / 2, H * 0.85]);
+    s += text(W / 2 + Math.min(W * 0.25, 80), H / 2, [st.label, pitch].filter(Boolean).join(' · '), fs);
+    return s;
+  }
+  // gable or hip: the ridge runs along the long side, in the middle
+  const along = W >= H;
+  const half = (along ? H : W) / 2;
+  let r1, r2p;
+  if (along) { r1 = [shape === 'hip' ? half : 0, H / 2]; r2p = [shape === 'hip' ? W - half : W, H / 2]; }
+  else { r1 = [W / 2, shape === 'hip' ? half : 0]; r2p = [W / 2, shape === 'hip' ? H - half : H]; }
+  s += line(r1, r2p, sw * 1.6);
+  if (shape === 'hip') {
+    const c = [[0, 0], [W, 0], [W, H], [0, H]];
+    const L = (a, b) => line(a, b, sw * 0.9);
+    if (along) s += L(c[0], r1) + L(c[3], r1) + L(c[1], r2p) + L(c[2], r2p);
+    else s += L(c[0], r1) + L(c[1], r1) + L(c[3], r2p) + L(c[2], r2p);
+  }
+  // arrows from the ridge down to both eaves
+  const m = [(r1[0] + r2p[0]) / 2, (r1[1] + r2p[1]) / 2];
+  const g = half * 0.15;
+  if (along) s += arrow([m[0], m[1] - g], [m[0], g * 1.2]) + arrow([m[0], m[1] + g], [m[0], H - g * 1.2]);
+  else s += arrow([m[0] - g, m[1]], [g * 1.2, m[1]]) + arrow([m[0] + g, m[1]], [W - g * 1.2, m[1]]);
+  const lab = [st.label, pitch].filter(Boolean).join(' · ');
+  if (lab) s += along ? text(m[0] + Math.min(W * 0.22, 90), H * 0.25, lab, fs) : text(W * 0.25, m[1] + Math.min(H * 0.22, 90), lab, fs);
+  return s;
 }
 
 /** Geometry of a dimension line: measured points, dimension line points, unit vectors. */
@@ -690,7 +749,7 @@ function pipeSvg(sh, k, sw, sel, opts) {
 
 export const PLAN_STYLE = `
 .plan .walloutline polygon{fill:#000;stroke:#000;stroke-linejoin:miter}.plan .wall{fill:#9b9b9b;stroke:none}.plan .wall.inner{fill:#bdbdbd}
-.plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}
+.plan .gap{fill:#fff;stroke:none}.plan .stairbox{fill:#fff}.plan .roofarrow{fill:#222;stroke:none}.plan .rooftx{font-family:sans-serif;fill:#333;stroke:#fff;paint-order:stroke}
 .plan .plink{fill:none}.plan polyline{fill:none}.plan polygon.ol{stroke:#000}.plan .strip-o{stroke:#8b939c;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-i{stroke:#eceff3;fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .strip-led{fill:#f6b73c;stroke:#c98a0b}.plan .strip-feed{fill:#374151;stroke:none}.room{font-weight:bold}.clabel{font-weight:bold;fill:#c2410c}.croom{fill:#555}.plan .proom{stroke:#94a3b8;stroke-dasharray:2 1}.rarea{fill:#475569}.rinfl{fill:#0f766e;font-weight:bold}.cdom{fill:#7c3aed;font-weight:bold}
 .plan.under .walloutline polygon{fill:#9aa1aa;stroke:#9aa1aa}.plan.under .wall{fill:#d5d8dc}.plan.under .wall.inner{fill:#e2e4e7}.plan.under .proom{opacity:.45}.plan.under .stair,.plan.under .opening:not(:has(.passage)),.plan.under .divider{opacity:.55}
 .plan .ppipel{fill:none;stroke-linecap:round;stroke-linejoin:round}.plan .ppipe.sel .ppipel{filter:drop-shadow(0 0 1.5px #1f6feb)}.plan .pheatbox{fill:#fff;stroke:#c92a2a;stroke-width:.3}.plan .pheattx{fill:#c92a2a;font-weight:bold;dominant-baseline:central}

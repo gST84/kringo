@@ -54,6 +54,8 @@ export const PLAN_PALETTE = [
   { key: 'spiral', on: 'base', label: 'Wenteltrap', tool: 'spiral', icon: ico('<circle cx="20" cy="20" r="16" stroke-width="1.6"/><circle cx="20" cy="20" r="3" stroke-width="1.2"/><path d="M20 17V4M23 20h13M20 23v13M17 20H4M22 18l9-9M22 22l9 9M18 22l-9 9M18 18 9 9" stroke-width="1"/>') },
   { key: 'tall', on: 'base', label: 'Hoge kast', tool: 'stair', opts: { stair: 'tall' }, icon: ico('<rect x="11" y="5" width="18" height="30" stroke-width="1.8"/><path d="M11 5 29 35M29 5 11 35" stroke-width="1.1"/>') },
   { key: 'counter', on: 'base', label: 'Aanrecht', tool: 'stair', opts: { stair: 'counter' }, icon: ico('<rect x="3" y="13" width="34" height="14" stroke-width="1.8"/><path d="M3 24.5h34M3 13l34 11.5" stroke-width="1.1"/>') },
+  { key: 'flat', on: 'base', label: 'Plat dak', tool: 'stair', opts: { stair: 'flat' }, icon: ico('<rect x="3" y="8" width="34" height="24" stroke-width="1.8"/><path d="M3 18 13 8M3 28 23 8M9 32 33 8M19 32 37 14M29 32 37 24" stroke-width=".7"/><path d="M20 13v14M16.5 23.5 20 27l3.5-3.5" stroke-width="1.6"/>') },
+  { key: 'pitched', on: 'base', label: 'Schuin dak', tool: 'stair', opts: { stair: 'pitched' }, icon: ico('<rect x="3" y="8" width="34" height="24" stroke-width="1.8"/><path d="M15 20h10" stroke-width="2.4"/><path d="M3 8l12 12M3 32l12-12M37 8 25 20M37 32 25 20" stroke-width="1"/><path d="M20 18v-7M18 13l2-2 2 2M20 22v7M18 27l2 2 2-2" stroke-width="1.1"/>') },
   { key: 'room', on: 'base', label: 'Ruimte', tool: 'room', icon: ico('<path d="M6 8h28v24H6z" fill="#dbeafe" stroke-width="2.5"/><circle cx="20" cy="20" r="3" fill="currentColor"/><path d="M23 23l6 6" stroke-width="1.5"/>') },
   { key: 'roomPoly', on: 'base', label: 'Ruimte (hoeken)', tool: 'roomPoly', icon: ico('<path d="M6 8h18l10 10v14H6z" fill="#dbeafe" stroke-width="2"/><circle cx="6" cy="8" r="3" fill="currentColor"/><circle cx="24" cy="8" r="3" fill="currentColor"/><circle cx="34" cy="18" r="3" fill="currentColor"/><circle cx="34" cy="32" r="3" fill="currentColor"/><circle cx="6" cy="32" r="3" fill="currentColor"/>') },
   { key: 'text', on: 'base', label: 'Ruimtenaam', tool: 'text', icon: ico('<path d="M10 10h20M20 10v22" stroke-width="3"/>') },
@@ -712,6 +714,16 @@ export class PlanEditor {
       let x0 = Math.min(d.start[0], d.cur[0]), y0 = Math.min(d.start[1], d.cur[1]);
       let w = Math.abs(d.cur[0] - d.start[0]), h = Math.abs(d.cur[1] - d.start[1]);
       const quarter = this.stairKind === 'quarter';
+      if (this.stairKind === 'flat' || this.stairKind === 'pitched') {
+        // roof: the box as drawn (a click: 4 × 3 m); a pitched roof starts as a gable roof of 35°
+        if (w < 20 || h < 20) { [w, h] = [400, 300]; [x0, y0] = d.start; }
+        const st = { id: uid('st'), kind: this.stairKind, x: x0, y: y0, w, h, rot: 0 };
+        if (st.kind === 'pitched') { st.roof = 'gable'; st.pitch = 35; } else st.slope = 2;
+        this.app.mutate(() => this.floor.stairs.push(st));
+        this.app.select(['S:' + st.id]);
+        this.setTool('select');
+        return;
+      }
       if (this.stairKind === 'tall' || this.stairKind === 'counter') {
         // cabinet: w = length along the wall, h = depth; a box drawn upright turns a quarter
         const tall = this.stairKind === 'tall';

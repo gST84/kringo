@@ -99,6 +99,7 @@ Alle tekentools staan links onder **Grondplan** (op de plattegrond).
 ### Kasten en aanrecht
 
 - **Hoge kast** (rechthoek met een kruis) en **Aanrecht** (rechthoek met een diagonaal en een dubbele lijn aan de voorkant): sleep een rechthoek, of klik voor een standaardmaat (hoge kast 60 × 60 cm, aanrecht 240 × 60 cm).
+- **Plat dak** en **Schuin dak**: sleep een rechthoek, of klik voor 400 × 300 cm. Een plat dak krijgt een lichte arcering, een pijl voor het afschot en de tekst *Plat dak* (of je eigen opschrift, bv. EPDM). Bij een schuin dak kies je de vorm: **zadeldak** (nok over de volle lengte), **schilddak** (kortere nok met hoeklijnen naar de hoeken) of **lessenaarsdak** (één helling naar de onderste zijde); de nok loopt langs de lange zijde en pijlen wijzen van de nok naar de dakgoot. Helling (°), afschot (%), maten en opschrift staan in de eigenschappen; draaien met R, de draaiknop of *Omdraaien*. Daken tellen niet als trap (geen trapgat op de volgende verdieping, geen ventilatie, geen blokkade voor vloerverwarming).
 - In de eigenschappen: soort, lengte, diepte, een **opschrift** (bv. koelkast, oven, spoelbak), de draaischijf en **Omdraaien** (voorkant naar de andere kant). De blokjes aan de rand maken de kast langer of dieper; R draait 90°.
 - Bij het genereren van de vloerverwarming komen er geen buizen onder kasten en aanrechten, tenzij je **Vloerverwarming eronder** aanvinkt.
 

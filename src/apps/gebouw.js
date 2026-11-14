@@ -143,6 +143,7 @@ boot({
       opening: 'Klik op een muur om de opening te plaatsen · kant van de muis = draairichting',
       stair: 'Sleep een rechthoek voor de trap · klik = standaardmaat',
       cabinet: 'Sleep een rechthoek voor de kast of het aanrecht · klik = standaardmaat (hoge kast 60 × 60, aanrecht 240 × 60 cm) · R = draaien',
+      roof: 'Sleep een rechthoek voor het dak · klik = standaardmaat 400 × 300 cm · R = draaien (de pijlen wijzen naar de dakgoot)',
       spiral: 'Sleep van het midden naar buiten voor de wenteltrap · klik = straal 100 cm',
       arcwall: 'Klik het beginpunt, dan het eindpunt, dan een punt op de boog · Esc = stoppen',
       dim: 'Klik twee meetpunten (vangt muurhoeken), dan de plaats van de maatlijn · Alt = vrij',
@@ -161,7 +162,7 @@ boot({
       pan: 'Sleep om te verschuiven',
     };
 
-    const hintKey = (tool) => plan.toolKey?.startsWith('passage') ? 'passage' : plan.toolKey === 'tall' || plan.toolKey === 'counter' ? 'cabinet' : tool;
+    const hintKey = (tool) => plan.toolKey?.startsWith('passage') ? 'passage' : plan.toolKey === 'tall' || plan.toolKey === 'counter' ? 'cabinet' : plan.toolKey === 'flat' || plan.toolKey === 'pitched' ? 'roof' : tool;
 
     // left panel: drawing tools, floors, symbols
     const left = h('div', { id: 'building-left', class: 'kind-building' });

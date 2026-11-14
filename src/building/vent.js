@@ -3,7 +3,7 @@
 // ventilation plan. Rooms carry their choice in r.vent = { type?, flow? } (flow: own design flow, m³/h).
 import { t } from '../i18n.js';
 import { uid } from '../util.js';
-import { isCabinet, isDivider, newPlan, wallGeom } from './model.js';
+import { isDivider, isFixture, newPlan, wallGeom } from './model.js';
 import { planK } from './render.js';
 import { roomAt } from './heating.js';
 import { isCustomPreset, roomArea, roomLabelPos, roomPolygon } from './rooms.js';
@@ -220,13 +220,13 @@ export function stairLinks(b) {
   const out = [];
   b.floors.forEach((floor, i) => {
     for (const st of floor.stairs || []) {
-      if (isCabinet(st)) continue;
+      if (isFixture(st)) continue;
       const at = stairCentre(st);
       const up = b.floors[i + 1], down = b.floors[i - 1];
       let dir = st.link || 'auto';
       if (dir === 'auto') {
         // the same stair drawn on the floor below already makes this link
-        if (down && (down.stairs || []).some((x) => !isCabinet(x) && near(stairCentre(x), at) && (x.link || 'auto') !== 'none')) continue;
+        if (down && (down.stairs || []).some((x) => !isFixture(x) && near(stairCentre(x), at) && (x.link || 'auto') !== 'none')) continue;
         dir = up && roomAt(up, ...at) ? 'up' : down && roomAt(down, ...at) ? 'down' : 'up';
       }
       if (dir === 'none') continue;
