@@ -64,7 +64,8 @@ const split = (total, n) => Array.from({ length: n }, (_, i) => Math.floor(total
 
 /**
  * All rooms of the building with their flows and the balance:
- * rows [{ floor, room, name, area, type, side, required, flow (design), bal (balanced), transfer, valves: [{ s, flow }] }],
+ * rows [{ floor, room, name, area, type, side, required, extra?, flow (design), bal (balanced), transfer, valves: [{ s, flow }] }]
+ * (extra: a room that needs no ventilation but has a valve – its default flow),
  * totals { supply, extract } (design), { supplyBal, extractBal }, unit (flow of the fan(s)), factor (of the raised
  * side), raised ('T' / 'A' / ''), warnings.
  */
@@ -72,12 +73,32 @@ export function ventRows(b) {
   const cfg = ventCfg(b);
   const rows = [];
   const warnings = [];
+  // valves per room, to include rooms that need no ventilation but got a valve anyway
+  const valveCount = new Map();
+  for (const floor of b.floors) for (const s of floor.symbols) {
+    const side = valveSide(s);
+    const hit = side && roomAt(floor, s.x, s.y);
+    if (!hit) continue;
+    const c = valveCount.get(hit.room) || { T: 0, A: 0 };
+    c[side]++;
+    valveCount.set(hit.room, c);
+  }
   for (const floor of b.floors) for (const r of floor.rooms) {
     const area = Math.round(roomArea(roomPolygon(floor, r)) * 10) / 10;
     const type = ventType(r);
     const v = VENT_TYPES[type];
-    const required = requiredFlow(type, area, cfg.limit);
     const own = parseFloat(r.vent?.flow);
+    const c = valveCount.get(r);
+    if (!v.side && c) {
+      // no ventilation needed (storage, garage, hall …) but a valve is drawn: it counts, on the side of
+      // its valve(s), with the own design flow or 25 m³/h per valve
+      const side = c.A > c.T ? 'A' : c.T > c.A ? 'T' : 'A';
+      const dflt = EXTRA_FLOW * c[side];
+      const flow = own > 0 ? Math.round(own) : dflt;
+      rows.push({ floor, room: r, name: r.name || '?', area, type, side, required: 0, extra: dflt, flow, bal: flow, transfer: 140, valves: [] });
+      continue;
+    }
+    const required = requiredFlow(type, area, cfg.limit);
     const flow = v.side ? (own > 0 ? Math.round(own) : required) : 0;
     rows.push({ floor, room: r, name: r.name || '?', area, type, side: v.side, required, flow, bal: flow, transfer: v.transfer || 0, valves: [] });
   }
@@ -106,7 +127,7 @@ export function ventRows(b) {
   let anyValve = false;
   for (const floor of b.floors) {
     for (const s of floor.symbols) {
-      const side = s.sym === 'hvac/vent-in' ? 'T' : s.sym === 'hvac/vent-out' ? 'A' : '';
+      const side = valveSide(s);
       if (!side) continue;
       anyValve = true;
       const hit = roomAt(floor, s.x, s.y);
@@ -122,6 +143,10 @@ export function ventRows(b) {
   }
   return { rows, supply, extract, supplyBal, extractBal, unit, raised, factor, warnings, cfg };
 }
+/** Supply ('T') or extract ('A') valve, or '' for any other symbol. */
+const valveSide = (s) => (s.sym === 'hvac/vent-in' ? 'T' : s.sym === 'hvac/vent-out' ? 'A' : '');
+/** Default flow per valve in a room that needs no ventilation (m³/h). */
+const EXTRA_FLOW = 25;
 /** Is this side mechanical (valves to set) in the chosen system? */
 const mechSide = (cfg, side) => (VENT_SYSTEMS[cfg.system]?.mech || '').includes(side);
 

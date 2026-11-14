@@ -1622,7 +1622,7 @@ export function ventDialog(app) {
         h('tbody', null, rows.map((x) => {
           const typeSel = h('select', null, typeOpts.map(([k, l]) => h('option', { value: k, selected: k === x.type }, l)));
           typeSel.addEventListener('change', () => { app.mutate(() => { (x.room.vent ||= {}).type = typeSel.value; }); render(); });
-          const own = h('input', { type: 'text', inputmode: 'decimal', value: x.room.vent?.flow ?? '', placeholder: x.side ? String(x.required) : '', disabled: !x.side, style: { width: '64px' } });
+          const own = h('input', { type: 'text', inputmode: 'decimal', value: x.room.vent?.flow ?? '', placeholder: x.side ? String(x.extra || x.required) : '', disabled: !x.side, style: { width: '64px' } });
           own.addEventListener('change', () => {
             const v = parseFloat(String(own.value).replace(',', '.'));
             app.mutate(() => { x.room.vent ||= {}; if (v > 0) x.room.vent.flow = v; else delete x.room.vent.flow; });
@@ -1631,8 +1631,8 @@ export function ventDialog(app) {
           own.addEventListener('keydown', (e) => { if (e.key === 'Enter') own.blur(); });
           const valves = !x.side ? '—' : x.valves.length ? x.valves.map((v) => v.flow).join(' + ') + ' m³/h' : (mech.includes(x.side) ? t('geen') : '—');
           return h('tr', { class: x.side && x.flow < x.required ? 'over' : '' },
-            h('td', null, x.floor.name), h('td', null, h('b', null, x.name)), h('td', { class: 'num' }, `${String(x.area).replace('.', ',')} m²`),
-            h('td', null, typeSel), h('td', { class: 'num' }, x.side ? `${x.required} m³/h` : '—'), h('td', null, own),
+            h('td', null, x.floor.name), h('td', null, h('b', null, x.name), x.extra ? h('div', { class: 'hint' }, t('niet verplicht – ventiel getekend')) : null), h('td', { class: 'num' }, `${String(x.area).replace('.', ',')} m²`),
+            h('td', null, typeSel), h('td', { class: 'num' }, x.extra ? '—' : x.side ? `${x.required} m³/h` : '—'), h('td', null, own),
             h('td', { class: 'num' }, x.side ? h('b', { style: color(x.side) }, flowText(x.side, x.bal), x.bal !== x.flow ? ` (+${x.bal - x.flow})` : '') : '—'),
             h('td', { class: 'num' }, valves),
             h('td', { class: 'num' }, x.transfer ? `≥ ${x.transfer} cm²` : '—'));
