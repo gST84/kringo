@@ -6,6 +6,7 @@ import { symbolPreviewSvg } from '../schematic/render.js';
 import { toggleFolder } from '../ui/panels.js';
 import { channelUsers, circuitSymbols, clearModule, COLOR_NAMES, colorChannels, domAddress, LED_TYPES, MAX_CHANNELS, MODULE_TYPES, newBoard, newModule, newCircuit, newFloor, newRcd, nextCircuitName, CABINETS, isCabinet, nextPos, polygonArea, removeNode, rotateStair, rootBoards, linkGroup, setGroupCircuit, treeChildren, dropZeroWalls, wallGeom } from './model.js';
 import { checkCircuits, MAX_IN } from './rules.js';
+import { consLabel, floorHasCons, lockStraightWalls, restoreWalls, setWallDir, snapWalls, solveWalls, wallAngle, wallTopology } from './constraints.js';
 import { generateEendraad, INSTALL } from './eendraad.js';
 import { PLAN_PALETTE } from './editor.js';
 import { dimGeom, hasLeaf, OPENING_TYPES, pathLength, traceColor } from './render.js';
@@ -238,6 +239,7 @@ function alignBlock(app, f) {
  * grows or shrinks), and the walls ending on that shifted wall stretch with it.
  */
 function setWallLength(f, w, len) {
+  const topo = floorHasCons(f) ? wallTopology(f) : null, snap = snapWalls(f), oldLen = w.clen;
   const g = wallGeom(w), r2 = (x) => Math.round(x * 100) / 100;
   const P = [w.x2, w.y2], N = [r2(w.x1 + g.u[0] * len), r2(w.y1 + g.u[1] * len)];
   const d = [N[0] - P[0], N[1] - P[1]];
@@ -278,7 +280,38 @@ function setWallLength(f, w, len) {
     if (s.cx != null) { s.cx = r2(s.cx + d[0]); s.cy = r2(s.cy + d[1]); }
   }
   for (const [o, i, q] of follow) put(o, i, [r2(q[0] + d[0]), r2(q[1] + d[1])]);
+  // a locked length takes the new value; then the other constraints must hold again
+  if (w.clen != null) w.clen = len;
+  if (topo) {
+    const res = solveWalls(f, topo, [[w, 1], [w, 2]]);
+    if (!res.ok) {
+      restoreWalls(snap);
+      if (oldLen != null) w.clen = oldLen;
+      toast(t('Dat kan niet met de vergrendelingen ({c}). Haal een vergrendeling weg in de eigenschappen van die muur.', { c: consLabel(res.wall || {}) || '—' }));
+      return;
+    }
+  }
   dropZeroWalls(f);
+}
+
+/** Wall constraints (like in CAD): direction (horizontal / vertical / angle) and a locked length. */
+function consFields(app, f, w) {
+  const dirVal = w.cdir == null ? '' : w.cdir === 'h' || w.cdir === 'v' ? w.cdir : 'a';
+  const fail = () => toast('Dat kan niet met de vergrendelingen van de andere muren.');
+  const setDir = (v) => app.mutate(() => { if (!setWallDir(f, w, v)) fail(); });
+  return h('div', { class: 'consbox' },
+    h('div', { class: 'grid2' },
+      field('Richting', sel(dirVal, [['', 'Vrij'], ['h', 'Horizontaal (H)'], ['v', 'Verticaal (V)'], ['a', 'Vaste hoek (∠)']], (v) => {
+        setDir(v === '' ? null : v === 'a' ? wallAngle(w) : v);
+      }, 'wcdir')),
+      dirVal === 'a' ? field('Hoek (°)', inp(w.cdir, (v) => { if (Number.isFinite(v)) setDir(((v % 180) + 180) % 180); }, { type: 'number', key: 'wcang' })) : null),
+    chk(w.clen != null, (v) => app.mutate(() => {
+      if (!v) { delete w.clen; return; }
+      const topo = wallTopology(f), snap = snapWalls(f);
+      w.clen = Math.round(wallGeom(w).len * 10) / 10;
+      if (!solveWalls(f, topo, [[w, 1]]).ok) { restoreWalls(snap); delete w.clen; fail(); }
+    }), 'Lengte vastzetten (↔)', 'wclen'),
+    h('p', { class: 'hint' }, 'Vergrendelde muren houden hun richting en lengte als je hoeken sleept of maten intypt; de rest van de plattegrond past zich aan. Het paarse label op het plan toont de vergrendeling (rood = niet meer voldaan).'));
 }
 
 export function buildingProps(app, plan) {
@@ -322,6 +355,7 @@ export function buildingProps(app, plan) {
         : field('Lengte (cm)', inp(Math.round(g.len * 10) / 10, (v) => set(() => {
           if (v > 0) setWallLength(f, w, v);
         }), { type: 'number', key: 'wlen' }), 'Verlengt / verkort vanaf het beginpunt; aangesloten muren schuiven mee.'),
+      g.arc ? null : consFields(app, f, w),
       h('div', { class: 'btnrow' },
         g.arc
           ? h('button', { onclick: () => set(() => { delete w.cx; delete w.cy; }) }, '▬ Recht maken')
@@ -695,7 +729,16 @@ function floorProps(app, plan) {
       h('div', { class: 'grid2' },
         field('Schaal 1:', sel(b.scale, [[20, '20'], [50, '50'], [75, '75'], [100, '100']], (v) => set(() => { b.scale = +v; }), 'scale')),
         field('Raster (cm)', sel(b.grid, [[1, '1'], [5, '5'], [10, '10'], [25, '25']], (v) => set(() => { b.grid = +v; }), 'grid'))),
-      chk(b.wallLens !== false, (v) => set(() => { if (v) delete b.wallLens; else b.wallLens = false; }), 'Muurlengtes tonen (cm, enkel op het scherm)', 'wlens')),
+      chk(b.wallLens !== false, (v) => set(() => { if (v) delete b.wallLens; else b.wallLens = false; }), 'Muurlengtes tonen (cm, enkel op het scherm)', 'wlens'),
+      chk(b.showCons !== false, (v) => set(() => { if (v) delete b.showCons; else b.showCons = false; }), 'Vergrendelingen tonen (H, V, ∠, ↔)', 'wcons'),
+      chk(b.autoCons !== false, (v) => set(() => { if (v) delete b.autoCons; else b.autoCons = false; }), 'Nieuwe rechte muren automatisch H / V vergrendelen', 'wauto'),
+      h('div', { class: 'btnrow' }, h('button', {
+        title: t('Vergrendelt alle muren die (bijna) horizontaal of verticaal staan; licht scheve muren worden rechtgezet.'),
+        onclick: () => set(() => {
+          const n = lockStraightWalls(f);
+          toast(n < 0 ? t('Dat kan niet met de bestaande vergrendelingen.') : n ? t('{n} muur/muren vergrendeld.', { n }) : t('Geen rechte muren zonder vergrendeling gevonden.'));
+        }),
+      }, 'Rechte muren vergrendelen'))),
     section('Installatieplannen',
       h('p', { class: 'hint' }, t('Op deze plattegrond teken je het gebouw. De installaties (elektriciteit, sanitair, CV, ventilatie, afvoer) staan elk op een eigen plan erbovenop.')),
       h('div', { class: 'btnrow wrap' }, Object.entries(DISCS).map(([disc, info]) => {

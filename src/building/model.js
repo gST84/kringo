@@ -153,7 +153,7 @@ export function clearModule(b, moduleId) {
  * and the doors / windows on them. Such a wall has no direction and would catch every door placed nearby.
  */
 export function dropZeroWalls(floor) {
-  const zero = new Set(floor.walls.filter((w) => w.cx == null && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < 0.5).map((w) => w.id));
+  const zero = new Set(floor.walls.filter((w) => w.cx == null && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < 1).map((w) => w.id));
   if (!zero.size) return 0;
   floor.walls = floor.walls.filter((w) => !zero.has(w.id));
   floor.openings = floor.openings.filter((o) => !zero.has(o.wall));
@@ -459,7 +459,7 @@ export const isDivider = (w) => w?.kind === 'divider';
 export function nearestWall(floor, x, y, maxDist) {
   let best = null;
   for (const w of floor.walls) {
-    if (isDivider(w) || (w.cx == null && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < 0.5)) continue;
+    if (isDivider(w) || (w.cx == null && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < 1)) continue;
     const p = projectOnWall(w, x, y);
     const dist = Math.abs(p.d) - (w.t || 20) / 2;
     if (dist <= maxDist && (!best || dist < best.dist)) best = { wall: w, ...p, dist };

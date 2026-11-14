@@ -7,6 +7,7 @@ import { shapeSvg, textSvg } from '../schematic/render.js';
 import { dimGeom, dimSvg, OPENING_TYPES, planSvg, planK, PLAN_ORIGIN, wallPolygon } from './render.js';
 import { cornerPoint, outlineSnap, roomLabelPos, roomPolygon } from './rooms.js';
 import { heatCfg, nearestCollector, nextLoopName, PIPE_COLORS, roomGrid } from './heating.js';
+import { floorHasCons, consLabel, restoreWalls, snapWalls, solveWalls, wallTopology } from './constraints.js';
 import { dropZeroWalls, linkGroup, nearestWall, nextNumber, planMedia, projectOnWall, rotateStair, setGroupCircuit, symDisc, wallFrame, wallGeom } from './model.js';
 import { attachTouch } from '../touch.js';
 import { contextMenu, keyHint } from '../ui/contextMenu.js';
@@ -374,6 +375,9 @@ export class PlanEditor {
       ? `<line class="ghostdiv" x1="${w.x1}" y1="${w.y1}" x2="${w.x2}" y2="${w.y2}" style="stroke-width:${this.px(2)};stroke-dasharray:${this.px(8)} ${this.px(4)}"/>`
       : `<polygon class="ghostwall" points="${wallPolygon(w, this.floor.walls).map((p) => p.join(',')).join(' ')}"/>`;
     const cursor = () => `<circle class="cursor" cx="${m[0]}" cy="${m[1]}" r="${this.px(4)}" style="stroke-width:${sw}"/>`;
+    // the wall whose constraint blocked the last drag: a red outline for a moment
+    const fw = this.flash && this.floor.walls.find((w) => w.id === this.flash);
+    if (fw) s += `<polygon class="conflict" points="${wallPolygon(fw, this.floor.walls).map((p) => p.join(',')).join(' ')}" style="stroke-width:${this.px(3)}"/>`;
     if (this.tool === 'wall') {
       if (this.chain) {
         const end = this.typedPoint() || m;
@@ -483,10 +487,13 @@ export class PlanEditor {
     if (!this.chain || !this.typed) return null;
     const len = parseFloat(this.typed.replace(',', '.'));
     if (!(len > 0)) return null;
-    let dx = this.mouse[0] - this.chain[0], dy = this.mouse[1] - this.chain[1];
-    const d = Math.hypot(dx, dy) || 1;
-    dx /= d; dy /= d;
-    return [r2(this.chain[0] + dx * len), r2(this.chain[1] + dy * len)];
+    const dx = this.mouse[0] - this.chain[0], dy = this.mouse[1] - this.chain[1];
+    if (!dx && !dy) return null;
+    // within 5° of horizontal, vertical or 45°: use that angle exactly, so the wall ends up straight
+    let a = Math.atan2(dy, dx);
+    const step = Math.PI / 4, snapped = Math.round(a / step) * step;
+    if (Math.abs(a - snapped) < (5 * Math.PI) / 180) a = snapped;
+    return [r2(this.chain[0] + Math.cos(a) * len), r2(this.chain[1] + Math.sin(a) * len)];
   }
 
   // ---------- events ----------
@@ -652,19 +659,27 @@ export class PlanEditor {
       }
       if (dx === d.dx && dy === d.dy) return;
       if (!d.moved) { this.app.checkpoint(); d.moved = true; }
-      d.dx = dx; d.dy = dy;
-      for (const it of d.rooms || []) { it.o.lx = r2(it.x + dx); it.o.ly = r2(it.y + dy); }
-      for (const it of d.items) {
-        it.o.x = r2(it.x + dx); it.o.y = r2(it.y + dy);
-        if (it.pts) it.o.pts = it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
-      }
-      for (const it of d.walls) {
-        it.o.x1 = r2(it.x1 + dx); it.o.y1 = r2(it.y1 + dy); it.o.x2 = r2(it.x2 + dx); it.o.y2 = r2(it.y2 + dy);
-        if (it.cx != null) { it.o.cx = r2(it.cx + dx); it.o.cy = r2(it.cy + dy); }
-      }
-      for (const it of d.dims) { it.o.x1 = r2(it.x1 + dx); it.o.y1 = r2(it.y1 + dy); it.o.x2 = r2(it.x2 + dx); it.o.y2 = r2(it.y2 + dy); }
-      for (const it of d.shapes) it.o.pts = it.pts.map(([x, y], i) => (it.only < 0 || i === it.only ? [r2(x + dx), r2(y + dy)] : [x, y]));
-      for (const [w, i, x, y] of d.attached) { if (i === 1) { w.x1 = r2(x + dx); w.y1 = r2(y + dy); } else { w.x2 = r2(x + dx); w.y2 = r2(y + dy); } }
+      const before = d.topo ? snapWalls(this.floor) : null;
+      const apply = (dx, dy) => {
+        d.dx = dx; d.dy = dy;
+        for (const it of d.rooms || []) { it.o.lx = r2(it.x + dx); it.o.ly = r2(it.y + dy); }
+        for (const it of d.items) {
+          it.o.x = r2(it.x + dx); it.o.y = r2(it.y + dy);
+          if (it.pts) it.o.pts = it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
+        }
+        for (const it of d.walls) {
+          it.o.x1 = r2(it.x1 + dx); it.o.y1 = r2(it.y1 + dy); it.o.x2 = r2(it.x2 + dx); it.o.y2 = r2(it.y2 + dy);
+          if (it.cx != null) { it.o.cx = r2(it.cx + dx); it.o.cy = r2(it.cy + dy); }
+        }
+        for (const it of d.dims) { it.o.x1 = r2(it.x1 + dx); it.o.y1 = r2(it.y1 + dy); it.o.x2 = r2(it.x2 + dx); it.o.y2 = r2(it.y2 + dy); }
+        for (const it of d.shapes) it.o.pts = it.pts.map(([x, y], i) => (it.only < 0 || i === it.only ? [r2(x + dx), r2(y + dy)] : [x, y]));
+        for (const [w, i, x, y] of d.attached) { if (i === 1) { w.x1 = r2(x + dx); w.y1 = r2(y + dy); } else { w.x2 = r2(x + dx); w.y2 = r2(y + dy); } }
+      };
+      apply(dx, dy);
+      // wall constraints: the moved walls stay where they are put, the others follow – or, when that is
+      // impossible, everything goes back to the last position that worked
+      if (before && !this.solveStep(d, before, d.walls.flatMap((it) => [[it.o, 1], [it.o, 2]]))) apply(...(d.ok || [0, 0]));
+      else d.ok = [dx, dy];
       this.app.touched();
     }
   }
@@ -794,6 +809,7 @@ export class PlanEditor {
   startHandle(d) {
     const [type, id, which] = d.key.split(':');
     const f = this.floor;
+    if (type === 'WH' && floorHasCons(f)) d.topo = wallTopology(f);
     if (type === 'WH' && (which === '1' || which === '2')) {
       const w = f.walls.find((x) => x.id === id);
       const pt = which === '1' ? [w.x1, w.y1] : [w.x2, w.y2];
@@ -836,6 +852,7 @@ export class PlanEditor {
       const w = f.walls.find((x) => x.id === id);
       if (!w) return;
       const p = this.snapPoint(raw, e);
+      const snap = d.topo ? snapWalls(f) : null;
       if (which === '4') {
         // parallel move: only the distance across the wall counts, rounded to the grid
         let dist = (raw[0] - d.anchor[0]) * d.n[0] + (raw[1] - d.anchor[1]) * d.n[1];
@@ -858,7 +875,7 @@ export class PlanEditor {
         begin();
         for (const [ww, i] of d.ends) { if (i === 1) { ww.x1 = p[0]; ww.y1 = p[1]; } else { ww.x2 = p[0]; ww.y2 = p[1]; } }
         if (d.tees?.length) {
-          const F = d.fixed, L = Math.hypot(p[0] - F[0], p[1] - F[1]);
+          const F = w.cx == null && d.fixed ? (which === '1' ? [w.x2, w.y2] : [w.x1, w.y1]) : d.fixed, L = Math.hypot(p[0] - F[0], p[1] - F[1]);
           if (L > 1) {
             const u = [(p[0] - F[0]) / L, (p[1] - F[1]) / L];
             for (const [ww, i, dist] of d.tees) {
@@ -868,6 +885,7 @@ export class PlanEditor {
           }
         }
       }
+      if (snap) this.solveStep(d, snap, which === '1' || which === '2' ? [[w, +which]] : [[w, 1], [w, 2]]);
     } else if (type === 'OH') {
       const o = f.openings.find((x) => x.id === id);
       const w = o && f.walls.find((x) => x.id === o.wall);
@@ -951,8 +969,11 @@ export class PlanEditor {
   wallClick(p) {
     this.chainFresh = !this.chain;
     if (!this.chain) { this.chain = p; this.renderOverlay(); return; }
-    if (near(p, this.chain, 0.01)) { this.chain = null; this.renderOverlay(); return; }
+    // a click on (or within 1 cm of) the last point ends the chain – no tiny walls
+    if (near(p, this.chain, 1)) { this.chain = null; this.renderOverlay(); return; }
     const w = { id: uid('w'), x1: this.chain[0], y1: this.chain[1], x2: p[0], y2: p[1], t: this.divider ? 1 : this.wallT, kind: this.divider ? 'divider' : this.wallKind };
+    // a straight horizontal / vertical wall is locked that way right away (unless switched off)
+    if (this.b.autoCons !== false) { if (w.y1 === w.y2) w.cdir = 'h'; else if (w.x1 === w.x2) w.cdir = 'v'; }
     this.app.mutate(() => this.floor.walls.push(w));
     // closing a room ends the chain
     const closes = this.floor.walls.some((o) => o !== w && (near([o.x1, o.y1], p, 0.01) || near([o.x2, o.y2], p, 0.01)));
@@ -965,7 +986,7 @@ export class PlanEditor {
   arcClick(p) {
     const n = this.pts.length;
     if (n < 2) {
-      if (n === 1 && near(p, this.pts[0], 0.01)) return;
+      if (n === 1 && near(p, this.pts[0], 1)) return;
       this.pts.push(p);
       this.ptsFresh = true;
       this.renderOverlay();
@@ -1204,6 +1225,22 @@ export class PlanEditor {
     return out;
   }
 
+  /**
+   * After a drag step: let the wall constraints hold again (pins = the wall ends the user placed). When
+   * that is impossible the walls go back to `snap` and a message names the wall in the way (once per drag).
+   */
+  solveStep(d, snap, pins) {
+    const res = solveWalls(this.floor, d.topo, pins);
+    if (res.ok) return true;
+    restoreWalls(snap);
+    if (!d.warned) {
+      d.warned = true;
+      this.app.emit('planToast', t('Dat kan niet met de vergrendelingen ({c}). Haal een vergrendeling weg in de eigenschappen van die muur.', { c: consLabel(res.wall || {}) || '—' }));
+      if (res.wall) { this.flash = res.wall.id; this.renderOverlay(); setTimeout(() => { this.flash = null; this.renderOverlay(); }, 1500); }
+    }
+    return false;
+  }
+
   makeMove(start, key) {
     const f = this.floor;
     const sel = this.app.sel;
@@ -1225,6 +1262,7 @@ export class PlanEditor {
     for (const w of walls) for (const [o, i, q] of this.teesOn(w, wset)) attached.push([o, i, q[0], q[1]]);
     return {
       type: 'move', start, items, attached, moved: false, dx: 0, dy: 0,
+      topo: walls.length && floorHasCons(f) ? wallTopology(f) : null,
       walls: walls.map((w) => ({ o: w, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, cx: w.cx, cy: w.cy })),
       dims: f.dims.filter((d) => sel.has('D:' + d.id)).map((d) => ({ o: d, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 })),
       rooms: f.rooms.filter((r) => !this.app.disc && sel.has('R:' + r.id)).map((r) => { const [x, y] = roomLabelPos(r, roomPolygon(f, r)); return { o: r, x, y }; }),

@@ -7,6 +7,7 @@ import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
 import { colorChannels, domAddress, domKey, isCabinet, isDivider, MEDIA, planMedia, planTitle, projectOnWall, symDisc, wallGeom, wallPath } from './model.js';
+import { consError, consLabel, hasCons } from './constraints.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
 /** Sheet millimetres per plan centimetre. */
@@ -479,6 +480,34 @@ function wallLensSvg(floor, k) {
   return s + '</g>';
 }
 
+/**
+ * Wall constraints (H, V, angle, length) as small purple badges beside the wall; red when the wall no
+ * longer meets them. A click on a badge selects the wall.
+ */
+function consBadgesSvg(floor, k) {
+  const mm = 1 / k;
+  let s = '<g class="conbadges">';
+  for (const w of floor.walls) {
+    if (!hasCons(w)) continue;
+    const label = consLabel(w);
+    const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1);
+    if (len < 1) continue;
+    const u = [(w.x2 - w.x1) / len, (w.y2 - w.y1) / len];
+    // on the upper / left side of the wall, a quarter along it (the middle is for the measurements)
+    let n = [-u[1], u[0]];
+    if (n[1] > 0.01 || (Math.abs(n[1]) <= 0.01 && n[0] > 0)) n = [-n[0], -n[1]];
+    const off = (w.t || 10) / 2 + (Math.abs(u[0]) > 0.7 ? 2.2 : 1.2 + label.length * 0.55) * mm;
+    const t = Math.min(len / 4, 60 + len * 0.05);
+    const p = [w.x1 + u[0] * t + n[0] * off, w.y1 + u[1] * t + n[1] * off];
+    const fs = 1.8, bh = 2.8, bw = label.length * fs * 0.62 + 1.6;
+    // always upright, so H and V read as letters
+    s += `<g class="conbadge${consError(w) > 0.5 ? ' bad' : ''}" data-k="W:${w.id}" transform="translate(${r2(p[0])} ${r2(p[1])}) scale(${mm})">`
+      + `<rect x="${r2(-bw / 2)}" y="${-bh / 2}" width="${r2(bw)}" height="${bh}" rx="${bh / 2}"/>`
+      + `<text class="tx" x="0" y="0" font-size="${fs}" text-anchor="middle" dominant-baseline="central">${esc(label)}</text></g>`;
+  }
+  return s + '</g>';
+}
+
 export function planSvg(project, floorIdx, lib, opts = {}) {
   const b = project.building;
   const floor = b.floors[floorIdx];
@@ -547,6 +576,7 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   for (const d of floor.dims || []) if (note(d)) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
   // floor plan (not the installation plans, not on paper): the length of every wall beside it
   if (!disc && !opts.print && b.wallLens !== false) s += wallLensSvg(floor, k);
+  if (!disc && !opts.print && b.showCons !== false) s += consBadgesSvg(floor, k);
   // room names
   for (const t of floor.texts) {
     s += `<g class="ptext${sel.has('T:' + t.id) ? ' sel' : ''}" data-k="T:${t.id}" transform="translate(${r2(t.x)} ${r2(t.y)}) scale(${1 / k})">`;

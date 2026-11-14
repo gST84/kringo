@@ -323,6 +323,7 @@ body[data-mode=schematic] svg.plancanvas, body[data-mode=building] svg.canvas:no
 .clabel { font-weight: bold; fill: #c2410c; }
 .croom { fill: #555; }
 .overlay .ghostwall { fill: rgba(31, 111, 235, .35); stroke: none; }
+.overlay .conflict { fill: rgba(220, 38, 38, .25); stroke: #dc2626; }
 .overlay .ghostdiv { stroke: rgba(31, 111, 235, .8); fill: none; }
 .overlay .ghostopen { fill: rgba(31, 111, 235, .35); stroke: none; }
 .overlay .measure { fill: var(--sel); font-weight: bold; }
@@ -451,6 +452,11 @@ svg.dial .deg { font-size: 11px; fill: var(--muted); font-family: system-ui, san
 .plan .walllen.inner .walllenbox { stroke: #8a8a8a; }
 .plan .walllen.open .walllenbox { fill: #fff; stroke: #2563eb; }
 .plan .walllen.open .walllentx { fill: #1d4ed8; }
+.plan .conbadge { cursor: pointer; }
+.plan .conbadge rect { fill: #f3e8ff; stroke: #7c3aed; stroke-width: 0.25; }
+.plan .conbadge text { fill: #5b21b6; font-weight: normal; }
+.plan .conbadge.bad rect { fill: #fee2e2; stroke: #dc2626; }
+.plan .conbadge.bad text { fill: #b91c1c; }
 .plan .stair:hover line, .plan .stair:hover polyline { stroke: #4b8af0; }
 .ink .handle.round { fill: #e8f0fe; }
 .overlay .ghostarea { fill: rgba(31, 111, 235, .2); stroke: var(--sel); stroke-dasharray: 2 1; }
