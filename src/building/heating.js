@@ -4,7 +4,7 @@
 // the room grid, the lengths and the link between the building model and the generator.
 import { t } from '../i18n.js';
 import { uid } from '../util.js';
-import { pathLength } from './render.js';
+import { pathLength, stairsFromBelow } from './render.js';
 import { roomPolygon } from './rooms.js';
 import { isDivider, wallGeom } from './model.js';
 import { passable } from './traces.js';
@@ -194,7 +194,8 @@ export function generateFloorHeating(b, floor, lib, planId) {
   for (const w of floor.walls) if (isDivider(w)) doors.push({ a: [w.x1, w.y1], b: [w.x2, w.y2] });
 
   // stairs, fitted cabinets and counters: no pipes underneath (unless ticked)
-  const blocked = (floor.stairs || []).filter((st) => !st.heat).flatMap(stairBlocks);
+  // and the stairwell of a stair coming up from the floor below
+  const blocked = [...(floor.stairs || []), ...stairsFromBelow(b, b.floors.indexOf(floor))].filter((st) => !st.heat).flatMap(stairBlocks);
 
   // out with the pipes generated before
   floor.shapes = (floor.shapes || []).filter((sh) => !(sh.type === 'pipe' && sh.gen));

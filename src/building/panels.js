@@ -232,6 +232,54 @@ function alignBlock(app, f) {
       'Leeg: gelijk verdelen tussen de buitenste. Ingevuld: vaste afstand vanaf het eerste (links / boven).'));
 }
 
+/**
+ * Set the length of a straight wall from its start point. Walls that end on the moved end point follow:
+ * a wall in line is just lengthened / shortened, any other wall shifts along with the end point (so a room
+ * grows or shrinks), and the walls ending on that shifted wall stretch with it.
+ */
+function setWallLength(f, w, len) {
+  const g = wallGeom(w), r2 = (x) => Math.round(x * 100) / 100;
+  const P = [w.x2, w.y2], N = [r2(w.x1 + g.u[0] * len), r2(w.y1 + g.u[1] * len)];
+  const d = [N[0] - P[0], N[1] - P[1]];
+  const at = (o, i) => (i === 1 ? [o.x1, o.y1] : [o.x2, o.y2]);
+  const put = (o, i, p) => { if (i === 1) { o.x1 = p[0]; o.y1 = p[1]; } else { o.x2 = p[0]; o.y2 = p[1]; } };
+  const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.01;
+  const stretch = [], shift = [];
+  for (const o of f.walls) {
+    if (o === w) continue;
+    for (const i of [1, 2]) {
+      if (!near(at(o, i), P)) continue;
+      const q = at(o, 3 - i), L = Math.hypot(q[0] - P[0], q[1] - P[1]);
+      const inLine = o.cx == null && L > 0 && Math.abs(g.u[0] * (q[1] - P[1]) - g.u[1] * (q[0] - P[0])) / L < 0.01;
+      if (inLine) stretch.push([o, i]); else if (!shift.includes(o)) shift.push(o);
+    }
+  }
+  // walls that end on a shifted wall (at its far end or against it) keep hanging on it
+  const follow = [];
+  for (const s of shift) {
+    const sg = wallGeom(s);
+    for (const o of f.walls) {
+      if (o === w || shift.includes(o)) continue;
+      for (const i of [1, 2]) {
+        const q = at(o, i);
+        if (near(q, P)) continue;
+        if (near(q, [s.x1, s.y1]) || near(q, [s.x2, s.y2])) { follow.push([o, i, q]); continue; }
+        if (s.cx != null) continue;
+        const t = (q[0] - s.x1) * sg.u[0] + (q[1] - s.y1) * sg.u[1];
+        const dist = Math.abs((q[0] - s.x1) * sg.u[1] - (q[1] - s.y1) * sg.u[0]);
+        if (dist < 1 && t > 0.5 && t < sg.len - 0.5) follow.push([o, i, q]);
+      }
+    }
+  }
+  put(w, 2, N);
+  for (const [o, i] of stretch) put(o, i, N);
+  for (const s of shift) {
+    s.x1 = r2(s.x1 + d[0]); s.y1 = r2(s.y1 + d[1]); s.x2 = r2(s.x2 + d[0]); s.y2 = r2(s.y2 + d[1]);
+    if (s.cx != null) { s.cx = r2(s.cx + d[0]); s.cy = r2(s.cy + d[1]); }
+  }
+  for (const [o, i, q] of follow) put(o, i, [r2(q[0] + d[0]), r2(q[1] + d[1])]);
+}
+
 export function buildingProps(app, plan) {
   const b = app.project.building;
   const f = app.floor;
@@ -271,9 +319,8 @@ export function buildingProps(app, plan) {
       g.arc
         ? h('p', null, t('Lengte (cm)'), ': ', h('b', null, String(Math.round(g.len * 10) / 10)), ' · ', t('straal {r} cm', { r: Math.round(g.r) }))
         : field('Lengte (cm)', inp(Math.round(g.len * 10) / 10, (v) => set(() => {
-          if (!(v > 0)) return;
-          w.x2 = Math.round((w.x1 + g.u[0] * v) * 100) / 100; w.y2 = Math.round((w.y1 + g.u[1] * v) * 100) / 100;
-        }), { type: 'number', key: 'wlen' }), 'Verlengt / verkort vanaf het beginpunt.'),
+          if (v > 0) setWallLength(f, w, v);
+        }), { type: 'number', key: 'wlen' }), 'Verlengt / verkort vanaf het beginpunt; aangesloten muren schuiven mee.'),
       h('div', { class: 'btnrow' },
         g.arc
           ? h('button', { onclick: () => set(() => { delete w.cx; delete w.cy; }) }, '▬ Recht maken')
@@ -326,6 +373,7 @@ export function buildingProps(app, plan) {
           num('Straal (cm)', 'r', 'sr2'), num('Treden', 'steps', 'ss', true),
           num('Draaihoek (°)', 'turn', 'sturn', true)),
         chk(st.heat, (v) => set(() => { if (v) st.heat = true; else delete st.heat; }), 'Vloerverwarming eronder', 'sheat'),
+        field('Verbinding naar andere verdieping (ventilatie)', sel(st.link || 'auto', [['auto', 'Automatisch'], ['up', 'Naar de verdieping erboven'], ['down', 'Naar de verdieping eronder'], ['none', 'Geen (gesloten trap)']], (v) => set(() => { if (v === 'auto') delete st.link; else st.link = v; }), 'slink')),
         rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
         h('div', { class: 'btnrow' },
           h('button', { onclick: () => set(() => { st.dir = st.dir === -1 ? 1 : -1; }) }, '↻ Draairichting'),
@@ -341,6 +389,7 @@ export function buildingProps(app, plan) {
         st.kind === 'quarter' ? num('Trapbreedte (cm)', 'b', 'sb') : null,
         num('Treden', 'steps', 'ss', true)),
       chk(st.heat, (v) => set(() => { if (v) st.heat = true; else delete st.heat; }), 'Vloerverwarming eronder', 'sheat'),
+        field('Verbinding naar andere verdieping (ventilatie)', sel(st.link || 'auto', [['auto', 'Automatisch'], ['up', 'Naar de verdieping erboven'], ['down', 'Naar de verdieping eronder'], ['none', 'Geen (gesloten trap)']], (v) => set(() => { if (v === 'auto') delete st.link; else st.link = v; }), 'slink')),
       rotationDial(app, plan, st.rot || 0, (deg) => rotateStair(st, deg)),
       h('div', { class: 'btnrow' },
         st.kind === 'quarter' ? h('button', { onclick: () => set(() => { st.mirror = !st.mirror; }) }, '⇋ Spiegelen') : null,
@@ -644,7 +693,8 @@ function floorProps(app, plan) {
       field('Naam', inp(f.name, (v) => set(() => { f.name = v; }), { key: 'fname' })),
       h('div', { class: 'grid2' },
         field('Schaal 1:', sel(b.scale, [[20, '20'], [50, '50'], [75, '75'], [100, '100']], (v) => set(() => { b.scale = +v; }), 'scale')),
-        field('Raster (cm)', sel(b.grid, [[1, '1'], [5, '5'], [10, '10'], [25, '25']], (v) => set(() => { b.grid = +v; }), 'grid')))),
+        field('Raster (cm)', sel(b.grid, [[1, '1'], [5, '5'], [10, '10'], [25, '25']], (v) => set(() => { b.grid = +v; }), 'grid'))),
+      chk(b.wallLens !== false, (v) => set(() => { if (v) delete b.wallLens; else b.wallLens = false; }), 'Muurlengtes tonen (cm, enkel op het scherm)', 'wlens')),
     section('Installatieplannen',
       h('p', { class: 'hint' }, t('Op deze plattegrond teken je het gebouw. De installaties (elektriciteit, sanitair, CV, ventilatie, afvoer) staan elk op een eigen plan erbovenop.')),
       h('div', { class: 'btnrow wrap' }, Object.entries(DISCS).map(([disc, info]) => {

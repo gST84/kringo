@@ -202,6 +202,45 @@ export function clearVentLabels(b) {
 
 // ---------- air flow through doors and windows (systems C and D) ----------
 
+/** Centre of a stair (cm). */
+function stairCentre(st) {
+  if (st.kind === 'spiral') return [st.x, st.y];
+  const a = ((st.rot || 0) * Math.PI) / 180;
+  return [st.x + (st.w / 2) * Math.cos(a) - (st.h / 2) * Math.sin(a), st.y + (st.w / 2) * Math.sin(a) + (st.h / 2) * Math.cos(a)];
+}
+const near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 80;
+
+/**
+ * Stairs that join two floors for the air: st.link 'up' / 'down' / 'none', or automatically: up when the
+ * floor above has a room at the stair (the stairwell / landing), down when the stair is only drawn on the
+ * upper floor. A stair drawn on both floors counts once. Returns [{ floor, st, at, dir, a, b, other, warn }]
+ * (a: room with the stair, b: room on the other floor, other: that floor).
+ */
+export function stairLinks(b) {
+  const out = [];
+  b.floors.forEach((floor, i) => {
+    for (const st of floor.stairs || []) {
+      if (isCabinet(st)) continue;
+      const at = stairCentre(st);
+      const up = b.floors[i + 1], down = b.floors[i - 1];
+      let dir = st.link || 'auto';
+      if (dir === 'auto') {
+        // the same stair drawn on the floor below already makes this link
+        if (down && (down.stairs || []).some((x) => !isCabinet(x) && near(stairCentre(x), at) && (x.link || 'auto') !== 'none')) continue;
+        dir = up && roomAt(up, ...at) ? 'up' : down && roomAt(down, ...at) ? 'down' : 'up';
+      }
+      if (dir === 'none') continue;
+      const other = dir === 'up' ? up : down;
+      const a = roomAt(floor, ...at)?.room || null, bb = other ? roomAt(other, ...at)?.room || null : null;
+      const warn = !other ? (b.floors.length > 1 ? t('Trap op {f}: er is geen verdieping {d}.', { f: floor.name, d: dir === 'up' ? t('erboven') : t('eronder') }) : '')
+        : !a ? t('Trap op {f}: staat in geen ruimte.', { f: floor.name })
+          : !bb ? t('Trap op {f}: op {o} ligt er geen ruimte boven / onder de trap (teken de overloop of hal als ruimte, op dezelfde plaats).', { f: floor.name, o: other.name }) : '';
+      out.push({ floor, st, at, dir, a, b: bb, other, warn });
+    }
+  });
+  return out;
+}
+
 /** Conductance of a connection between two rooms (relative; a door with a gap underneath = 1 per 83 cm). */
 const CONDUCT = { door: 1, door2: 1.8, slide: 3, open: 12, divider: 25, stair: 25 };
 
@@ -255,18 +294,9 @@ export function ventAirflow(b, res = ventRows(b)) {
       if (ra && rb && ra !== rb) edges.push({ a: ra, b: rb, g: CONDUCT.divider, kind: 'divider', floor, at: [p.x, p.y], n: p.n });
     }
   }
-  // stairs: the room with the stair and the room above it
-  b.floors.forEach((floor, i) => {
-    const up = b.floors[i + 1];
-    if (!up) return;
-    for (const st of floor.stairs || []) {
-      if (isCabinet(st)) continue;
-      const [cx, cy] = st.kind === 'spiral' ? [st.x, st.y] : [st.x + (st.w / 2) * Math.cos((st.rot || 0) * Math.PI / 180) - (st.h / 2) * Math.sin((st.rot || 0) * Math.PI / 180),
-        st.y + (st.w / 2) * Math.sin((st.rot || 0) * Math.PI / 180) + (st.h / 2) * Math.cos((st.rot || 0) * Math.PI / 180)];
-      const ra = roomAt(floor, cx, cy)?.room, rb = roomAt(up, cx, cy)?.room;
-      if (ra && rb) edges.push({ a: ra, b: rb, g: CONDUCT.stair, kind: 'stair', floor, at: [cx, cy], n: [0, 0] });
-    }
-  });
+  // stairs: the room with the stair and the room on the next floor (stairLinks)
+  for (const l of stairLinks(b)) if (l.warn) out.warnings.push(l.warn);
+  for (const l of stairLinks(b)) if (l.a && l.b) edges.push({ a: l.a, b: l.b, g: CONDUCT.stair, kind: 'stair', floor: l.floor, at: l.at, n: [0, 0], st: l.st });
 
   // system C: the dry rooms get their supply through the windows
   if (cfg.system === 'C') {

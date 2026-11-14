@@ -6,7 +6,7 @@ import { esc, r2 } from '../util.js';
 import { FRAME, SHEET } from '../model.js';
 import { frameSvg, shapeSvg, textSvg, SVG_STYLE } from '../schematic/render.js';
 import { geometry } from '../symbols/geom.js';
-import { colorChannels, domAddress, domKey, isDivider, MEDIA, planMedia, planTitle, symDisc, wallGeom, wallPath } from './model.js';
+import { colorChannels, domAddress, domKey, isCabinet, isDivider, MEDIA, planMedia, planTitle, symDisc, wallGeom, wallPath } from './model.js';
 import { deviations, roomArea, roomColor, roomLabelPos, roomPolygon } from './rooms.js';
 
 /** Sheet millimetres per plan centimetre. */
@@ -148,15 +148,37 @@ const arrowHead = (tip, dir, size, sw) => {
   return pline([a, tip, b], sw);
 };
 
-function stairSvg(st, sw, sel) {
+/**
+ * Stairs of the floor below that come up on this floor (shown dashed with the arrow reversed), unless the
+ * same stair is drawn here too or its link is 'none' / 'down'. Cabinets stay on their own floor.
+ */
+export function stairsFromBelow(b, floorIdx) {
+  const below = b.floors[floorIdx - 1], here = b.floors[floorIdx];
+  if (!below || !here) return [];
+  const centre = (st) => (st.kind === 'spiral' ? [st.x, st.y] : (() => {
+    const a = ((st.rot || 0) * Math.PI) / 180;
+    return [st.x + (st.w / 2) * Math.cos(a) - (st.h / 2) * Math.sin(a), st.y + (st.w / 2) * Math.sin(a) + (st.h / 2) * Math.cos(a)];
+  })());
+  return (below.stairs || []).filter((st) => !isCabinet(st) && st.link !== 'none' && st.link !== 'down'
+    && !(here.stairs || []).some((x) => !isCabinet(x) && Math.hypot(centre(x)[0] - centre(st)[0], centre(x)[1] - centre(st)[1]) < 80));
+}
+
+/**
+ * A stair; `ghost`: the stair of the floor below seen from the floor above (the stairwell): dashed outline,
+ * no fill, arrow reversed (going down), not selectable.
+ */
+function stairSvg(st, sw, sel, ghost = false) {
   const n = Math.max(2, st.steps || 14);
+  const head = ghost ? `<g class="stair ghoststair" style="pointer-events:none"` : `<g class="stair${sel ? ' sel' : ''}" data-k="S:${st.id}"`;
+  const box = ghost ? `class="stairbox stairghost ol" style="fill:none;stroke-width:${sw};stroke-dasharray:${r2(sw * 8)} ${r2(sw * 5)}"` : `class="stairbox" style="stroke-width:${sw}"`;
+  const hit = (shape) => (ghost ? '' : shape);
   if (st.kind === 'spiral') {
     const r = st.r || 100, r0 = Math.max(6, r * 0.12);
     const turn = st.turn || 360, dir = st.dir === -1 ? -1 : 1;
     const a0 = ((st.rot || 0) - 90) * Math.PI / 180;
     const P = (a, rr) => [Math.cos(a) * rr, Math.sin(a) * rr];
-    let s = `<g class="stair${sel ? ' sel' : ''}" data-k="S:${st.id}" transform="translate(${st.x} ${st.y})">`;
-    s += `<circle cx="0" cy="0" r="${r}" class="stairbox" style="stroke-width:${sw}"/><circle cx="0" cy="0" r="${r0}" style="fill:none;stroke-width:${sw}"/>`;
+    let s = `${head} transform="translate(${st.x} ${st.y})">`;
+    s += `<circle cx="0" cy="0" r="${r}" ${box}/><circle cx="0" cy="0" r="${r0}" style="fill:none;stroke-width:${sw}"/>`;
     for (let i = 0; i <= n; i++) {
       const a = a0 + dir * (turn * Math.PI / 180) * (i / n);
       if (i === n && turn >= 360) break;
@@ -167,11 +189,12 @@ function stairSvg(st, sw, sel) {
     const end = turn * 0.92;
     for (let i = 0; i <= 48; i++) arc.push(P(a0 + dir * (end * Math.PI / 180) * (i / 48) + dir * 0.15, ra));
     s += pline(arc, sw);
-    const ae = a0 + dir * (end * Math.PI / 180) + dir * 0.15;
-    s += arrowHead(P(ae, ra), [-Math.sin(ae) * dir, Math.cos(ae) * dir], Math.min(15, r * 0.15), sw);
-    return s + `<circle class="hit" cx="0" cy="0" r="${r}"/></g>`;
+    const ae = a0 + dir * (end * Math.PI / 180) + dir * 0.15, as = a0 + dir * 0.15;
+    s += ghost ? arrowHead(P(as, ra), [Math.sin(as) * dir, -Math.cos(as) * dir], Math.min(15, r * 0.15), sw)
+      : arrowHead(P(ae, ra), [-Math.sin(ae) * dir, Math.cos(ae) * dir], Math.min(15, r * 0.15), sw);
+    return s + hit(`<circle class="hit" cx="0" cy="0" r="${r}"/>`) + '</g>';
   }
-  let s = `<g class="stair${sel ? ' sel' : ''}" data-k="S:${st.id}" transform="translate(${st.x} ${st.y}) rotate(${st.rot || 0})">`;
+  let s = `${head} transform="translate(${st.x} ${st.y}) rotate(${st.rot || 0})">`;
   if (st.kind === 'tall' || st.kind === 'counter') {
     // tall cabinet: box with a cross; counter: box with one diagonal and the worktop's front edge
     const W = st.w, H = st.h;
@@ -188,7 +211,7 @@ function stairSvg(st, sw, sel) {
     const W = st.w, H = st.h;
     const b = Math.min(st.b || 90, W - 10, H - 10);
     s += `<g${st.mirror ? ` transform="translate(${W} 0) scale(-1 1)"` : ''}>`;
-    s += `<polygon class="stairbox ol" points="${pts([[0, 0], [W, 0], [W, b], [b, b], [b, H], [0, H]])}" style="stroke-width:${sw}"/>`;
+    s += ghost ? `<polygon points="${pts([[0, 0], [W, 0], [W, b], [b, b], [b, H], [0, H]])}" ${box}/>` : `<polygon class="stairbox ol" points="${pts([[0, 0], [W, 0], [W, b], [b, b], [b, H], [0, H]])}" style="stroke-width:${sw}"/>`;
     const nw = n >= 8 ? 3 : 1;
     const L1 = H - b, L2 = W - b;
     const n1 = Math.max(1, Math.round(((n - nw) * L1) / (L1 + L2))), n2 = Math.max(1, n - nw - n1);
@@ -201,15 +224,17 @@ function stairSvg(st, sw, sel) {
     }
     for (let i = 0; i < n2; i++) s += line([b + (L2 * i) / n2, 0], [b + (L2 * i) / n2, b], sw * 0.7);
     s += pline([[b / 2, H - L1 * 0.1], [b / 2, b / 2], [W - L2 * 0.08, b / 2]], sw);
-    s += arrowHead([W - L2 * 0.08, b / 2], [1, 0], Math.min(15, b * 0.2), sw);
+    s += ghost ? arrowHead([b / 2, H - L1 * 0.1], [0, 1], Math.min(15, b * 0.2), sw) : arrowHead([W - L2 * 0.08, b / 2], [1, 0], Math.min(15, b * 0.2), sw);
     s += '</g>';
-    return s + `<rect class="hit" x="0" y="0" width="${W}" height="${H}"/></g>`;
+    return s + hit(`<rect class="hit" x="0" y="0" width="${W}" height="${H}"/>`) + '</g>';
   }
-  s += `<rect x="0" y="0" width="${st.w}" height="${st.h}" class="stairbox" style="stroke-width:${sw}"/>`;
+  s += `<rect x="0" y="0" width="${st.w}" height="${st.h}" ${box}/>`;
   for (let i = 1; i < n; i++) s += `<line x1="0" y1="${r2((st.h * i) / n)}" x2="${st.w}" y2="${r2((st.h * i) / n)}" style="stroke-width:${sw * 0.7}"/>`;
   const cx = st.w / 2;
-  s += `<path d="M ${cx} ${st.h * 0.9} L ${cx} ${st.h * 0.1} M ${cx - st.w * 0.12} ${st.h * 0.1 + st.w * 0.15} L ${cx} ${st.h * 0.1} L ${cx + st.w * 0.12} ${st.h * 0.1 + st.w * 0.15}" style="stroke-width:${sw}"/>`;
-  return s + `<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/></g>`;
+  s += ghost
+    ? `<path d="M ${cx} ${st.h * 0.1} L ${cx} ${st.h * 0.9} M ${cx - st.w * 0.12} ${st.h * 0.9 - st.w * 0.15} L ${cx} ${st.h * 0.9} L ${cx + st.w * 0.12} ${st.h * 0.9 - st.w * 0.15}" style="stroke-width:${sw}"/>`
+    : `<path d="M ${cx} ${st.h * 0.9} L ${cx} ${st.h * 0.1} M ${cx - st.w * 0.12} ${st.h * 0.1 + st.w * 0.15} L ${cx} ${st.h * 0.1} L ${cx + st.w * 0.12} ${st.h * 0.1 + st.w * 0.15}" style="stroke-width:${sw}"/>`;
+  return s + hit(`<rect class="hit" x="0" y="0" width="${st.w}" height="${st.h}"/>`) + '</g>';
 }
 
 /** Geometry of a dimension line: measured points, dimension line points, unit vectors. */
@@ -407,6 +432,28 @@ function symbolSvg(sym, def, k, building, sel, opts) {
   return s + '</g>';
 }
 
+/** Wall lengths (centre line, cm) in a small box on the middle of every wall. */
+function wallLensSvg(floor, k) {
+  const mm = 1 / k;
+  let s = '<g class="walllen">';
+  for (const w of floor.walls) {
+    if (isDivider(w)) continue;
+    const len = wallGeom(w).len;
+    if (len < 20) continue;
+    const path = wallPath(w, len / 2 - 0.5, len / 2 + 0.5, 0);
+    const a = path[0], c = path[path.length - 1];
+    const mid = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
+    let ang = (Math.atan2(c[1] - a[1], c[0] - a[0]) * 180) / Math.PI;
+    if (ang > 90.01 || ang <= -89.99) ang += 180;
+    const label = String(Math.round(len));
+    const bw = label.length * 1.15 + 1.2, bh = 2.6;
+    s += `<g transform="translate(${r2(mid[0])} ${r2(mid[1])}) scale(${mm}) rotate(${r2(ang)})">`
+      + `<rect class="walllenbox" x="${r2(-bw / 2)}" y="${-bh / 2}" width="${r2(bw)}" height="${bh}" rx="0.4"/>`
+      + textSvg(0, 0.7, label, 2, 'middle', 'tx walllentx') + '</g>';
+  }
+  return s + '</g>';
+}
+
 export function planSvg(project, floorIdx, lib, opts = {}) {
   const b = project.building;
   const floor = b.floors[floorIdx];
@@ -469,9 +516,12 @@ export function planSvg(project, floorIdx, lib, opts = {}) {
   }
   // underfloor heating pipes (floor heating plan): above the door gaps, under the stairs and symbols
   for (const sh of floor.shapes || []) if (sh.type === 'pipe' && note(sh)) s += pipeSvg(sh, k, sw, sel.has('P:' + sh.id), opts);
+  for (const st of stairsFromBelow(b, floorIdx)) s += stairSvg(st, sw, false, true);
   for (const st of floor.stairs) s += stairSvg(st, sw, sel.has('S:' + st.id));
   for (const sh of floor.shapes || []) if (sh.type === 'line' && note(sh)) s += planShapeSvg(sh, k, sel.has('P:' + sh.id), opts);
   for (const d of floor.dims || []) if (note(d)) s += dimSvg(d, k, sw, sel.has('D:' + d.id), opts);
+  // floor plan (not the installation plans, not on paper): the length of every wall beside it
+  if (!disc && !opts.print && b.wallLens !== false) s += wallLensSvg(floor, k);
   // room names
   for (const t of floor.texts) {
     s += `<g class="ptext${sel.has('T:' + t.id) ? ' sel' : ''}" data-k="T:${t.id}" transform="translate(${r2(t.x)} ${r2(t.y)}) scale(${1 / k})">`;
